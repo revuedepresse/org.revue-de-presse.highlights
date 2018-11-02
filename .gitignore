@@ -1,3 +1,6 @@
+.cpcache
+.rebel*
+node_modules
 /target
 /classes
 /checkouts

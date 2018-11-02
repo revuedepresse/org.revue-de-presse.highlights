@@ -1,0 +1,9 @@
+{:main press-review.core
+ :output-to "target/main.js"
+ :output-dir "target"
+ :infer-externs true
+ :npm-deps false
+ :foreign-libs [{:file "dist/index_bundle.js"
+                 :provides ["react", "react-dom"]
+                 :global-exports {react React
+                                  react-dom ReactDOM}}]}
