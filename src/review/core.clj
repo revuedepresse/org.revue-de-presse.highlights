@@ -1,6 +1,5 @@
+; About gen-class examples
 ; @see https://clojure.org/reference/compilation#_gen_class_examples
-; about gen-class examples
-;
 (ns review.core
   (:require [clojure.edn :as edn]
             [environ.core :refer [env]]
@@ -14,7 +13,9 @@
   (:gen-class))
 
 (defn connect-to-db
+
   [config]
+
   (defdb database-connection {
     :classname "com.mysql.jdbc.Driver"
     :subprotocol "mysql"
@@ -24,13 +25,15 @@
     :delimiters "`"
     :user (:user config)
     :password (:password config)})
+
   (declare users)
+
   (defentity users
-         (pk :usr_id)
-         (table :weaving_user)
-         (database database-connection)
-         (entity-fields :usr_twitter_username :usr_twitter_id))
-  ;(println (exec-raw ["SELECT * FROM weaving_user LIMIT 10"] :results))
+    (pk :usr_id)
+    (table :weaving_user)
+    (database database-connection)
+    (entity-fields :usr_twitter_username :usr_twitter_id))
+
   {:users users})
 
 (defn find-user-by-username
@@ -39,9 +42,8 @@
   (println type users)
   (println (-> (select* users) (where {:usr_twitter_username username}) (as-sql))))
 
+; About RabbitMQ message consumption and Clojure
 ; @see http://clojurerabbitmq.info/articles/getting_started.html#hello-world-example
-; @see https://github.com/mudge/php-clj#usage
-;
 (defn get-message-handler
   [users]
   (fn
