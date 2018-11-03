@@ -18,25 +18,39 @@
     [ch {:keys [content-type delivery-tag type] :as meta} ^bytes payload]
     (let [member (find-user-by-username (first (json/read-str (php->clj (String. payload  "UTF-8")))) users)
           screen-name (:screen_name (first member))]
-          (get-member-by-screen-name screen-name))))
+          (println (get-member-by-screen-name screen-name)))))
 
-(defn consume-network-queue
-  []
-  (let [rabbitmq (edn/read-string (:rabbitmq env))
-        entities (connect-to-db (edn/read-string (:database env)))
+(defn disconnect-from-amqp-server
+  "Close connection and channel"
+  [ch conn]
+  (println "[main] Disconnecting...")
+  (rmq/close ch)
+  (rmq/close conn))
+
+(defn connect-to-amqp-server
+  [environment-configuration]
+  (let [rabbitmq (edn/read-string (:rabbitmq environment-configuration))
         conn (rmq/connect {:host (:host rabbitmq)
                            :username (:user rabbitmq)
                            :password (:password rabbitmq)
                            :port (Integer/parseInt (:port rabbitmq))
                            :vhost (:vhost rabbitmq)})
-        ch   (lch/open conn)
+        ch (lch/open conn)
         qname (:queue rabbitmq)
+        entities (connect-to-db (edn/read-string (:database environment-configuration)))
         message-handler (get-message-handler (:users entities))]
     (println (format "[main] Connected. Channel id: %d" (.getChannelNumber ch)))
+    {:channel ch
+     :queue qname
+     :message-handler message-handler
+     :connection conn}))
 
-    (lc/subscribe ch qname message-handler {:auto-ack false})
-
-    (Thread/sleep 60000)
-    (println "[main] Disconnecting...")
-    (rmq/close ch)
-    (rmq/close conn)))
+(defn consume-network-queue
+  []
+  (let [{connection :connection
+         channel :channel
+         queue :queue
+         message-handler :message-handler} (connect-to-amqp-server env)]
+  (lc/subscribe channel queue message-handler {:auto-ack false})
+  (Thread/sleep 60000)
+  (disconnect-from-amqp-server channel connection)))
