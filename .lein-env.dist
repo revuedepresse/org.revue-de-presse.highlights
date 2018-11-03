@@ -14,4 +14,10 @@
     :host     "update_me"
     :vhost    "update_me"
   }
+  :twitter {
+    :consumer-key    "update_me"
+    :consumer-secret "update_me"
+    :token           "update_me"
+    :secret          "update_me"
+  }
 }
