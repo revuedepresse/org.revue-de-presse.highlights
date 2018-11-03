@@ -1,5 +1,6 @@
 .cpcache
 .rebel*
+resources/*edn
 node_modules
 /target
 /classes
@@ -12,3 +13,4 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+!.lein-env.dist

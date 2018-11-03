@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "react": "^16.5.2",
-    "react-dom": "^16.5.2",
-    "webpack": "^4.21.0",
-    "webpack-cli": "^3.1.2"
-  }
-}
