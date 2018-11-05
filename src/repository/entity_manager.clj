@@ -1,14 +1,14 @@
 (ns repository.entity-manager
     (:require [korma.core :as db]
               [clojure.edn :as edn]
+              [clojure.tools.logging :as log]
               [clj-uuid :as uuid])
     (:use [korma.db]))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
   [config]
-  (defdb database-connection {
-                              :classname "com.mysql.jdbc.Driver"
+  (defdb database-connection {:classname "com.mysql.jdbc.Driver"
                               :subprotocol "mysql"
                               :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
                               :useUnicode "yes"
@@ -106,8 +106,9 @@
   "Find a member by her / his username"
   [screen-name members]
   (-> (db/select* members)
-      (db/fields [:usr_twitter_username :screen_name]
-                 [:usr_id :id])
+      (db/fields [:usr_id :id]
+                 [:usr_twitter_id :twitter-id]
+                 [:usr_twitter_username :screen-name])
       (db/where {:usr_twitter_username screen-name})
       (db/select)))
 
@@ -201,12 +202,28 @@
                                                         :subscription-id subscription-id}
                                                        member-subscriptions)]
     (if member-subscription
-      member-subscription
+      (do (log/info (str "An existing subscription has been found in favor of member having id #" subscription-id))
+      member-subscription)
+      (do (log/info (str "A new subscription is about to be recorded in favor of member having id #" subscription-id))
       (new-member-subscription {:member-id member-id
                                 :subscription-id subscription-id}
-                               member-subscriptions))))
+                               member-subscriptions)))))
+
+(defn ensure-subscription-exists-in-favor-of-member-having-id
+  [{member-id :member-id
+    member-subscriptions :member-subscriptions}]
+    (fn [subscription-id]
+      (ensure-member-subscription-exists {:member-id member-id
+                                          :subscription-id subscription-id}
+                                         member-subscriptions)))
 
 (defn ensure-subscriptions-exists-for-member-having-id
-  [member-id member-subscriptions]
-  (fn [subscription-id]
-  (ensure-member-subscription-exists {:member-id member-id :subscription-id subscription-id}  member-subscriptions)))
+  [{member-id                          :member-id
+    member-subscriptions               :member-subscriptions
+    matching-subscriptions-members-ids :matching-subscriptions-members-ids}]
+  (let [for-each-member-subscription (ensure-subscription-exists-in-favor-of-member-having-id {:member-id member-id
+                                                                                               :member-subscriptions member-subscriptions})]
+  (log/info (str "About to ensure " (count matching-subscriptions-members-ids)
+                   " subscriptions for member having id #" member-id " are recorded."))
+  (doall (map for-each-member-subscription matching-subscriptions-members-ids)))
+)

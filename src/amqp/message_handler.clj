@@ -23,10 +23,10 @@
     ;(println ((ensure-subscriptions-exists-for-member-having-id member-id member-subscriptions)
     ;           first-match)))
 
-    (map (ensure-subscriptions-exists-for-member-having-id member-id member-subscriptions)
-        matching-subscriptions-members-ids)
+    (ensure-subscriptions-exists-for-member-having-id {:member-id member-id
+                                                       :member-subscriptions member-subscriptions
+                                                       :matching-subscriptions-members-ids matching-subscriptions-members-ids})))
     ;(println (get-subscribees-of-member screen-name))
-    ))
 
 (defn get-message-handler
   "Get AMQP message handler"

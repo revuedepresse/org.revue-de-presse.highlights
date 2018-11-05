@@ -49,7 +49,7 @@
     <orderEntry type="library" name="Leiningen: org.clojure/data.json:0.2.6" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/java.jdbc:0.3.5" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/spec.alpha:0.1.143" level="project" />
-    <orderEntry type="library" name="Leiningen: org.clojure/tools.logging:0.3.1" level="project" />
+    <orderEntry type="library" name="Leiningen: org.clojure/tools.logging:0.4.1" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.12" level="project" />
     <orderEntry type="library" name="Leiningen: org.slf4j/slf4j-api:1.6.2" level="project" />
     <orderEntry type="library" name="Leiningen: org.slf4j/slf4j-log4j12:1.6.2" level="project" />
