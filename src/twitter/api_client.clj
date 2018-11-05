@@ -7,7 +7,7 @@
           [twitter.callbacks.handlers]
           [twitter.api.restful]))
 
-(def ^:dynamic *skip-api-calls* true)
+(def ^:dynamic *skip-api-calls* false)
 
 (defn twitter-credentials
   "Make Twitter OAuth credentials from the environment configuration"
@@ -36,7 +36,7 @@
 
 (defn get-subscriptions-of-member
   [screen-name]
-  (if (not *skip-api-calls*)
+  (if *skip-api-calls*
     {}
     (:ids (:body (friends-ids :oauth-creds (twitter-credentials)
                :params {:screen-name screen-name})))))

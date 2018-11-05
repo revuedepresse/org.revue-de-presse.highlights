@@ -15,18 +15,14 @@
   [payload entity-manager]
   (let [{members              :members
          member-subscriptions :member-subscriptions} entity-manager
-        screen-name "gpeal8"                                ;(first (json/read-str (php->clj (String. payload  "UTF-8"))))
+        screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
         member-id (get-id-of-member-having-username screen-name members)
         subscriptions-ids (get-subscriptions-of-member screen-name)
         matching-subscriptions-members-ids (find-members-ids-by-id subscriptions-ids members)]
 
-    ;(println ((ensure-subscriptions-exists-for-member-having-id member-id member-subscriptions)
-    ;           first-match)))
-
     (ensure-subscriptions-exists-for-member-having-id {:member-id member-id
-                                                       :member-subscriptions member-subscriptions
+                                                       :model member-subscriptions
                                                        :matching-subscriptions-members-ids matching-subscriptions-members-ids})))
-    ;(println (get-subscribees-of-member screen-name))
 
 (defn get-message-handler
   "Get AMQP message handler"

@@ -112,19 +112,32 @@
       (db/where {:usr_twitter_username screen-name})
       (db/select)))
 
+(defn select-member-subscriptions
+  [model]
+  (-> (db/select* model)
+      (db/fields :id
+                 :member_id
+                 :subscription_id)))
+
 (defn find-member-subscription
   "Find a member subscription"
   [member-subscription member-subscriptions]
   (let [{member-id :member-id
          subscription-id :subscription-id} member-subscription
-        member-subscription (-> (db/select* member-subscriptions)
-                                 (db/fields :id
-                                            :member_id
-                                            :subscription_id)
+        member-subscription (-> (select-member-subscriptions member-subscriptions)
                                  (db/where {:member_id member-id
                                             :subscription_id subscription-id})
                                  (db/select))]
     (first member-subscription)))
+
+(defn find-member-subscriptions-by
+  "Find multiple member subscriptions"
+  ; @see https://clojure.org/guides/destructuring#_where_to_destructure
+  [{:keys [member-id subscriptions-ids]} model]
+  (-> (select-member-subscriptions model)
+                                 (db/where (and (= :member_id member-id)
+                                                (in :subscription_id subscriptions-ids)))
+                                 (db/select)))
 
 (defn select-members
   [members]
@@ -158,40 +171,44 @@
     (map #(:id %) matching-members)))
 
 (defn new-member-subscription
-    [member-subscription member-subscriptions]
-    (let [{member-id :member-id
-           subscription-id :subscription-id} member-subscription]
-      (db/insert member-subscriptions
-                 (db/values [{:id (uuid/to-string (uuid/v1))
-                              :member_id member-id
-                              :subscription_id subscription-id}]))
-      (find-member-subscription {:member-id member-id
-                                 :subscription-id subscription-id} member-subscriptions)))
+  [member-subscription member-subscriptions]
+  (let [{member-id :member-id
+         subscription-id :subscription-id} member-subscription]
+    (db/insert member-subscriptions
+               (db/values [{:id (uuid/to-string (uuid/v1))
+                            :member_id member-id
+                            :subscription_id subscription-id}]))
+    (find-member-subscription {:member-id member-id
+                               :subscription-id subscription-id} member-subscriptions)))
+
+(defn new-member-subscriptions
+  [member-subscriptions model]
+  (db/insert model (db/values member-subscriptions)))
 
 (defn new-member
-    [member members]
-    (let [{screen-name :screen-name
-           twitter-id :twitter-id
-           description :description
-           total-subscribees :total-subscribees
-           total-subscriptions :total-subscriptions
-           is-protected :is-protected
-           is-suspended :is-suspended
-           is-not-found :is-not-found} member]
+  [member members]
+  (let [{screen-name :screen-name
+         twitter-id :twitter-id
+         description :description
+         total-subscribees :total-subscribees
+         total-subscriptions :total-subscriptions
+         is-protected :is-protected
+         is-suspended :is-suspended
+         is-not-found :is-not-found} member]
 
-      (db/insert members
-                 (db/values [{:usr_twitter_id twitter-id
-                              :usr_twitter_username screen-name
-                              :usr_locked false
-                              :usr_status false
-                              :usr_email (str "@" screen-name)
-                              :description description
-                              :not_found is-not-found
-                              :suspended is-suspended
-                              :protected is-protected
-                              :total_subscribees total-subscribees
-                              :total_subscriptions total-subscriptions}]))
-      (find-member-by-id twitter-id members)))
+    (db/insert members
+               (db/values [{:usr_twitter_id twitter-id
+                            :usr_twitter_username screen-name
+                            :usr_locked false
+                            :usr_status false
+                            :usr_email (str "@" screen-name)
+                            :description description
+                            :not_found is-not-found
+                            :suspended is-suspended
+                            :protected is-protected
+                            :total_subscribees total-subscribees
+                            :total_subscriptions total-subscriptions}]))
+    (find-member-by-id twitter-id members)))
 
 (defn ensure-member-subscription-exists
   "Ensure a member subscription exists"
@@ -217,13 +234,30 @@
                                           :subscription-id subscription-id}
                                          member-subscriptions)))
 
+(defn create-member-subscriptions-values
+  [member-id]
+  (fn [subscription-id]
+    {:id              (uuid/to-string (uuid/v1))
+     :member_id       member-id
+     :subscription_id subscription-id}))
+
 (defn ensure-subscriptions-exists-for-member-having-id
-  [{member-id                          :member-id
-    member-subscriptions               :member-subscriptions
+  [{member-id :member-id
+    model     :model
     matching-subscriptions-members-ids :matching-subscriptions-members-ids}]
-  (let [for-each-member-subscription (ensure-subscription-exists-in-favor-of-member-having-id {:member-id member-id
-                                                                                               :member-subscriptions member-subscriptions})]
-  (log/info (str "About to ensure " (count matching-subscriptions-members-ids)
+  (let [existing-member-subscriptions (find-member-subscriptions-by {:member-id         member-id
+                                                                     :subscriptions-ids matching-subscriptions-members-ids}
+                                                                    model)
+        existing-member-subscriptions-ids (map #(:subscription_id %) existing-member-subscriptions)
+        member-subscriptions (clojure.set/difference (set matching-subscriptions-members-ids) (set existing-member-subscriptions-ids))
+        missing-member-subscriptions (map (create-member-subscriptions-values member-id) member-subscriptions)]
+
+    (log/info (str "About to ensure " (count missing-member-subscriptions)
                    " subscriptions for member having id #" member-id " are recorded."))
-  (doall (map for-each-member-subscription matching-subscriptions-members-ids)))
-)
+
+    (new-member-subscriptions missing-member-subscriptions model)
+
+    (log/info (str (count missing-member-subscriptions)
+                 " subscriptions have been recorded successfully"))))
+
+
