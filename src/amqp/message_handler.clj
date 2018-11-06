@@ -7,22 +7,55 @@
               [langohr.basic :as lb]
               [langohr.consumers :as lc]
               [langohr.core :as rmq]
+              [clojure.tools.logging :as log]
               [php_clj.core :refer [php->clj clj->php]])
     (:use [repository.entity-manager]
           [twitter.api-client]))
 
+(def ^:dynamic *skip-subscriptions* false)
+
+(def ^:dynamic *skip-subscribees* false)
+
+(defn new-member-from-json
+  [member-id]
+  (let [member (get-member-by-id member-id)]
+    member))
+
+(defn ensure-members-exist
+  [members-ids]
+  (map new-member-from-json members-ids))
+
 (defn process-payload
   [payload entity-manager]
-  (let [{members              :members
-         member-subscriptions :member-subscriptions} entity-manager
+  (let [{members :members
+         member-subscriptions :member-subscriptions
+         member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
         member-id (get-id-of-member-having-username screen-name members)
+        subscribees-ids (get-subscribees-of-member screen-name)
+        matching-subscribees-members (find-members-by-id subscribees-ids members)
+        matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
+        missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)
         subscriptions-ids (get-subscriptions-of-member screen-name)
-        matching-subscriptions-members-ids (find-members-ids-by-id subscriptions-ids members)]
+        matching-subscriptions-members (find-members-by-id subscriptions-ids members)
+        matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
+        missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
 
-    (ensure-subscriptions-exists-for-member-having-id {:member-id member-id
-                                                       :model member-subscriptions
-                                                       :matching-subscriptions-members-ids matching-subscriptions-members-ids})))
+    (when (not *skip-subscriptions*)
+      (if missing-subscriptions-members-ids
+        (ensure-members-exist missing-subscriptions-members-ids)
+        (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
+        (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
+                                                         :model member-subscriptions
+                                                         :matching-subscriptions-members-ids matching-subscriptions-members-ids}))
+
+    (when (not *skip-subscribees*)
+      (if missing-subscribees-members-ids
+        (ensure-members-exist missing-subscribees-members-ids)
+        (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
+        (ensure-subscribees-exist-for-member-having-id {:member-id member-id
+                                                       :model member-subscribees
+                                                       :matching-subscribees-members-ids matching-subscribees-members-ids}))))
 
 (defn get-message-handler
   "Get AMQP message handler"
@@ -31,7 +64,8 @@
   [entity-manager]
   (fn
       [ch {:keys [content-type delivery-tag type] :as meta} ^bytes payload]
-      process-payload payload entity-manager))
+      (process-payload payload entity-manager)
+      (lb/ack ch delivery-tag)))
 
 (defn disconnect-from-amqp-server
   "Close connection and channel"
@@ -67,8 +101,9 @@
          entity-manager :entity-manager
          message-handler :message-handler
          total-messages :total-messages} options
-        [metadata payload] (lb/get channel queue auto-ack)]
-    (process-payload payload entity-manager)))
+        [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
+    (process-payload payload entity-manager)
+    (lb/ack channel delivery-tag)))
 
 (s/def ::total-messages #(or (nil? %) (pos-int? %)))
 
@@ -81,12 +116,15 @@
          queue :queue
          message-handler :message-handler} (connect-to-amqp-server env)]
     (if total-messages
-      (pull-messages-from-queue {:auto-ack false
-                                 :entity-manager (get-entity-manager (:database env))
-                                 :total-messages total-messages
-                                 :queue queue
-                                 :channel channel
-                                 :message-handler message-handler})
+      (loop [messages-to-consume total-messages]
+        (when (> messages-to-consume 0)
+          (pull-messages-from-queue {:auto-ack false
+                                   :entity-manager (get-entity-manager (:database env))
+                                   :total-messages total-messages
+                                   :queue queue
+                                   :channel channel
+                                   :message-handler message-handler})
+          (recur (dec messages-to-consume))))
       (lc/subscribe channel queue message-handler {:auto-ack false}))
-  (Thread/sleep 60000)
+  (Thread/sleep 1000)
   (disconnect-from-amqp-server channel connection)))

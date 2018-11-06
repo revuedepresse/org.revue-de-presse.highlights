@@ -21,10 +21,13 @@
 
 (defn get-member-by-screen-name
   [screen-name]
-  (if *skip-api-calls*
-    {}
-    (users-show :oauth-creds (twitter-credentials)
-              :params {:screen-name screen-name})))
+  (users-show :oauth-creds (twitter-credentials)
+              :params {:screen-name screen-name}))
+
+(defn get-member-by-id
+  [id]
+  (users-show :oauth-creds (twitter-credentials)
+              :params {:id id}))
 
 (defn get-id-of-member-having-username
   [screen-name members]
