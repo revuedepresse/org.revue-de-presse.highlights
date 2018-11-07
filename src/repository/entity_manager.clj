@@ -7,12 +7,16 @@
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
+  ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
+  ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
   [config]
   (defdb database-connection {:classname "com.mysql.jdbc.Driver"
                               :subprotocol "mysql"
                               :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
                               :useUnicode "yes"
-                              :characterEncoding (:charset config)
+                              :characterEncoding "UTF-8"
+                              :characterSet "utf8mb4"
+                              :collation "utf8mb4_unicode_ci"
                               :delimiters "`"
                               :user (:user config)
                               :password (:password config)})
@@ -231,7 +235,8 @@
          is-not-found :is-not-found} member]
 
     (db/insert members
-               (db/values [{:usr_twitter_id twitter-id
+               (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
+                            :usr_twitter_id twitter-id
                             :usr_twitter_username screen-name
                             :usr_locked false
                             :usr_status false

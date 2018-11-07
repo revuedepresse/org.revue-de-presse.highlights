@@ -17,13 +17,21 @@
 (def ^:dynamic *skip-subscribees* false)
 
 (defn new-member-from-json
-  [member-id tokens]
-  (let [member (get-member-by-id member-id tokens)]
+  [member-id tokens members]
+  (let [twitter-user (get-member-by-id member-id tokens)
+        member (new-member {:description (:description twitter-user)
+                :is-protected (if (not= (:protected twitter-user) "false") 1 0)
+                :is-suspended 0
+                :is-not-found 01
+                :total-subscribees (:followers_count twitter-user)
+                :total-subscriptions (:friends_count twitter-user)
+                :twitter-id (:id_str twitter-user)
+                :screen-name (:screen_name twitter-user)} members)]
     member))
 
 (defn ensure-members-exist
-  [members-ids tokens]
-  (map new-member-from-json members-ids tokens))
+  [members-ids tokens members]
+  (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))
 
 (defn process-payload
   [payload entity-manager]
@@ -44,7 +52,10 @@
 
     (when (not *skip-subscriptions*)
       (if missing-subscriptions-members-ids
-        (ensure-members-exist missing-subscriptions-members-ids tokens)
+        (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
+                                                          :model member-subscriptions
+                                                          :matching-subscriptions-members-ids
+                                                                     (ensure-members-exist missing-subscriptions-members-ids tokens members)})
         (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
         (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
                                                          :model member-subscriptions
@@ -52,7 +63,9 @@
 
     (when (not *skip-subscribees*)
       (if missing-subscribees-members-ids
-        (ensure-members-exist missing-subscribees-members-ids tokens)
+        (ensure-subscribees-exist-for-member-having-id {:member-id member-id
+                                                        :model member-subscribees
+                                                        :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids tokens members)})
         (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
         (ensure-subscribees-exist-for-member-having-id {:member-id member-id
                                                        :model member-subscribees
