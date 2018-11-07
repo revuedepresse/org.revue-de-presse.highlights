@@ -233,8 +233,8 @@
          is-protected :is-protected
          is-suspended :is-suspended
          is-not-found :is-not-found} member]
-
-    (db/insert members
+    (try
+      (db/insert members
                (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
                             :usr_twitter_id twitter-id
                             :usr_twitter_username screen-name
@@ -247,6 +247,7 @@
                             :protected is-protected
                             :total_subscribees total-subscribees
                             :total_subscriptions total-subscriptions}]))
+      (catch Exception e (log/error (.getMessage e))))
     (find-member-by-id twitter-id members)))
 
 (defn create-member-subscription-values

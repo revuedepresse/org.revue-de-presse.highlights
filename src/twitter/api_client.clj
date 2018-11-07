@@ -40,10 +40,12 @@
   [headers endpoint]
   (let [ten-percent-of-limit (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
-    (when
-      (< (Long/parseLong (:x-rate-limit-remaining headers)) ten-percent-of-limit)
-      (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
-      (Thread/sleep (* 60 15 1000)))))
+    (try
+      (when
+        (< (Long/parseLong (:x-rate-limit-remaining headers)) ten-percent-of-limit)
+        (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
+        (Thread/sleep (* 60 15 1000)))
+       (catch Exception e (log/error (.getMessage e))))))
 
 (defn get-member-by-screen-name
   [screen-name token-model]
