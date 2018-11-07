@@ -138,7 +138,7 @@
 (defn find-first-available-tokens
   "Find a token which has not been frozen"
   [model]
-  (first (-> (select-tokens model)
+  (second (-> (select-tokens model)
       (db/where (and (= :type 1)
                       (not= (db/sqlfn coalesce :consumer_key -1) -1)
                       (<= :frozen_until (db/sqlfn now))))

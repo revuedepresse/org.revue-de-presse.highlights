@@ -27,10 +27,18 @@
   (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"" endpoint "\"" ))
   (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"" endpoint "\"" )))
 
+(defn ten-percent-of-limit
+  "Calculate 10 % of the rate limit, return 1 on exception"
+  [headers]
+  (def percentage (atom 1))
+  (try (swap! percentage #(when (= % 1) (/ (Long/parseLong (:x-rate-limit-limit headers)) 10)))
+      (catch Exception e (log/error (.getMessage e)))
+      (finally @percentage)))
+
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
   [headers endpoint]
-  (let [ten-percent-of-limit (/ (Long/parseLong (:x-rate-limit-limit headers)) 10)]
+  (let [ten-percent-of-limit (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
     (when
       (< (Long/parseLong (:x-rate-limit-remaining headers)) ten-percent-of-limit)
