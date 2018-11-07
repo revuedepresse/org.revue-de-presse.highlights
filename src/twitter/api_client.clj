@@ -1,13 +1,12 @@
 (ns twitter.api-client
     (:require [clojure.edn :as edn]
+              [clojure.tools.logging :as log]
               [environ.core :refer [env]])
     (:use [repository.entity-manager]
           [twitter.oauth]
           [twitter.callbacks]
           [twitter.callbacks.handlers]
           [twitter.api.restful]))
-
-(def ^:dynamic *skip-api-calls* false)
 
 (defn twitter-credentials
   "Make Twitter OAuth credentials from the environment configuration"
@@ -21,8 +20,10 @@
 
 (defn get-member-by-screen-name
   [screen-name]
-  (users-show :oauth-creds (twitter-credentials)
-              :params {:screen-name screen-name}))
+  (let [users (users-show :oauth-creds (twitter-credentials)
+              :params {:screen-name screen-name})]
+    users))
+
 
 (defn get-member-by-id
   [id]
@@ -39,14 +40,22 @@
 
 (defn get-subscriptions-of-member
   [screen-name]
-  (if *skip-api-calls*
-    {}
-    (:ids (:body (friends-ids :oauth-creds (twitter-credentials)
-               :params {:screen-name screen-name})))))
+  (let [subscriptions (friends-ids
+                      :oauth-creds (twitter-credentials)
+                      :params {:screen-name screen-name})
+        headers (:headers subscriptions)
+        friends (:body subscriptions)]
+    (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"friends/ids\"" ))
+    (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"friends/ids\"" ))
+    (:ids friends)))
 
 (defn get-subscribees-of-member
   [screen-name]
-  (if *skip-api-calls*
-    {}
-    (:ids (:body (followers-ids :oauth-creds (twitter-credentials)
-                 :params {:screen-name screen-name})))))
+  (let [subscribees (followers-ids
+                        :oauth-creds (twitter-credentials)
+                        :params {:screen-name screen-name})
+        headers (:headers subscribees)
+        followers (:body subscribees)]
+    (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"followers/ids\"" ))
+    (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"followers/ids\"" ))
+    (:ids followers)))
