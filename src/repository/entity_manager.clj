@@ -138,9 +138,19 @@
 (defn find-first-available-tokens
   "Find a token which has not been frozen"
   [model]
-  (second (-> (select-tokens model)
+  (first (-> (select-tokens model)
       (db/where (and (= :type 1)
                       (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                      (<= :frozen_until (db/sqlfn now))))
+      (db/select))))
+
+(defn find-first-available-tokens-other-than
+  "Find a token which has not been frozen"
+  [consumer-key model]
+  (first (-> (select-tokens model)
+      (db/where (and (= :type 1)
+                      (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                      (not= (:consumer_key consumer-key))
                       (<= :frozen_until (db/sqlfn now))))
       (db/select))))
 
