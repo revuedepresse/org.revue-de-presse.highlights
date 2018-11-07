@@ -11,51 +11,76 @@
 (defn twitter-credentials
   "Make Twitter OAuth credentials from the environment configuration"
   ; @see https://github.com/adamwynne/twitter-api#restful-calls
-  [& args]
-  (let [credentials (edn/read-string (:twitter env))]
-    (make-oauth-creds (:consumer-key credentials)
-                      (:consumer-secret credentials)
-                      (:token credentials)
-                      (:secret credentials))))
+  [token]
+  (let [{consumer-key :consumer-key
+         consumer-secret :consumer-secret
+         token :token
+         secret :secret} token
+        credentials (edn/read-string (:twitter env))]
+    (make-oauth-creds consumer-key
+                      consumer-secret
+                      token
+                      secret)))
+
+(defn log-remaining-calls-for
+  [headers endpoint]
+  (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"" endpoint "\"" ))
+  (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"" endpoint "\"" )))
+
+(defn guard-against-api-rate-limit
+  "Wait for 15 min whenever a API rate limit is about to be reached"
+  [headers endpoint]
+  (let [ten-percent-of-limit (/ (Long/parseLong (:x-rate-limit-limit headers)) 10)]
+    (log-remaining-calls-for headers endpoint)
+    (when
+      (< (Long/parseLong (:x-rate-limit-remaining headers)) ten-percent-of-limit)
+      (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
+      (Thread/sleep (* 60 15 1000)))))
 
 (defn get-member-by-screen-name
-  [screen-name]
-  (let [users (users-show :oauth-creds (twitter-credentials)
-              :params {:screen-name screen-name})]
-    users))
-
+  [screen-name token-model]
+  (let [token (find-first-available-tokens token-model)
+        user (users-show :oauth-creds (twitter-credentials token)
+              :params {:screen-name screen-name})
+        headers (:headers user)]
+    (guard-against-api-rate-limit headers "users/show")
+    (:body user)))
 
 (defn get-member-by-id
-  [id]
-  (users-show :oauth-creds (twitter-credentials)
-              :params {:id id}))
+  [id token-model]
+  (let [token (find-first-available-tokens token-model)
+        user (users-show :oauth-creds (twitter-credentials token)
+              :params {:id id})
+        headers (:headers user)]
+    (guard-against-api-rate-limit headers "users/show")
+    (:body user)))
 
 (defn get-id-of-member-having-username
-  [screen-name members]
-  (let [matching-members (find-member-by-screen-name screen-name members)
+  [screen-name member-model token-model]
+  (let [matching-members (find-member-by-screen-name screen-name member-model)
         member (if matching-members
                   (first matching-members)
-                  (get-member-by-screen-name screen-name))]
+                  (get-member-by-screen-name screen-name token-model))]
     (:id member)))
 
 (defn get-subscriptions-of-member
-  [screen-name]
-  (let [subscriptions (friends-ids
-                      :oauth-creds (twitter-credentials)
+  [screen-name token-model]
+  (let [token (find-first-available-tokens token-model)
+        subscriptions (friends-ids
+                      :oauth-creds (twitter-credentials token)
                       :params {:screen-name screen-name})
         headers (:headers subscriptions)
         friends (:body subscriptions)]
-    (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"friends/ids\"" ))
-    (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"friends/ids\"" ))
+    (guard-against-api-rate-limit headers "friends/ids")
     (:ids friends)))
 
 (defn get-subscribees-of-member
-  [screen-name]
-  (let [subscribees (followers-ids
-                        :oauth-creds (twitter-credentials)
+  [screen-name token-model]
+  (let [token (find-first-available-tokens token-model)
+        subscribees (followers-ids
+                        :oauth-creds (twitter-credentials token)
                         :params {:screen-name screen-name})
         headers (:headers subscribees)
         followers (:body subscribees)]
-    (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"followers/ids\"" ))
-    (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"followers/ids\"" ))
+    (guard-against-api-rate-limit headers "followers/ids")
     (:ids followers)))

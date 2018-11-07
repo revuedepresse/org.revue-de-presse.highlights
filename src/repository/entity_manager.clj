@@ -17,7 +17,17 @@
                               :user (:user config)
                               :password (:password config)})
 
-  (declare users members subscriptions subscribees member-subscriptions member-subscribees)
+  (declare tokens users members subscriptions subscribees member-subscriptions member-subscribees)
+
+  (db/defentity tokens
+                (db/table :weaving_access_token)
+                (db/database database-connection)
+                (db/entity-fields
+                  :token
+                  :secret
+                  :consumer_key
+                  :consumer_secret
+                  :frozen_until))
 
   ; It seems that duplicates are required to express the relationships
   ; @see https://github.com/korma/Korma/issues/281
@@ -96,7 +106,8 @@
    :subscribees subscribees
    :subscriptions subscriptions
    :member-subscriptions member-subscriptions
-   :member-subscribees member-subscribees})
+   :member-subscribees member-subscribees
+   :tokens tokens})
 
 (defn get-entity-manager
   [config]
@@ -111,6 +122,23 @@
                  [:usr_twitter_username :screen-name])
       (db/where {:usr_twitter_username screen-name})
       (db/select)))
+
+(defn select-tokens
+  [model]
+  (-> (db/select* model)
+      (db/fields [:consumer_key :consumer-key]
+                 [:consumer_secret :consumer-secret]
+                 :token
+                 :secret)))
+
+(defn find-first-available-tokens
+  "Find a token which has not been frozen"
+  [model]
+  (first (-> (select-tokens model)
+      (db/where (and (= :type 1)
+                      (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                      (<= :frozen_until (db/sqlfn now))))
+      (db/select))))
 
 (defn select-member-subscriptions
   [model]
