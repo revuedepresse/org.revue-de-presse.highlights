@@ -150,7 +150,7 @@
   (first (-> (select-tokens model)
       (db/where (and (= :type 1)
                       (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                      (not= (:consumer_key consumer-key))
+                      (not= :consumer_key consumer-key)
                       (<= :frozen_until (db/sqlfn now))))
       (db/select))))
 
