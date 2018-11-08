@@ -135,6 +135,12 @@
                  :token
                  :secret)))
 
+(defn freeze-token
+  [consumer-key model]
+  (db/update model
+      (db/set-fields {:frozen_until (db/sqlfn now)})
+      (db/where {:consumer_key consumer-key})))
+
 (defn find-first-available-tokens
   "Find a token which has not been frozen"
   [model]
@@ -242,15 +248,25 @@
          total-subscriptions :total-subscriptions
          is-protected :is-protected
          is-suspended :is-suspended
-         is-not-found :is-not-found} member]
+         is-not-found :is-not-found} member
+         member-twitter-id (atom twitter-id)
+         member-screen-name (atom screen-name)]
+
+    (when (or is-not-found is-protected is-suspended)
+      (when (not member-screen-name)
+        (swap! member-screen-name (constantly twitter-id))))
+
+    (log/info "About to insert member with twitter id #"@member-twitter-id
+              "and twitter screen mame \""@member-screen-name"\"")
+
     (try
       (db/insert members
                (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
-                            :usr_twitter_id twitter-id
-                            :usr_twitter_username screen-name
+                            :usr_twitter_id @member-twitter-id
+                            :usr_twitter_username @member-screen-name
                             :usr_locked false
                             :usr_status false
-                            :usr_email (str "@" screen-name)
+                            :usr_email (str "@" @member-screen-name)
                             :description description
                             :not_found is-not-found
                             :suspended is-suspended

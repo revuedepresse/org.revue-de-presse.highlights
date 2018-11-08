@@ -16,6 +16,7 @@
     <orderEntry type="library" name="Leiningen: cheshire:5.8.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-http:3.8.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-oauth:1.5.5" level="project" />
+    <orderEntry type="library" name="Leiningen: clj-time:0.15.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-tuple:0.2.2" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.4" level="project" />
     <orderEntry type="library" name="Leiningen: clojurewerkz/support:1.1.0" level="project" />
@@ -32,6 +33,7 @@
     <orderEntry type="library" name="Leiningen: environ:1.1.0" level="project" />
     <orderEntry type="library" name="Leiningen: http.async.client:1.2.0" level="project" />
     <orderEntry type="library" name="Leiningen: io.netty/netty:3.10.5.Final" level="project" />
+    <orderEntry type="library" name="Leiningen: joda-time:2.10" level="project" />
     <orderEntry type="library" name="Leiningen: korma:0.4.0" level="project" />
     <orderEntry type="library" name="Leiningen: log4j:1.2.16" level="project" />
     <orderEntry type="library" name="Leiningen: mysql/mysql-connector-java:5.1.47" level="project" />

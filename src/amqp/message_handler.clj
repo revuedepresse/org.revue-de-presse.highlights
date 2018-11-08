@@ -18,7 +18,7 @@
 
 (defn new-member-from-json
   [member-id tokens members]
-  (let [twitter-user (get-member-by-id member-id tokens)
+  (let [twitter-user (get-member-by-id member-id tokens members)
         member (new-member {:description (:description twitter-user)
                 :is-protected (if (not= (:protected twitter-user) "false") 1 0)
                 :is-suspended 0
@@ -31,6 +31,7 @@
 
 (defn ensure-members-exist
   [members-ids tokens members]
+  (log/info (str "About to ensure " (count members-ids) " member(s) exist."))
   (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))
 
 (defn process-payload

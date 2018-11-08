@@ -8,6 +8,7 @@
             :url "https://opensource.org/licenses/MIT"}
 
   :dependencies [[org.clojure/clojure "1.9.0"]
+                 [clj-time "0.15.0"]
                  [environ "1.1.0"]
                  [com.novemberain/langohr "5.0.0" :exclusions [org.slf4j/slf4j-api]]
                  [mysql/mysql-connector-java "5.1.47"]
