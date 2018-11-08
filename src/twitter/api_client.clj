@@ -40,15 +40,16 @@
 (defn set-next-token
   "Set the next token by swapping the value of an atom
   and declare the current consumer key related to this token"
-  [token]
-  (let [consumer-key (:consumer-key token)]
-    (swap! next-token (constantly token))                   ; @see https://clojuredocs.org/clojure.core/constantly
-    (swap! current-consumer-key (constantly consumer-key))1
-    (log/info "The next consumer key used to call the Twitter API is about to be \""(:consumer-key token)"\"")
+  [token context]
+  (let [token-candidate token
+        consumer-key (:consumer-key token)]
+    (swap! next-token (constantly token-candidate))         ; @see https://clojuredocs.org/clojure.core/constantly
+    (swap! current-consumer-key (constantly consumer-key))
+    (log/info "The next consumer key issued from " context " is about to be \""(:consumer-key token)"\"")
     @next-token))
 
 (defn find-next-token
-  [token-model]
+  [token-model context]
   (let [next-token-candidate (find-first-available-tokens token-model)
         unfrozen-at (get @frozen-tokens (keyword (:consumer-key next-token-candidate)))]
   (if (and
@@ -56,8 +57,8 @@
         (or
           (nil? unfrozen-at)
           (t/after? (l/local-now) unfrozen-at)))
-    (set-next-token next-token-candidate)
-    (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model)))))
+    (set-next-token next-token-candidate context)
+    (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model) context))))
 
 (defn log-remaining-calls-for
   [headers endpoint]
@@ -87,7 +88,7 @@
     (log-remaining-calls-for headers endpoint)
     (try (when (and
             (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
-            (nil? (set-next-token (find-first-available-tokens-other-than @current-consumer-key model))))
+            (nil? @next-token))
             (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
             (Thread/sleep (* 60 15 1000)))
        (catch Exception e (log/error (.getMessage e))))))
@@ -117,7 +118,7 @@
   (c/from-long (+ (* 60 15 000) (c/to-long (l/local-now)))))
 
 (defn member-by-prop
-  [{screen-name :screen-name id :id}  token-model member-model]
+  [{screen-name :screen-name id :id}  token-model member-model context]
 
   (def member (atom nil))
 
@@ -125,7 +126,7 @@
              (:users/show @call-limits)
              (<= (:users/show @remaining-calls) (ten-percent-of (:users/show @call-limits))))
     (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) (in-15-minutes)))
-    (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model)))
+    (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model) context))
 
   (try
     (if (nil? id)
@@ -141,34 +142,22 @@
                                    :is-not-found 1})))))
   (if (nil? (deref member))
     (do
-      (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model))
-      (member-by-prop {:screen-name screen-name :id id} token-model member-model))
+      (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model) context)
+      (member-by-prop {:screen-name screen-name :id id} token-model member-model context))
     (guard-against-exceptional-member @member member-model)))
-
-(defn member-by-id
-  [id token-model]
-  (def member (atom nil))
-  (try
-    (swap! member (constantly (get-twitter-user-by-id id)))
-    (catch Exception e (log/error (.getMessage e))))
-    (if (nil? (deref member))
-      (do
-        (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model))
-        (member-by-id id token-model))
-      @member))
 
 (defn get-member-by-screen-name
   [screen-name token-model member-model]
-  (let [_ (find-next-token token-model)
-        user (member-by-prop {:screen-name screen-name} token-model member-model)
+  (let [_ (find-next-token token-model "a call to \"users/show\" with a screen name")
+        user (member-by-prop {:screen-name screen-name} token-model member-model "a call to \"users/show\" with a screen name")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show" token-model)
     (:body user)))
 
 (defn get-member-by-id
   [id token-model member-model]
-  (let [_ (find-next-token token-model)
-        user (member-by-prop {:id id} token-model member-model)
+  (let [_ (find-next-token token-model "a call to \"users/show\" with an id")
+        user (member-by-prop {:id id} token-model member-model "a call to \"users/show\" with an id")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show" token-model)
     (:body user)))
@@ -199,7 +188,7 @@
 
 (defn get-subscriptions-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model)
+  (let [_ (find-next-token token-model "a call to \"friends/ids\"")
         subscriptions (get-subscriptions-by-screen-name screen-name)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
@@ -208,7 +197,7 @@
 
 (defn get-subscribees-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model)
+  (let [_ (find-next-token token-model "a call to \"followers/ids\"")
         subscribees (get-subscribers-by-screen-name screen-name)
         headers (:headers subscribees)
         followers (:body subscribees)]
