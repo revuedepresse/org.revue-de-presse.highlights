@@ -9,4 +9,4 @@
 (defn -main
   "AMQP message consuming application"
   []
-  (consume-messages-from-network-queue 10))
+  (consume-messages-from-network-queue 100))
