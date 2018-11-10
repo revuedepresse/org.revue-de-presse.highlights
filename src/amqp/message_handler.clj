@@ -45,6 +45,41 @@
     (doall (pmap #(:id (new-member-from-json % tokens members)) members-ids))
     (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))))
 
+(defn process-subscriptions
+  [member-id screen-name member-subscription-model token-model member-model]
+  (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model)
+        matching-subscriptions-members (find-members-by-id subscriptions-ids member-model)
+        matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
+        missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
+
+    (when (not *skip-subscriptions*)
+      (if missing-subscriptions-members-ids
+        (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
+                                                          :model member-subscription-model
+                                                          :matching-subscriptions-members-ids
+                                                                     (ensure-members-exist missing-subscriptions-members-ids token-model member-model)})
+        (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
+      (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
+                                                        :model member-subscription-model
+                                                        :matching-subscriptions-members-ids matching-subscriptions-members-ids}))))
+
+(defn process-subscribees
+  [member-id screen-name member-subscribee-model token-model member-model]
+  (let [subscribees-ids (get-subscribees-of-member screen-name token-model)
+        matching-subscribees-members (find-members-by-id subscribees-ids member-model)
+        matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
+        missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)]
+
+    (when (not *skip-subscribees*)
+      (if missing-subscribees-members-ids
+        (ensure-subscribees-exist-for-member-having-id {:member-id member-id
+                                                        :model member-subscribee-model
+                                                        :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids tokens members)})
+        (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
+      (ensure-subscribees-exist-for-member-having-id {:member-id member-id
+                                                      :model member-subscribee-model
+                                                      :matching-subscribees-members-ids matching-subscribees-members-ids}))))
+
 (defn process-payload
   [payload entity-manager]
   (let [{members :members
@@ -52,36 +87,9 @@
          member-subscriptions :member-subscriptions
          member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
-        member-id (get-id-of-member-having-username screen-name members tokens)
-        subscribees-ids (get-subscribees-of-member screen-name tokens)
-        matching-subscribees-members (find-members-by-id subscribees-ids members)
-        matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
-        missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)
-        subscriptions-ids (get-subscriptions-of-member screen-name tokens)
-        matching-subscriptions-members (find-members-by-id subscriptions-ids members)
-        matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
-        missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
-
-    (when (not *skip-subscriptions*)
-      (if missing-subscriptions-members-ids
-        (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
-                                                          :model member-subscriptions
-                                                          :matching-subscriptions-members-ids
-                                                                     (ensure-members-exist missing-subscriptions-members-ids tokens members)})
-        (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
-        (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
-                                                         :model member-subscriptions
-                                                         :matching-subscriptions-members-ids matching-subscriptions-members-ids}))
-
-    (when (not *skip-subscribees*)
-      (if missing-subscribees-members-ids
-        (ensure-subscribees-exist-for-member-having-id {:member-id member-id
-                                                        :model member-subscribees
-                                                        :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids tokens members)})
-        (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
-        (ensure-subscribees-exist-for-member-having-id {:member-id member-id
-                                                       :model member-subscribees
-                                                       :matching-subscribees-members-ids matching-subscribees-members-ids}))))
+        member-id (get-id-of-member-having-username screen-name members tokens)]
+    (process-subscriptions member-id screen-name member-subscriptions tokens members)
+    (process-subscribees member-id screen-name member-subscribees tokens members)))
 
 (defn get-message-handler
   "Get AMQP message handler"

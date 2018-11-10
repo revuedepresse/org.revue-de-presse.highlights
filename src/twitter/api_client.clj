@@ -51,10 +51,12 @@
     @next-token))
 
 (defn consumer-keys-of-frozen-tokens
+  "Return consumer keys of tokens which are frozen."
   []
+  (let [now (l/local-now)]
   (if (nil? @frozen-tokens)
     '("_")
-    (map name (keys @frozen-tokens))))
+    (map name (keys (filter #(t/before? now (second %)) @frozen-tokens))))))
 
 (defn find-first-available-token-when
   [context model]
