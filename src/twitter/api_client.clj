@@ -75,27 +75,29 @@
     token-candidate))
 
 (defn try-calling-api
-  [call token-model context]
-    (try (call)
+  [call endpoint token-model context]
+    (try (with-open [client (ac/create-client)]
+           (call client))
       (catch Exception e
         (log/warn (.getMessage e))
         (string/includes? (.getMessage e) error-rate-limit-exceeded)
         (freeze-token @current-consumer-key token-model)
         (set-next-token
-          (find-first-available-token-when "application/rate-limit-status" "trying to call API" token-model)
+          (find-first-available-token-when endpoint "trying to call API" token-model)
           context)
-        (try-calling-api call token-model context))))
+        (try-calling-api call endpoint token-model context))))
 
 (defn get-rate-limit-status
   [model]
   (let [resources "resources=favorites,statuses,users,lists,friends,friendships,followers"
         twitter-token (twitter-credentials @next-token)
-        response (try-calling-api #(with-open [client (ac/create-client)]
-                  (application-rate-limit-status :client client
-                                                 :oauth-creds twitter-token
-                                                 :params {:resources resources}))
-                                  model
-                                  "a call to \"application/rate-limit-status\"")
+        response (try-calling-api
+                   #(application-rate-limit-status :client %
+                                                   :oauth-creds twitter-token
+                                                   :params {:resources resources})
+                  "application/rate-limit-status"
+                  model
+                  "a call to \"application/rate-limit-status\"")
         resources (:resources (:body response))]
         (swap! rate-limits (constantly resources))))
 
@@ -244,7 +246,10 @@
               (handle-rate-limit-exceeded-error "users/show" token-model)
               (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
           (string/includes? (.getMessage e) error-user-not-found)
-            (guard-against-exceptional-member {:screen_name screen-name :is-not-found 1} member-model))))))
+            (guard-against-exceptional-member {:screen_name screen-name
+                                               :is-not-found 1
+                                               :protected 0
+                                               :suspended 0} member-model))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -299,25 +304,29 @@
     (:id member)))
 
 (defn get-subscriptions-by-screen-name
-  [screen-name]
-  (with-open [client (ac/create-client)]
-    (friends-ids
-      :client client
-      :oauth-creds (twitter-credentials @next-token)
-      :params {:screen-name screen-name})))
+  [screen-name tokens-model]
+  (try-calling-api
+    #(friends-ids :client %
+                  :oauth-creds (twitter-credentials @next-token)
+                  :params {:screen-name screen-name})
+    "friends/id"
+    tokens-model
+    "a call to \"friends/id\""))
 
 (defn get-subscribers-by-screen-name
-  [screen-name]
-  (with-open [client (ac/create-client)]
-    (followers-ids
-      :client client
-      :oauth-creds (twitter-credentials @next-token)
-      :params {:screen-name screen-name})))
+  [screen-name tokens-model]
+  (try-calling-api
+      #(followers-ids :client %
+                      :oauth-creds (twitter-credentials @next-token)
+                      :params {:screen-name screen-name})
+      "followers/id"
+      tokens-model
+      "a call to \"followers/id\""))
 
 (defn get-subscriptions-of-member
   [screen-name token-model]
   (let [_ (find-next-token token-model "users/show" "trying to call to \"friends/ids\"")
-        subscriptions (get-subscriptions-by-screen-name screen-name)
+        subscriptions (get-subscriptions-by-screen-name screen-name token-model)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
     (guard-against-api-rate-limit headers "friends/ids")
@@ -326,7 +335,7 @@
 (defn get-subscribees-of-member
   [screen-name token-model]
   (let [_ (find-next-token token-model "users/show" "trying to call to \"followers/ids\"")
-        subscribees (get-subscribers-by-screen-name screen-name)
+        subscribees (get-subscribers-by-screen-name screen-name token-model)
         headers (:headers subscribees)
         followers (:body subscribees)]
     (guard-against-api-rate-limit headers "followers/ids")
