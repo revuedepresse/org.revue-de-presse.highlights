@@ -2,6 +2,7 @@
     (:require [korma.core :as db]
               [clojure.edn :as edn]
               [clojure.tools.logging :as log]
+              [pandect.algo.sha1 :refer :all]
               [clj-uuid :as uuid])
     (:use [korma.db]))
 
@@ -21,7 +22,69 @@
                               :user (:user config)
                               :password (:password config)})
 
-  (declare tokens users members subscriptions subscribees member-subscriptions member-subscribees)
+  (declare tokens
+           aggregate
+           users members
+           subscriptions subscribees
+           member-subscriptions member-subscribees
+           liked_status status)
+
+  (db/defentity aggregate
+                (db/table :weaving_aggregate)
+                (db/database database-connection)
+                (db/entity-fields
+                  :id
+                  :name
+                  :created_at
+                  :locked
+                  :locked_at
+                  :unlocked_at
+                  :screen_name
+                  :list_id))
+
+  (db/defentity status
+                (db/table :weaving_status)
+                (db/database database-connection)
+                (db/entity-fields
+                  :ust_id
+                  :ust_hash                                 ; sha1(str ust_text  ust_status_id)
+                  :ust_text
+                  :ust_full_name                            ; twitter user screen name
+                  :ust_name                                 ; twitter user full name
+                  :ust_access_token
+                  :ust_api_document
+                  :ust_created_at
+                  :ust_status_id))
+
+  (db/defentity archived-status
+                (db/table :weaving_archived_status)
+                (db/database database-connection)
+                (db/entity-fields
+                  :ust_id
+                  :ust_hash                                 ; sha1(str ust_text  ust_status_id)
+                  :ust_text
+                  :ust_full_name                            ; twitter user screen name
+                  :ust_name                                 ; twitter user full name
+                  :ust_access_token
+                  :ust_api_document
+                  :ust_created_at
+                  :ust_status_id))
+
+  (db/defentity liked-status
+                (db/table :liked_status)
+                (db/database database-connection)
+                (db/entity-fields
+                  :id
+                  :status_id
+                  :archived_status_id
+                  :time_range
+                  :is_archived_status
+                  :member_id
+                  :member_name
+                  :liked_by
+                  :liked_by_member_name
+                  :aggregate_id
+                  :aggregate_name))
 
   (db/defentity tokens
                 (db/table :weaving_access_token)
@@ -105,17 +168,163 @@
                 (db/has-one members {:fk :usr_id})
                 (db/has-one subscribees {:fk :usr_id}))
 
-  {:users users
+  {:aggregates aggregate
+   :archived-status archived-status
+   :users users
+   :liked-status liked-status
    :members members
    :subscribees subscribees
    :subscriptions subscriptions
    :member-subscriptions member-subscriptions
    :member-subscribees member-subscribees
+   :status status
    :tokens tokens})
 
 (defn get-entity-manager
   [config]
   (connect-to-db (edn/read-string config)))
+
+(defn find-aggregate-by-id
+  "Find an aggregate by id"
+  [id model]
+  (->
+    (db/select* model)
+    (db/fields :id
+               :name
+               [:screen_name :screen-name])
+    (db/where {:id id})
+    (db/select)))
+
+(defn find-status-by-twitter-id
+  "Find a status by id"
+  [twitter-id model]
+  (->
+    (db/select* model)
+    (db/fields [:ust_id :id]
+               [:ust_hash :hash]
+               [:ust_text :text]
+               [:ust_full_name :screen-name]
+               [:ust_name :name]
+               [:ust_access_token :access-token]
+               [:ust_api_document :document]
+               [:ust_created_at :created-at]
+               [:ust_status_id :twitter-id])
+    (db/where {:ust_status_id twitter-id})
+    (db/select)))
+
+(defn new-status
+  [status model]
+  (let [{text :text
+         screen-name :screen-name
+         name :name
+         access-token :token
+         avatar :avatar
+         document :document
+         created-at :created-at
+         twitter-id :twitter-id} status]
+
+    (log/info (str "About to insert status #" twitter-id
+                   " authored by \"" screen-name "\""))
+
+    (try
+      (db/insert model
+                 (db/values [{:ust_hash (sha1 (str text twitter-id))
+                              :ust_text text
+                              :ust_full_name screen-name
+                              :ust_name name
+                              :ust_avatar avatar
+                              :ust_access_token access-token
+                              :ust_api_document document
+                              :ust_created_at created-at
+                              :ust_status_id twitter-id}]))
+      (catch Exception e (log/error (.getMessage e))))
+    (find-status-by-twitter-id twitter-id model)))
+
+(defn find-liked-status-by-id
+  "Find a liked status by id"
+  [id model]
+  (->
+    (db/select* model)
+    (db/fields :id
+               [:status_id :status-id]
+               [:archived_status_id :archived-status-id]
+               [:time_range :time-range]
+               [:is_archived_status :is-archived-status]
+               [:member_id :member-id]
+               [:member_name :member-name]
+               [:liked_by :liked-by]
+               [:liked_by_member_name :liked-by-member-name]
+               [:aggregate_id :aggregate-id]
+               [:aggregate_name :aggregate-name]
+               [:screen_name :screen-name])
+    (db/where {:id id})
+    (db/select)))
+
+(defn find-liked-status-by
+  "Find a liked status by ids of status, members"
+  [member-id liked-by-member-id status-id model]
+  (->
+    (db/select* model)
+    (db/fields :id
+               [:status_id :status-id]
+               [:archived_status_id :archived-status-id]
+               [:time_range :time-range]
+               [:is_archived_status :is-archived-status]
+               [:member_id :member-id]
+               [:member_name :member-name]
+               [:liked_by :liked-by]
+               [:liked_by_member_name :liked-by-member-name]
+               [:aggregate_id :aggregate-id]
+               [:aggregate_name :aggregate-name]
+               [:screen_name :screen-name])
+    (db/where {:liked_by_member_id liked-by-member-id
+               :member_id member-id
+               :status_id status-id})
+    (db/select)))
+
+(defn new-liked-status
+  [liked-status model]
+  (let [{status-id :status-id
+         archived-status-id :archived-status-id
+         time-range :time-range
+         is-archived-status :is-archived-status
+         member-id :member-id
+         member-name :member-name
+         liked-by :liked-by
+         liked-by-member-name :liked-by-member-name
+         aggregate-id :aggregate-id
+         aggregate-name :aggregate-name} liked-status
+        id (uuid/to-string (uuid/v1))]
+
+    (log/info (str "About to insert status liked by \"" liked-by-member-name
+                   "\" authored by \"" member-name "\""))
+
+    (try
+      (db/insert model
+                 (db/values [{:id id
+                              :status-id status-id
+                              :archived-status-id archived-status-id
+                              :time-range time-range
+                              :is-archived-status is-archived-status
+                              :member-id member-id
+                              :member-name member-name
+                              :liked-by liked-by
+                              :liked-by-member-name liked-by-member-name
+                              :aggregate-id aggregate-id
+                              :aggregate-name aggregate-name}]))
+      (catch Exception e (log/error (.getMessage e))))
+    (find-liked-status-by-id id model)))
+
+(defn find-member-by-twitter-id
+  "Find a member by her / his username"
+  [id members]
+  (first (->
+    (db/select* members)
+    (db/fields [:usr_id :id]
+               [:usr_twitter_id :twitter-id]
+               [:usr_twitter_username :screen-name])
+    (db/where {:usr_twitter_id id})
+    (db/select))))
 
 (defn find-member-by-screen-name
   "Find a member by her / his username"

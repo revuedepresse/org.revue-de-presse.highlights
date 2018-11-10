@@ -333,7 +333,7 @@
 
 (defn get-subscriptions-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model "users/show" "trying to call to \"friends/ids\"")
+  (let [_ (find-next-token token-model "users/show" "trying to make a call to \"friends/ids\"")
         subscriptions (get-subscriptions-by-screen-name screen-name token-model)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
@@ -342,9 +342,37 @@
 
 (defn get-subscribees-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model "users/show" "trying to call to \"followers/ids\"")
+  (let [_ (find-next-token token-model "users/show" "trying to make a call to \"followers/ids\"")
         subscribees (get-subscribers-by-screen-name screen-name token-model)
         headers (:headers subscribees)
         followers (:body subscribees)]
     (guard-against-api-rate-limit headers "followers/ids")
     (:ids followers)))
+
+(defn get-favorites-by-screen-name
+  [endpoint context screen-name tokens-model]
+  (try-calling-api
+    #(favorites-list :client %
+                    :oauth-creds (twitter-credentials @next-token)
+                    :params {:count 200
+                             :include-entities 1
+                             :include-rts 1
+                             :exclude-replies 0
+                             :screen-name screen-name
+                             :trim-user 0
+                             :tweet-mode "extended"})
+    endpoint
+    tokens-model
+    (str "a " context)))
+
+(defn get-favorites-of-member
+  [screen-name token-model]
+  (let [endpoint "favorites/list"
+        call "call to \"favorites/list\""
+        context (str "trying to make a " call)
+        _ (find-next-token token-model endpoint context)
+        response (get-favorites-by-screen-name endpoint call screen-name token-model)
+        headers (:headers response)
+        favorites (:body response)]
+    (guard-against-api-rate-limit headers endpoint)
+    favorites))

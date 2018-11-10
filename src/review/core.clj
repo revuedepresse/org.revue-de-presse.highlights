@@ -8,5 +8,5 @@
 
 (defn -main
   "AMQP message consuming application"
-  []
-  (consume-messages-from-network-queue 100))
+  [& [queue]]
+    (consume-messages 100 (keyword queue)))

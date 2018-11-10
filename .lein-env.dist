@@ -8,11 +8,13 @@
     :port     "update_me"
   }
   :rabbitmq {
-    :user     "update_me"
-    :password "update_me"
-    :port     "update_me"
-    :host     "update_me"
-    :vhost    "update_me"
+    :user           "update_me"
+    :password       "update_me"
+    :port           "update_me"
+    :host           "update_me"
+    :vhost          "update_me"
+    :queue-network  "update_me"
+    :queue-likes    "update_me"
   }
   :twitter {
     :consumer-key    "update_me"
