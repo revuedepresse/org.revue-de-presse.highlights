@@ -58,11 +58,18 @@
     '("_")
     (map name (keys (filter #(t/before? now (second %)) @frozen-tokens))))))
 
+(defn wait-for-15-minutes
+  [endpoint]
+  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
+  (Thread/sleep (* 60 15 1000)))
+
 (defn find-first-available-token-when
-  [context model]
+  [endpoint context model]
     (let [excluded-consumer-key @current-consumer-key
           excluded-consumer-keys (consumer-keys-of-frozen-tokens)
           token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)]
+      (when (nil? token-candidate)
+        (wait-for-15-minutes endpoint))
     (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
                    (:consumer-key token-candidate) "\" when " context))
     token-candidate))
@@ -75,7 +82,7 @@
         (string/includes? (.getMessage e) error-rate-limit-exceeded)
         (freeze-token @current-consumer-key token-model)
         (set-next-token
-          (find-first-available-token-when "trying to call API" token-model)
+          (find-first-available-token-when "application/rate-limit-status" "trying to call API" token-model)
           context)
         (try-calling-api call token-model context))))
 
@@ -130,7 +137,7 @@
         it-is-frozen (is-token-candidate-frozen next-token-candidate)]
   (if it-is-frozen
     (do
-      (set-next-token (find-first-available-token-when context token-model) context)
+      (set-next-token (find-first-available-token-when endpoint context token-model ) context)
       (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
     (set-next-token next-token-candidate context))))
 
@@ -168,11 +175,6 @@
   (try (swap! percentage (constantly (ten-percent-of (Long/parseLong (:x-rate-limit-limit headers)))))
       (catch Exception e (log/error (.getMessage e)))
       (finally @percentage)))
-
-(defn wait-for-15-minutes
-  [endpoint]
-  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
-  (Thread/sleep (* 60 15 1000)))
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
