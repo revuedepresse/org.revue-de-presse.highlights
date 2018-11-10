@@ -24,6 +24,7 @@
 
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
+(def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
 
 (defn twitter-credentials
   "Make Twitter OAuth credentials from the environment configuration"
@@ -104,8 +105,19 @@
         (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
       (set-next-token next-token-candidate context))))
 
+(defn in-15-minutes
+  []
+  (c/from-long (+ (* 60 15 1000) (c/to-long (l/local-now)))))
+
+(defn freeze-current-token
+  []
+  (let [later (in-15-minutes)]
+    (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
+    (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later)))))
+
 (defn handle-rate-limit-exceeded-error
   [endpoint token-model]
+  (freeze-current-token)
   (freeze-token @current-consumer-key token-model)
   (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
   (when (nil? @next-token)
@@ -117,8 +129,9 @@
            (call client))
       (catch Exception e
         (log/warn (.getMessage e))
-        (handle-rate-limit-exceeded-error endpoint token-model)
-        (try-calling-api call endpoint token-model context))))
+        (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
+          (handle-rate-limit-exceeded-error endpoint token-model)
+          (try-calling-api call endpoint token-model context)))))
 
 (defn get-rate-limit-status
   [model]
@@ -217,16 +230,6 @@
     (update-remaining-calls (:headers response) "users/show")
     response))
 
-(defn in-15-minutes
-  []
-  (c/from-long (+ (* 60 15 1000) (c/to-long (l/local-now)))))
-
-(defn freeze-current-token
-  []
-  (let [later (in-15-minutes)]
-  (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
-  (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later)))))
-
 (defn get-twitter-user-by-id-or-screen-name
   [{screen-name :screen-name id :id} token-model member-model]
   (do
@@ -245,7 +248,16 @@
             (guard-against-exceptional-member {:screen_name screen-name
                                                :is-not-found 1
                                                :protected 0
-                                               :suspended 0} member-model))))))
+                                               :suspended 0
+                                               :total-subscribees 0
+                                               :total-subscriptions 0} member-model)
+          (string/includes? (.getMessage e) error-user-suspended)
+            (guard-against-exceptional-member {:screen_name screen-name
+                                               :is-not-found 0
+                                               :protected 0
+                                               :suspended 1
+                                               :total-subscribees 0
+                                               :total-subscriptions 0} member-model))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []

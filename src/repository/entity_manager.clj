@@ -216,8 +216,9 @@
 (defn find-members-by-id
   "Find member by theirs Twitter ids"
   [twitter-ids members]
-  (let [matching-members (-> (select-members members)
-                                 (db/where {:usr_twitter_id [in twitter-ids]})
+  (let [ids (if twitter-ids twitter-ids '(0))
+        matching-members (-> (select-members members)
+                                 (db/where {:usr_twitter_id [in ids]})
                                  (db/select))]
     (if matching-members
       matching-members
