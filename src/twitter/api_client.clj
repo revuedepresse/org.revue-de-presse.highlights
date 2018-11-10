@@ -247,15 +247,15 @@
           (string/includes? (.getMessage e) error-user-not-found)
             (guard-against-exceptional-member {:screen_name screen-name
                                                :is-not-found 1
-                                               :protected 0
-                                               :suspended 0
+                                               :is-protected 0
+                                               :is-suspended 0
                                                :total-subscribees 0
                                                :total-subscriptions 0} member-model)
           (string/includes? (.getMessage e) error-user-suspended)
             (guard-against-exceptional-member {:screen_name screen-name
                                                :is-not-found 0
-                                               :protected 0
-                                               :suspended 1
+                                               :is-protected 0
+                                               :is-suspended 1
                                                :total-subscribees 0
                                                :total-subscriptions 0} member-model))))))
 
