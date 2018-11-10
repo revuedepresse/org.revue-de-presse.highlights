@@ -120,45 +120,51 @@
 (defn find-member-by-screen-name
   "Find a member by her / his username"
   [screen-name members]
-  (-> (db/select* members)
-      (db/fields [:usr_id :id]
-                 [:usr_twitter_id :twitter-id]
-                 [:usr_twitter_username :screen-name])
-      (db/where {:usr_twitter_username screen-name})
-      (db/select)))
+  (->
+    (db/select* members)
+    (db/fields [:usr_id :id]
+               [:usr_twitter_id :twitter-id]
+               [:usr_twitter_username :screen-name])
+    (db/where {:usr_twitter_username screen-name})
+    (db/select)))
 
 (defn select-tokens
   [model]
-  (-> (db/select* model)
-      (db/fields [:consumer_key :consumer-key]
-                 [:consumer_secret :consumer-secret]
-                 :token
-                 :secret)))
+  (->
+    (db/select* model)
+    (db/fields [:consumer_key :consumer-key]
+               [:consumer_secret :consumer-secret]
+               :token
+               :secret)))
 
 (defn freeze-token
   [consumer-key model]
-  (db/update model
-      (db/set-fields {:frozen_until (db/sqlfn now)})
-      (db/where {:consumer_key consumer-key})))
+  (db/exec-raw [(str "UPDATE weaving_access_token "
+                     "SET frozen_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) "
+                     "WHERE consumer_key = ?") [consumer-key]] :results))
 
 (defn find-first-available-tokens
   "Find a token which has not been frozen"
   [model]
   (first (-> (select-tokens model)
-      (db/where (and (= :type 1)
-                      (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                      (<= :frozen_until (db/sqlfn now))))
-      (db/select))))
+    (db/where (and (= :type 1)
+                    (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                    (<= :frozen_until (db/sqlfn now))))
+    (db/select))))
 
 (defn find-first-available-tokens-other-than
   "Find a token which has not been frozen"
-  [consumer-key model]
-  (first (-> (select-tokens model)
-      (db/where (and (= :type 1)
-                      (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                      (not= :consumer_key consumer-key)
-                      (<= :frozen_until (db/sqlfn now))))
-      (db/select))))
+  [consumer-key model context]
+  (let [first-available-token (first (-> (select-tokens model)
+                                (db/where (and
+                                            (= :type 1)
+                                            (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                                            (not= :consumer_key consumer-key)
+                                            (<= :frozen_until (db/sqlfn now))))
+                                (db/select)))]
+    (log/info (str "About to replace consumer key \"" consumer-key "\" with \""
+                   (:consumer-key first-available-token)"\" from " context))
+    first-available-token))
 
 (defn select-member-subscriptions
   [model]
@@ -171,10 +177,11 @@
   "Find multiple member subscriptions"
   ; @see https://clojure.org/guides/destructuring#_where_to_destructure
   [{:keys [member-id subscriptions-ids]} model]
-  (-> (select-member-subscriptions model)
-                                 (db/where (and (= :member_id member-id)
-                                                (in :subscription_id subscriptions-ids)))
-                                 (db/select)))
+  (let [ids (if subscriptions-ids subscriptions-ids '(0))]
+    (-> (select-member-subscriptions model)
+                                   (db/where (and (= :member_id member-id)
+                                                  (in :subscription_id ids)))
+                                   (db/select))))
 
 (defn select-member-subscribees
   [model]
@@ -186,10 +193,11 @@
 (defn find-member-subscribees-by
   "Find multiple member subscribees"
   [{:keys [member-id subscribees-ids]} model]
-  (-> (select-member-subscribees model)
-                                 (db/where (and (= :member_id member-id)
-                                                (in :subscribee_id subscribees-ids)))
-                                 (db/select)))
+  (let [ids (if subscribees-ids subscribees-ids '(0))]
+    (-> (select-member-subscribees model)
+                                   (db/where (and (= :member_id member-id)
+                                                  (in :subscribee_id ids)))
+                                   (db/select))))
 
 (defn select-members
   [members]
@@ -239,34 +247,40 @@
   [member-subscribees model]
   (db/insert model (db/values member-subscribees)))
 
+(defn screen-name-otherwise-twitter-id
+  [{is-protected :is-protected
+    is-suspended :is-suspended
+    is-not-found :is-not-found
+    screen-name :screen-name
+    twitter-id :twitter-id}]
+  (if (and
+        (or is-not-found is-protected is-suspended)
+        (not screen-name))
+      twitter-id
+      screen-name))
+
 (defn new-member
   [member members]
-  (let [{screen-name :screen-name
-         twitter-id :twitter-id
+  (let [{twitter-id :twitter-id
          description :description
          total-subscribees :total-subscribees
          total-subscriptions :total-subscriptions
          is-protected :is-protected
          is-suspended :is-suspended
          is-not-found :is-not-found} member
-         member-twitter-id (atom twitter-id)
-         member-screen-name (atom screen-name)]
+         member-screen-name (screen-name-otherwise-twitter-id member)]
 
-    (when (or is-not-found is-protected is-suspended)
-      (when (not member-screen-name)
-        (swap! member-screen-name (constantly twitter-id))))
-
-    (log/info "About to insert member with twitter id #"@member-twitter-id
-              "and twitter screen mame \""@member-screen-name"\"")
+    (log/info (str "About to insert member with twitter id #" twitter-id
+              " and twitter screen mame \"" member-screen-name "\""))
 
     (try
       (db/insert members
                (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
-                            :usr_twitter_id @member-twitter-id
-                            :usr_twitter_username @member-screen-name
+                            :usr_twitter_id twitter-id
+                            :usr_twitter_username member-screen-name
                             :usr_locked false
                             :usr_status false
-                            :usr_email (str "@" @member-screen-name)
+                            :usr_email (str "@" member-screen-name)
                             :description description
                             :not_found is-not-found
                             :suspended is-suspended

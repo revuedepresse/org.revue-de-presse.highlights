@@ -18,21 +18,32 @@
 
 (defn new-member-from-json
   [member-id tokens members]
+  (log/info (str "About to look up for member having twitter id #" member-id))
   (let [twitter-user (get-member-by-id member-id tokens members)
         member (new-member {:description (:description twitter-user)
-                :is-protected (if (not= (:protected twitter-user) "false") 1 0)
-                :is-suspended 0
-                :is-not-found 01
-                :total-subscribees (:followers_count twitter-user)
-                :total-subscriptions (:friends_count twitter-user)
-                :twitter-id (:id_str twitter-user)
-                :screen-name (:screen_name twitter-user)} members)]
+                            :is-protected (if (not= (:protected twitter-user) "false") 1 0)
+                            :is-suspended 0
+                            :is-not-found 0
+                            :total-subscribees (:followers_count twitter-user)
+                            :total-subscriptions (:friends_count twitter-user)
+                            :twitter-id (:id_str twitter-user)
+                            :screen-name (:screen_name twitter-user)} members)]
     member))
 
 (defn ensure-members-exist
   [members-ids tokens members]
-  (log/info (str "About to ensure " (count members-ids) " member(s) exist."))
-  (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))
+  (let [remaining-calls (how-many-remaining-calls-showing-user tokens)
+        total-members (count members-ids)]
+
+  (if (pos? total-members)
+    (log/info (str "About to ensure " total-members " member(s) exist."))
+    (log/info (str "No need to find some missing member.")))
+
+  (if (and
+        (not (nil? remaining-calls))
+        (< total-members remaining-calls))
+    (doall (pmap #(:id (new-member-from-json % tokens members)) members-ids))
+    (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))))
 
 (defn process-payload
   [payload entity-manager]
