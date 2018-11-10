@@ -141,7 +141,7 @@
   [consumer-key model]
   (db/exec-raw [(str "UPDATE weaving_access_token "
                      "SET frozen_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) "
-                     "WHERE consumer_key = ?") [consumer-key]] :results))
+                     "WHERE consumer_key = ?") [consumer-key]]))
 
 (defn find-first-available-tokens
   "Find a token which has not been frozen"
@@ -154,16 +154,15 @@
 
 (defn find-first-available-tokens-other-than
   "Find a token which has not been frozen"
-  [consumer-key model context]
-  (let [first-available-token (first (-> (select-tokens model)
+  [consumer-keys model]
+  (let [excluded-consumer-keys (if consumer-keys consumer-keys '("_"))
+        first-available-token (first (-> (select-tokens model)
                                 (db/where (and
                                             (= :type 1)
                                             (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                                            (not= :consumer_key consumer-key)
+                                            (not-in :consumer_key excluded-consumer-keys)
                                             (<= :frozen_until (db/sqlfn now))))
                                 (db/select)))]
-    (log/info (str "About to replace consumer key \"" consumer-key "\" with \""
-                   (:consumer-key first-available-token)"\" from " context))
     first-available-token))
 
 (defn select-member-subscriptions

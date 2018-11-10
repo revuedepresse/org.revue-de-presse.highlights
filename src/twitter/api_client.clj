@@ -50,6 +50,21 @@
     (log/info (str "The next consumer key issued from " context " is about to be \"" (:consumer-key token) "\""))
     @next-token))
 
+(defn consumer-keys-of-frozen-tokens
+  []
+  (if (nil? @frozen-tokens)
+    '("_")
+    (map name (keys @frozen-tokens))))
+
+(defn find-first-available-token-when
+  [context model]
+    (let [excluded-consumer-key @current-consumer-key
+          excluded-consumer-keys (consumer-keys-of-frozen-tokens)
+          token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)]
+    (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
+                   (:consumer-key token-candidate) "\" when " context))
+    token-candidate))
+
 (defn try-calling-api
   [call token-model context]
     (try (call)
@@ -58,7 +73,7 @@
         (string/includes? (.getMessage e) error-rate-limit-exceeded)
         (freeze-token @current-consumer-key token-model)
         (set-next-token
-          (find-first-available-tokens-other-than @current-consumer-key token-model " when trying to call API")
+          (find-first-available-token-when "trying to call API" token-model)
           context)
         (try-calling-api call token-model context))))
 
@@ -87,24 +102,33 @@
   [token-model]
   (how-many-remaining-calls-for "users/show" token-model))
 
+(defn format-date
+  [date]
+  (let [built-in-formatter (f/formatters :basic-date-time)]
+    (f/unparse built-in-formatter date)))
+
 (defn is-token-candidate-frozen
   [token]
   (let [unfrozen-at (get @frozen-tokens (keyword (:consumer-key token)))
         now (l/local-now)
+        formatted-now (format-date now)
         it-is-not (and
                     token
                     (or
                       (nil? unfrozen-at)
                       (t/after? now unfrozen-at)))]
+    (when (not (nil? unfrozen-at))
+      (log/info (str "Now being \"" formatted-now "\" \""
+                     (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
 (defn find-next-token
   [token-model endpoint context]
-  (let [next-token-candidate (if @next-token (find-first-available-tokens token-model))
+  (let [next-token-candidate (if @next-token @next-token (find-first-available-tokens token-model))
         it-is-frozen (is-token-candidate-frozen next-token-candidate)]
   (if it-is-frozen
     (do
-      (set-next-token (find-first-available-tokens-other-than @current-consumer-key token-model context) context)
+      (set-next-token (find-first-available-token-when context token-model) context)
       (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
     (set-next-token next-token-candidate context))))
 
@@ -133,7 +157,7 @@
 
 (defn ten-percent-of
   [dividend]
-  (* dividend 0.95))
+  (* dividend 0.10))
 
 (defn ten-percent-of-limit
   "Calculate 10 % of the rate limit, return 1 on exception"
@@ -143,16 +167,21 @@
       (catch Exception e (log/error (.getMessage e)))
       (finally @percentage)))
 
+(defn wait-for-15-minutes
+  [endpoint]
+  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
+  (Thread/sleep (* 60 15 1000)))
+
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
   [headers endpoint]
   (let [percentage (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
-    (try (when (and
+    (try (when
+          (and
             (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
             (nil? @next-token))
-            (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
-            (Thread/sleep (* 60 15 1000)))
+          (wait-for-15-minutes endpoint))
        (catch Exception e (log/error (.getMessage e))))))
 
 (defn guard-against-exceptional-member
@@ -185,10 +214,16 @@
 
 (defn freeze-current-token
   []
-  (let [built-in-formatter (f/formatters :basic-date-time)
-        later (in-15-minutes)]
+  (let [later (in-15-minutes)]
   (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
-  (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (f/unparse built-in-formatter later)))))
+  (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later)))))
+
+(defn handle-rate-limit-exceeded-error
+  [endpoint token-model]
+  (freeze-token @current-consumer-key token-model)
+  (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
+  (when (nil? @next-token)
+    (wait-for-15-minutes endpoint)))
 
 (defn get-twitter-user-by-id-or-screen-name
   [{screen-name :screen-name id :id} token-model member-model]
@@ -201,9 +236,11 @@
         (log/warn (.getMessage e))
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
-          (freeze-token @current-consumer-key token-model)
+            (do
+              (handle-rate-limit-exceeded-error "users/show" token-model)
+              (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
           (string/includes? (.getMessage e) error-user-not-found)
-          (guard-against-exceptional-member {:screen_name screen-name :is-not-found 1} member-model))))))
+            (guard-against-exceptional-member {:screen_name screen-name :is-not-found 1} member-model))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -235,7 +272,7 @@
 
 (defn get-member-by-screen-name
   [screen-name token-model member-model]
-  (let [_ (find-next-token token-model "users/show" "a call to \"users/show\" with a screen name")
+  (let [_ (find-next-token token-model "users/show" "trying to call \"users/show\" with a screen name")
         user (member-by-prop {:screen-name screen-name} token-model member-model "a call to \"users/show\" with a screen name")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show")
@@ -243,7 +280,7 @@
 
 (defn get-member-by-id
   [id token-model member-model]
-  (let [_ (find-next-token token-model "users/show" "a call to \"users/show\" with an id")
+  (let [_ (find-next-token token-model "users/show" "trying to call \"users/show\" with an id")
         user (member-by-prop {:id id} token-model member-model "a call to \"users/show\" with an id")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show")
@@ -253,8 +290,8 @@
   [screen-name member-model token-model]
   (let [matching-members (find-member-by-screen-name screen-name member-model)
         member (if matching-members
-                  (first matching-members)
-                  (get-member-by-screen-name screen-name token-model member-model))]
+                 (first matching-members)
+                 (get-member-by-screen-name screen-name token-model member-model))]
     (:id member)))
 
 (defn get-subscriptions-by-screen-name
@@ -275,7 +312,7 @@
 
 (defn get-subscriptions-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model "users/show" "a call to \"friends/ids\"")
+  (let [_ (find-next-token token-model "users/show" "trying to call to \"friends/ids\"")
         subscriptions (get-subscriptions-by-screen-name screen-name)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
@@ -284,7 +321,7 @@
 
 (defn get-subscribees-of-member
   [screen-name token-model]
-  (let [_ (find-next-token token-model "users/show" "a call to \"followers/ids\"")
+  (let [_ (find-next-token token-model "users/show" "trying to call to \"followers/ids\"")
         subscribees (get-subscribers-by-screen-name screen-name)
         headers (:headers subscribees)
         followers (:body subscribees)]
