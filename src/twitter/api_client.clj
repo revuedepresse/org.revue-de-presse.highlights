@@ -74,17 +74,50 @@
                    (:consumer-key token-candidate) "\" when " context))
     token-candidate))
 
+(defn format-date
+  [date]
+  (let [built-in-formatter (f/formatters :basic-date-time)]
+    (f/unparse built-in-formatter date)))
+
+(defn is-token-candidate-frozen
+  [token]
+  (let [unfrozen-at (get @frozen-tokens (keyword (:consumer-key token)))
+        now (l/local-now)
+        formatted-now (format-date now)
+        it-is-not (and
+                    token
+                    (or
+                      (nil? unfrozen-at)
+                      (t/after? now unfrozen-at)))]
+    (when (not (nil? unfrozen-at))
+      (log/info (str "Now being \"" formatted-now "\" \""
+                     (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
+    (not it-is-not)))
+
+(defn find-next-token
+  [token-model endpoint context]
+  (let [next-token-candidate (if @next-token @next-token (find-first-available-tokens token-model))
+        it-is-frozen (is-token-candidate-frozen next-token-candidate)]
+    (if it-is-frozen
+      (do
+        (set-next-token (find-first-available-token-when endpoint context token-model ) context)
+        (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
+      (set-next-token next-token-candidate context))))
+
+(defn handle-rate-limit-exceeded-error
+  [endpoint token-model]
+  (freeze-token @current-consumer-key token-model)
+  (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
+  (when (nil? @next-token)
+    (wait-for-15-minutes endpoint)))
+
 (defn try-calling-api
   [call endpoint token-model context]
     (try (with-open [client (ac/create-client)]
            (call client))
       (catch Exception e
         (log/warn (.getMessage e))
-        (string/includes? (.getMessage e) error-rate-limit-exceeded)
-        (freeze-token @current-consumer-key token-model)
-        (set-next-token
-          (find-first-available-token-when endpoint "trying to call API" token-model)
-          context)
+        (handle-rate-limit-exceeded-error endpoint token-model)
         (try-calling-api call endpoint token-model context))))
 
 (defn get-rate-limit-status
@@ -112,36 +145,6 @@
 (defn how-many-remaining-calls-showing-user
   [token-model]
   (how-many-remaining-calls-for "users/show" token-model))
-
-(defn format-date
-  [date]
-  (let [built-in-formatter (f/formatters :basic-date-time)]
-    (f/unparse built-in-formatter date)))
-
-(defn is-token-candidate-frozen
-  [token]
-  (let [unfrozen-at (get @frozen-tokens (keyword (:consumer-key token)))
-        now (l/local-now)
-        formatted-now (format-date now)
-        it-is-not (and
-                    token
-                    (or
-                      (nil? unfrozen-at)
-                      (t/after? now unfrozen-at)))]
-    (when (not (nil? unfrozen-at))
-      (log/info (str "Now being \"" formatted-now "\" \""
-                     (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
-    (not it-is-not)))
-
-(defn find-next-token
-  [token-model endpoint context]
-  (let [next-token-candidate (if @next-token @next-token (find-first-available-tokens token-model))
-        it-is-frozen (is-token-candidate-frozen next-token-candidate)]
-  (if it-is-frozen
-    (do
-      (set-next-token (find-first-available-token-when endpoint context token-model ) context)
-      (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
-    (set-next-token next-token-candidate context))))
 
 (defn update-remaining-calls
   [headers endpoint]
@@ -223,13 +226,6 @@
   (let [later (in-15-minutes)]
   (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
   (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later)))))
-
-(defn handle-rate-limit-exceeded-error
-  [endpoint token-model]
-  (freeze-token @current-consumer-key token-model)
-  (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
-  (when (nil? @next-token)
-    (wait-for-15-minutes endpoint)))
 
 (defn get-twitter-user-by-id-or-screen-name
   [{screen-name :screen-name id :id} token-model member-model]
