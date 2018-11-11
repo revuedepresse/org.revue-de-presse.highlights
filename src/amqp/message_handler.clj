@@ -49,7 +49,7 @@
 (defn process-subscriptions
   [member-id screen-name member-subscription-model token-model member-model]
   (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model)
-        matching-subscriptions-members (find-members-by-id subscriptions-ids member-model)
+        matching-subscriptions-members (find-members-having-ids subscriptions-ids member-model)
         matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
         missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
 
@@ -66,7 +66,7 @@
 (defn process-subscribees
   [member-id screen-name member-subscribee-model token-model member-model]
   (let [subscribees-ids (get-subscribees-of-member screen-name token-model)
-        matching-subscribees-members (find-members-by-id subscribees-ids member-model)
+        matching-subscribees-members (find-members-having-ids subscribees-ids member-model)
         matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
         missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)]
 
@@ -155,7 +155,7 @@
 (defn ensure-favorited-status-exists
   [aggregate favorite favorite-author model status-model member-model token-model]
   (let [{created-at :created_at
-         {liked-twitter-user-id :id} :user } favorite
+         {liked-twitter-user-id :id} :user} favorite
         liked-member (ensure-member-having-id-exists liked-twitter-user-id member-model token-model)
         status (ensure-status-having-id-exists favorite status-model)
         parsed-publication-date (c/to-long (f/parse date-formatter created-at))
@@ -193,6 +193,88 @@
                                                          token-model)]
       favorited-status))
 
+(defn get-screen-names-of-statuses-authors
+  [statuses]
+  (map (fn [{{screen-name :screen_name} :user}] screen-name) statuses))
+
+(defn get-missing-members-ids
+  [statuses model]
+  (let [ids (get-screen-names-of-statuses-authors statuses)
+        found-members (find-members-having-ids ids model)
+        matching-ids (set (map #(:id %) found-members))
+        missing-ids (clojure.set/difference (set ids) (set matching-ids))]
+    missing-ids))
+
+(defn ensure-authors-of-favorited-status-exist
+  [statuses model token-model]
+  (let [remaining-calls (how-many-remaining-calls-showing-user token-model)
+        authors-ids (map #(:id (:user %)) statuses)
+        total-authors (count authors-ids)]
+
+    (if (pos? total-authors)
+      (log/info (str "About to ensure " total-authors " member(s) exist."))
+      (log/info (str "No need to find some missing member.")))
+
+    (if (and
+          (not (nil? remaining-calls))
+          (< total-authors remaining-calls))
+      (doall (pmap #(:id (new-member-from-json % token-model model)) authors-ids))
+      (doall (map #(:id (new-member-from-json % token-model model)) authors-ids)))))
+
+(defn process-authors-of-favorited-status
+  [favorites model token-model]
+  (let [missing-members-ids (get-missing-members-ids favorites model)
+        missing-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-members-ids) favorites)
+        _ (ensure-authors-of-favorited-status-exist missing-favorites model token-model)]))
+
+(defn get-ids-of-statuses
+  [statuses]
+  (map (fn [{twitter-id :id_str}] twitter-id) statuses))
+
+(defn get-missing-statuses-ids
+  [statuses model]
+  (let [ids (get-ids-of-statuses statuses)
+        found-statuses (find-statuses-having-ids ids model)
+        matching-ids (set (map #(:twitter-id %) found-statuses))
+        missing-ids (clojure.set/difference (set ids) (set matching-ids))]
+    missing-ids))
+
+(defn new-status-from-json
+  [{twitter-id :id_str
+    text :full_text
+    created-at :created_at
+    {screen-name :screen_name
+     avatar :profile_image_url
+     name :name} :user
+    :as status} model]
+  (let [document (json/write-str status)
+        token (:token @next-token)
+        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
+        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
+        twitter-status (new-status {:text text
+                            :screen-name screen-name
+                            :avatar avatar
+                            :name name
+                            :token token
+                            :document document
+                            :created-at mysql-formatted-publication-date
+                            :twitter-id twitter-id} model)]
+    twitter-status))
+
+(defn ensure-statuses-exist
+  [statuses model]
+  (let [total-statuses (count statuses)]
+    (if (pos? total-statuses)
+      (log/info (str "About to ensure " total-statuses " statuses exist."))
+      (log/info (str "No need to find some missing status.")))
+      (doall (pmap #(:id (new-status-from-json % model)) statuses))))
+
+(defn process-favorited-statuses
+  [favorites model]
+  (let [missing-statuses-ids (get-missing-statuses-ids favorites model)
+        missing-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-statuses-ids) favorites)
+        _ (ensure-statuses-exist missing-favorites model)]))
+
 (defn process-likes
   [payload entity-manager]
   (let [{member-model :members
@@ -207,16 +289,20 @@
         member (first (find-member-by-screen-name screen-name member-model))
         favorites (get-favorites-of-member
                     {:screen-name screen-name
-                    :max-id (:min-favorite-status-id member)}
+                    :max-id (if (nil? (:min-favorite-status-id member))
+                              nil
+                              (dec (Long/parseLong (:min-favorite-status-id member))))}
                     token-model)
-        processed-likes (doall (pmap #(process-like %
-                                     member
-                                     aggregate
-                                     liked-status-model
-                                     status-model
-                                     member-model
-                                     token-model) favorites))
-        missing-favorites-statuses (doall (filter #(nil? (:id (:favorite %))) processed-likes))
+        _ (process-favorited-statuses favorites status-model)
+        _ (process-authors-of-favorited-status favorites member-model token-model)
+        processed-likes (pmap #(process-like %
+                                             member
+                                             aggregate
+                                             liked-status-model
+                                             status-model
+                                             member-model
+                                             token-model) favorites)
+        missing-favorites-statuses (filter #(nil? (:id (:favorite %))) processed-likes)
         new-favorites (new-liked-statuses (map
                               #(:favorite %)
                               missing-favorites-statuses)
@@ -231,12 +317,13 @@
                   " published by \"" (:member-name %)
                   "\" and liked by \"" (:liked-by-member-name %)
                   "\" has been saved under id \"" (:id %) "\"")) new-favorites))
-        (when (and
-               (not (nil? status))
-               (not (nil? favorite-author)))
-                  (update-min-favorite-id-for-member-having-id (:twitter-id status)
-                                                               (:id favorite-author)
-                                                               member-model))))
+        (when
+          (and
+            (not (nil? status))
+            (not (nil? favorite-author)))
+          (update-min-favorite-id-for-member-having-id (:twitter-id status)
+                                                       (:id favorite-author)
+                                                       member-model))))
 
 (defn get-message-handler
   "Get AMQP message handler"

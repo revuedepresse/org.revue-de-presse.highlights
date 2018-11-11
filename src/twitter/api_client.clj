@@ -25,6 +25,7 @@
 
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
+(def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
 
 (defn twitter-credentials

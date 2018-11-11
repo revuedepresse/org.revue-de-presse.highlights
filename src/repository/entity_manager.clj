@@ -197,6 +197,31 @@
     (db/where {:id id})
     (db/select)))
 
+(defn select-statuses
+  [model]
+  (->
+    (db/select* model)
+    (db/fields [:ust_id :id]
+               [:ust_hash :hash]
+               [:ust_text :text]
+               [:ust_full_name :screen-name]
+               [:ust_name :name]
+               [:ust_access_token :access-token]
+               [:ust_api_document :document]
+               [:ust_created_at :created-at]
+               [:ust_status_id :twitter-id])))
+
+(defn find-statuses-having-ids
+  "Find member by theirs Twitter ids"
+  [twitter-ids model]
+  (let [ids (if twitter-ids twitter-ids '(0))
+        matching-statuses (-> (select-statuses model)
+                             (db/where {:ust_status_id [in ids]})
+                             (db/select))]
+    (if matching-statuses
+      matching-statuses
+      '())))
+
 (defn find-status-by-twitter-id
   "Find a status by id"
   [twitter-id model]
@@ -368,7 +393,7 @@
                                           :id
                                           (uuid/to-string (uuid/v1)))
                                        liked-statuses)
-        liked-status-values (doall (map snake-case-keys identified-liked-statuses))
+        liked-status-values (map snake-case-keys identified-liked-statuses)
         ids (map #(:id %) identified-liked-statuses)]
     (if (pos? ( count ids))
       (do
@@ -494,7 +519,7 @@
                                  (db/select))]
     (first matching-members)))
 
-(defn find-members-by-id
+(defn find-members-having-ids
   "Find member by theirs Twitter ids"
   [twitter-ids members]
   (let [ids (if twitter-ids twitter-ids '(0))
