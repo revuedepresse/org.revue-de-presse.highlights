@@ -167,16 +167,16 @@
         favorited-status (if (pos? (count existing-liked-status))
                            (first existing-liked-status)
                            {:id nil
-                             :aggregate-id (:id aggregate)
-                             :aggregate-name (:name aggregate)
-                             :time-range (get-time-range parsed-publication-date)
-                             :publication-date-time mysql-formatted-publication-date
-                             :status-id status-id
-                             :is-archived-status 0
-                             :member-id liked-member-id
-                             :member-name (:screen-name liked-member)
-                             :liked-by liked-by-member-id
-                             :liked-by-member-name (:screen-name favorite-author)})]
+                            :aggregate-id (:id aggregate)
+                            :aggregate-name (:name aggregate)
+                            :time-range (get-time-range parsed-publication-date)
+                            :publication-date-time mysql-formatted-publication-date
+                            :status-id status-id
+                            :is-archived-status 0
+                            :member-id liked-member-id
+                            :member-name (:screen-name liked-member)
+                            :liked-by liked-by-member-id
+                            :liked-by-member-name (:screen-name favorite-author)})]
     {:favorite favorited-status
      :favorite-author favorite-author
      :status status
@@ -195,13 +195,13 @@
 
 (defn get-ids-of-statuses-authors
   [statuses]
-  (map (fn [{{member-id :id} :user}] member-id) statuses))
+  (map (fn [{{member-id :id_str} :user}] member-id) statuses))
 
 (defn get-missing-members-ids
   [statuses model]
   (let [ids (get-ids-of-statuses-authors statuses)
         found-members (find-members-having-ids ids model)
-        matching-ids (set (map #(:id %) found-members))
+        matching-ids (set (map #(:twitter-id %) found-members))
         missing-ids (clojure.set/difference (set ids) (set matching-ids))]
     missing-ids))
 
@@ -252,13 +252,13 @@
         parsed-publication-date (c/to-long (f/parse date-formatter created-at))
         mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
         twitter-status (new-status {:text text
-                            :screen-name screen-name
-                            :avatar avatar
-                            :name name
-                            :token token
-                            :document document
-                            :created-at mysql-formatted-publication-date
-                            :twitter-id twitter-id} model)]
+                                    :screen-name screen-name
+                                    :avatar avatar
+                                    :name name
+                                    :token token
+                                    :document document
+                                    :created-at mysql-formatted-publication-date
+                                    :twitter-id twitter-id} model)]
     twitter-status))
 
 (defn ensure-statuses-exist
@@ -274,6 +274,12 @@
   (let [missing-statuses-ids (get-missing-statuses-ids favorites model)
         missing-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-statuses-ids) favorites)
         _ (ensure-statuses-exist missing-favorites model)]))
+
+(defn preprocess-favorites
+  [favorites status-model member-model token-model]
+  (when (pos? (count favorites))
+    (process-favorited-statuses favorites status-model)
+    (process-authors-of-favorited-status favorites member-model token-model)))
 
 (defn process-likes
   [payload entity-manager]
@@ -293,8 +299,7 @@
                               nil
                               (dec (Long/parseLong (:min-favorite-status-id member))))}
                     token-model)
-        _ (process-favorited-statuses favorites status-model)
-        _ (process-authors-of-favorited-status favorites member-model token-model)
+        _ (preprocess-favorites favorites status-model member-model token-model)
         processed-likes (pmap #(process-like %
                                              member
                                              aggregate
