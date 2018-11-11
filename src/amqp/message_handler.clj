@@ -309,10 +309,10 @@
                                              token-model) favorites)
         missing-favorites-statuses (filter #(nil? (:id (:favorite %))) processed-likes)
         new-favorites (new-liked-statuses (map
-                              #(:favorite %)
-                              missing-favorites-statuses)
-                            liked-status-model
-                            status-model)
+                                            #(:favorite %)
+                                            missing-favorites-statuses)
+                                          liked-status-model
+                                          status-model)
         last-favorited-status (last processed-likes)
         status (:status last-favorited-status)
         favorite-author (:favorite-author last-favorited-status)]
@@ -328,7 +328,9 @@
             (not (nil? favorite-author)))
           (update-min-favorite-id-for-member-having-id (:twitter-id status)
                                                        (:id favorite-author)
-                                                       member-model))))
+                                                       member-model))
+        (when (pos? (count processed-likes))
+          (process-likes payload entity-manager))))
 
 (defn get-message-handler
   "Get AMQP message handler"
