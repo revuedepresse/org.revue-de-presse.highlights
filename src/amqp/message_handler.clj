@@ -119,11 +119,11 @@
 (defn ensure-member-having-id-exists
   [twitter-id model token-model]
   (let [existing-member (find-member-by-twitter-id twitter-id model)
-        member (if existing-member
-                       existing-member
-                       (do
-                         (ensure-members-exist (list twitter-id) token-model model)
-                         (find-member-by-twitter-id twitter-id model)))]
+        member (if (pos? (count existing-member))
+                     (first existing-member)
+                     (do
+                       (ensure-members-exist (list twitter-id) token-model model)
+                       (first (find-member-by-twitter-id twitter-id model))))]
     member))
 
 (defn ensure-status-having-id-exists
@@ -165,18 +165,18 @@
         status-id (:id status)
         existing-liked-status (find-liked-status-by liked-member-id liked-by-member-id status-id model status-model)
         favorited-status (if (pos? (count existing-liked-status))
-                 (first existing-liked-status)
-                 (new-liked-status {:aggregate-id (:id aggregate)
-                                    :aggregate-name (:name aggregate)
-                                    :time-range (get-time-range parsed-publication-date)
-                                    :publication-date-time mysql-formatted-publication-date
-                                    :status-id status-id
-                                    :is-archived-status 0
-                                    :member-id liked-member-id
-                                    :member-name (:screen-name liked-member)
-                                    :liked-by liked-by-member-id
-                                    :liked-by-member-name (:screen-name favorite-author)}
-                                   model status-model))]
+                           (first existing-liked-status)
+                           {:id nil
+                             :aggregate-id (:id aggregate)
+                             :aggregate-name (:name aggregate)
+                             :time-range (get-time-range parsed-publication-date)
+                             :publication-date-time mysql-formatted-publication-date
+                             :status-id status-id
+                             :is-archived-status 0
+                             :member-id liked-member-id
+                             :member-name (:screen-name liked-member)
+                             :liked-by liked-by-member-id
+                             :liked-by-member-name (:screen-name favorite-author)})]
     {:favorite favorited-status
      :favorite-author favorite-author
      :status status
@@ -184,21 +184,13 @@
 
 (defn process-like
   [like liked-by aggregate model status-model member-model token-model]
-  (let [{favorite :favorite
-         favorite-author :favorite-author
-         status :status
-         status-author :status-author :as favorited-status} (ensure-favorited-status-exists aggregate
-                                                                                            like
-                                                                                            liked-by
-                                                                                            model
-                                                                                            status-model
-                                                                                            member-model
-                                                                                            token-model)]
-      (log/info (str
-                  "Status #" (:twitter-id status)
-                  " published by \"" (:screen-name status-author)
-                  "\" and liked by \"" (:screen-name favorite-author)
-                  "\" has been saved under id \"" (:id favorite) "\""))
+  (let [favorited-status (ensure-favorited-status-exists aggregate
+                                                         like
+                                                         liked-by
+                                                         model
+                                                         status-model
+                                                         member-model
+                                                         token-model)]
       favorited-status))
 
 (defn process-likes
@@ -224,12 +216,27 @@
                                      status-model
                                      member-model
                                      token-model) favorites))
+        missing-favorites-statuses (doall (filter #(nil? (:id (:favorite %))) processed-likes))
+        new-favorites (new-liked-statuses (map
+                              #(:favorite %)
+                              missing-favorites-statuses)
+                            liked-status-model
+                            status-model)
         last-favorited-status (last processed-likes)
         status (:status last-favorited-status)
-        favorite-author (:favorite-author last-favorited-status)
-        _ (update-min-favorite-id-for-member-having-id (:twitter-id status)
-                                                       (:id favorite-author)
-                                                       member-model)]))
+        favorite-author (:favorite-author last-favorited-status)]
+        (doall (map #(log/info
+               (str
+                  "Status #" (:status-id %)
+                  " published by \"" (:member-name %)
+                  "\" and liked by \"" (:liked-by-member-name %)
+                  "\" has been saved under id \"" (:id %) "\"")) new-favorites))
+        (when (and
+               (not (nil? status))
+               (not (nil? favorite-author)))
+                  (update-min-favorite-id-for-member-having-id (:twitter-id status)
+                                                               (:id favorite-author)
+                                                               member-model))))
 
 (defn get-message-handler
   "Get AMQP message handler"
@@ -284,8 +291,7 @@
          entity-manager :entity-manager} options
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
     (process-likes payload entity-manager)
-    ;(lb/ack channel delivery-tag)
-    ))
+    (lb/ack channel delivery-tag)))
 
 (s/def ::total-messages #(pos-int? %))
 

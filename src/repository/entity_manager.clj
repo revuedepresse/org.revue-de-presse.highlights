@@ -1,5 +1,6 @@
 (ns repository.entity-manager
     (:require [korma.core :as db]
+              [clojure.string :as string]
               [clojure.edn :as edn]
               [clojure.tools.logging :as log]
               [pandect.algo.sha1 :refer :all]
@@ -269,6 +270,28 @@
       (db/where {:id id})
       (db/select))))
 
+(defn find-liked-statuses
+  [liked-statuses-ids model status-model]
+  (let [status-id-col (get-column "ust_id" status-model)
+        twitter-id-col (get-column "ust_status_id" status-model)]
+    (->
+      (db/select* model)
+      (db/fields :id
+                 [twitter-id-col :twitter-id]
+                 [:status_id :status-id]
+                 [:archived_status_id :archived-status-id]
+                 [:time_range :time-range]
+                 [:is_archived_status :is-archived-status]
+                 [:member_id :member-id]
+                 [:member_name :member-name]
+                 [:liked_by :liked-by]
+                 [:liked_by_member_name :liked-by-member-name]
+                 [:aggregate_id :aggregate-id]
+                 [:aggregate_name :aggregate-name])
+      (db/join status-model (= status-id-col :status_id))
+      (db/where {:id [in liked-statuses-ids]})
+      (db/select))))
+
 (defn find-liked-status-by
   "Find a liked status by ids of status, members"
   [member-id liked-by-member-id status-id model status-model]
@@ -327,6 +350,35 @@
       (catch Exception e (log/error (.getMessage e))))
     (first (find-liked-status-by-id id model status-model))))
 
+(defn replace-underscore-with-dash
+  [[k v]]
+  (let [key-value [(keyword (string/replace (name k) #"-" "_")) v]]
+    key-value))
+
+(defn snake-case-keys
+  [m]
+  (let [props-having-converted-keys (->> (map replace-underscore-with-dash m)
+                                         (into {}))]
+    props-having-converted-keys))
+
+(defn new-liked-statuses
+  [liked-statuses model status-model]
+  (let [identified-liked-statuses (map #(assoc
+                                          %
+                                          :id
+                                          (uuid/to-string (uuid/v1)))
+                                       liked-statuses)
+        liked-status-values (doall (map snake-case-keys identified-liked-statuses))
+        ids (map #(:id %) identified-liked-statuses)]
+    (if (pos? ( count ids))
+      (do
+        (try
+          (db/insert model
+                     (db/values liked-status-values))
+          (catch Exception e (log/error (.getMessage e))))
+        (find-liked-statuses ids model status-model))
+      '())))
+
 (defn update-min-favorite-id-for-member-having-id
   [min-favorite-id member-id model]
   (db/update model
@@ -336,13 +388,13 @@
 (defn find-member-by-twitter-id
   "Find a member by her / his username"
   [id members]
-  (first (->
+  (->
     (db/select* members)
     (db/fields [:usr_id :id]
                [:usr_twitter_id :twitter-id]
                [:usr_twitter_username :screen-name])
     (db/where {:usr_twitter_id id})
-    (db/select))))
+    (db/select)))
 
 (defn find-member-by-screen-name
   "Find a member by her / his username"
