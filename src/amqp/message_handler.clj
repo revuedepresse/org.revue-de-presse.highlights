@@ -193,13 +193,13 @@
                                                          token-model)]
       favorited-status))
 
-(defn get-screen-names-of-statuses-authors
+(defn get-ids-of-statuses-authors
   [statuses]
-  (map (fn [{{screen-name :screen_name} :user}] screen-name) statuses))
+  (map (fn [{{member-id :id} :user}] member-id) statuses))
 
 (defn get-missing-members-ids
   [statuses model]
-  (let [ids (get-screen-names-of-statuses-authors statuses)
+  (let [ids (get-ids-of-statuses-authors statuses)
         found-members (find-members-having-ids ids model)
         matching-ids (set (map #(:id %) found-members))
         missing-ids (clojure.set/difference (set ids) (set matching-ids))]
