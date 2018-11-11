@@ -27,7 +27,7 @@
            users members
            subscriptions subscribees
            member-subscriptions member-subscribees
-           liked_status status)
+           liked-status status)
 
   (db/defentity aggregate
                 (db/table :weaving_aggregate)
@@ -43,6 +43,7 @@
                   :list_id))
 
   (db/defentity status
+                (db/pk :ust_id)
                 (db/table :weaving_status)
                 (db/database database-connection)
                 (db/entity-fields
@@ -228,64 +229,76 @@
 
     (try
       (db/insert model
-                 (db/values [{:ust_hash (sha1 (str text twitter-id))
-                              :ust_text text
-                              :ust_full_name screen-name
-                              :ust_name name
-                              :ust_avatar avatar
-                              :ust_access_token access-token
-                              :ust_api_document document
-                              :ust_created_at created-at
-                              :ust_status_id twitter-id}]))
+        (db/values [{:ust_hash (sha1 (str text twitter-id))
+                    :ust_text text
+                    :ust_full_name screen-name
+                    :ust_name name
+                    :ust_avatar avatar
+                    :ust_access_token access-token
+                    :ust_api_document document
+                    :ust_created_at created-at
+                    :ust_status_id twitter-id}]))
       (catch Exception e (log/error (.getMessage e))))
-    (find-status-by-twitter-id twitter-id model)))
+
+    (first (find-status-by-twitter-id twitter-id model))))
+
+(defn get-column
+  [column-name model]
+  (keyword (str (:table model) "." column-name)))
 
 (defn find-liked-status-by-id
   "Find a liked status by id"
-  [id model]
-  (->
-    (db/select* model)
-    (db/fields :id
-               [:status_id :status-id]
-               [:archived_status_id :archived-status-id]
-               [:time_range :time-range]
-               [:is_archived_status :is-archived-status]
-               [:member_id :member-id]
-               [:member_name :member-name]
-               [:liked_by :liked-by]
-               [:liked_by_member_name :liked-by-member-name]
-               [:aggregate_id :aggregate-id]
-               [:aggregate_name :aggregate-name]
-               [:screen_name :screen-name])
-    (db/where {:id id})
-    (db/select)))
+  [id model status-model]
+  (let [status-id-col (get-column "ust_id" status-model)
+        twitter-id-col (get-column "ust_status_id" status-model)]
+    (->
+      (db/select* model)
+      (db/fields :id
+                 [twitter-id-col :twitter-id]
+                 [:status_id :status-id]
+                 [:archived_status_id :archived-status-id]
+                 [:time_range :time-range]
+                 [:is_archived_status :is-archived-status]
+                 [:member_id :member-id]
+                 [:member_name :member-name]
+                 [:liked_by :liked-by]
+                 [:liked_by_member_name :liked-by-member-name]
+                 [:aggregate_id :aggregate-id]
+                 [:aggregate_name :aggregate-name])
+      (db/join status-model (= status-id-col :status_id))
+      (db/where {:id id})
+      (db/select))))
 
 (defn find-liked-status-by
   "Find a liked status by ids of status, members"
-  [member-id liked-by-member-id status-id model]
-  (->
-    (db/select* model)
-    (db/fields :id
-               [:status_id :status-id]
-               [:archived_status_id :archived-status-id]
-               [:time_range :time-range]
-               [:is_archived_status :is-archived-status]
-               [:member_id :member-id]
-               [:member_name :member-name]
-               [:liked_by :liked-by]
-               [:liked_by_member_name :liked-by-member-name]
-               [:aggregate_id :aggregate-id]
-               [:aggregate_name :aggregate-name]
-               [:screen_name :screen-name])
-    (db/where {:liked_by_member_id liked-by-member-id
-               :member_id member-id
-               :status_id status-id})
-    (db/select)))
+  [member-id liked-by-member-id status-id model status-model]
+  (let [status-id-col (get-column "ust_id" status-model)
+        twitter-id-col (get-column "ust_status_id" status-model)]
+    (->
+      (db/select* model)
+      (db/fields :id
+                 [twitter-id-col :twitter-id]
+                 [:status_id :status-id]
+                 [:archived_status_id :archived-status-id]
+                 [:time_range :time-range]
+                 [:is_archived_status :is-archived-status]
+                 [:member_id :member-id]
+                 [:member_name :member-name]
+                 [:liked_by :liked-by]
+                 [:liked_by_member_name :liked-by-member-name]
+                 [:aggregate_id :aggregate-id]
+                 [:aggregate_name :aggregate-name])
+      (db/join status-model (= status-id-col :status_id))
+      (db/where {:liked_by liked-by-member-id
+                 :member_id member-id
+                 :status_id status-id})
+      (db/select))))
 
 (defn new-liked-status
-  [liked-status model]
+  [liked-status model status-model]
   (let [{status-id :status-id
          archived-status-id :archived-status-id
+         publication-date-time :publication-date-time
          time-range :time-range
          is-archived-status :is-archived-status
          member-id :member-id
@@ -295,25 +308,30 @@
          aggregate-id :aggregate-id
          aggregate-name :aggregate-name} liked-status
         id (uuid/to-string (uuid/v1))]
-
     (log/info (str "About to insert status liked by \"" liked-by-member-name
                    "\" authored by \"" member-name "\""))
-
     (try
       (db/insert model
                  (db/values [{:id id
-                              :status-id status-id
-                              :archived-status-id archived-status-id
-                              :time-range time-range
-                              :is-archived-status is-archived-status
-                              :member-id member-id
-                              :member-name member-name
-                              :liked-by liked-by
-                              :liked-by-member-name liked-by-member-name
-                              :aggregate-id aggregate-id
-                              :aggregate-name aggregate-name}]))
+                              :status_id status-id
+                              :archived_status_id archived-status-id
+                              :time_range time-range
+                              :is_archived_status is-archived-status
+                              :member_id member-id
+                              :member_name member-name
+                              :publication_date_time publication-date-time
+                              :liked_by liked-by
+                              :liked_by_member_name liked-by-member-name
+                              :aggregate_id aggregate-id
+                              :aggregate_name aggregate-name}]))
       (catch Exception e (log/error (.getMessage e))))
-    (find-liked-status-by-id id model)))
+    (first (find-liked-status-by-id id model status-model))))
+
+(defn update-min-favorite-id-for-member-having-id
+  [min-favorite-id member-id model]
+  (db/update model
+    (db/set-fields {:min_like_id min-favorite-id})
+    (db/where {:usr_id member-id})))
 
 (defn find-member-by-twitter-id
   "Find a member by her / his username"
@@ -333,7 +351,9 @@
     (db/select* members)
     (db/fields [:usr_id :id]
                [:usr_twitter_id :twitter-id]
-               [:usr_twitter_username :screen-name])
+               [:usr_twitter_username :screen-name]
+               [:min_like_id :min-favorite-status-id]
+               [:max_like_id :max-favorite-status-id])
     (db/where {:usr_twitter_username screen-name})
     (db/select)))
 

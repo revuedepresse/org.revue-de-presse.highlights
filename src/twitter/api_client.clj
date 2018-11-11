@@ -18,6 +18,7 @@
 (def next-token (atom nil))
 
 (def call-limits (atom {}))
+(def endpoint-exclusion (atom {}))
 (def frozen-tokens (atom {}))
 (def rate-limits (atom {}))
 (def remaining-calls (atom {}))
@@ -125,13 +126,20 @@
 
 (defn try-calling-api
   [call endpoint token-model context]
-    (try (with-open [client (ac/create-client)]
-           (call client))
-      (catch Exception e
-        (log/warn (.getMessage e))
-        (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
-          (handle-rate-limit-exceeded-error endpoint token-model)
-          (try-calling-api call endpoint token-model context)))))
+  (let [excluded-until (get endpoint-exclusion endpoint)
+        now (l/local-now)]
+    (when (or
+            (nil? excluded-until)
+            (t/after? now excluded-until))
+              (try (with-open [client (ac/create-client)]
+                     (call client))
+                (catch Exception e
+                  (log/warn (.getMessage e))
+                  (if (= endpoint "application/rate-limit-status")
+                    (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
+                    (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
+                      (handle-rate-limit-exceeded-error endpoint token-model)
+                      (try-calling-api call endpoint token-model context))))))))
 
 (defn get-rate-limit-status
   [model]
@@ -350,28 +358,37 @@
     (:ids followers)))
 
 (defn get-favorites-by-screen-name
-  [endpoint context screen-name tokens-model]
+  [opts endpoint context tokens-model]
+  (let [base-params {:count 200
+                    :include-entities 1
+                    :include-rts 1
+                    :exclude-replies 0
+                    :screen-name (:screen-name opts)
+                    :trim-user 0
+                    :tweet-mode "extended"}
+        params (cond
+          (not (nil? (:since-id opts)))
+            (assoc base-params :since-id (:since-id opts))
+          (not (nil? (:max-id opts)))
+            (assoc base-params :max-id (:max-id opts))
+          :else
+            base-params)]
+
   (try-calling-api
     #(favorites-list :client %
                     :oauth-creds (twitter-credentials @next-token)
-                    :params {:count 200
-                             :include-entities 1
-                             :include-rts 1
-                             :exclude-replies 0
-                             :screen-name screen-name
-                             :trim-user 0
-                             :tweet-mode "extended"})
+                    :params params)
     endpoint
     tokens-model
-    (str "a " context)))
+    (str "a " context))))
 
 (defn get-favorites-of-member
-  [screen-name token-model]
+  [opts token-model]
   (let [endpoint "favorites/list"
         call "call to \"favorites/list\""
         context (str "trying to make a " call)
         _ (find-next-token token-model endpoint context)
-        response (get-favorites-by-screen-name endpoint call screen-name token-model)
+        response (get-favorites-by-screen-name opts endpoint call token-model)
         headers (:headers response)
         favorites (:body response)]
     (guard-against-api-rate-limit headers endpoint)

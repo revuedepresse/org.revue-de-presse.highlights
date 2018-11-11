@@ -116,48 +116,90 @@
 (def date-formatter (f/with-locale (f/formatter "EEE MMM dd HH:mm:ss Z yyyy") Locale/ENGLISH))
 (def mysql-date-formatter (f/formatters :mysql))
 
+(defn ensure-member-having-id-exists
+  [twitter-id model token-model]
+  (let [existing-member (find-member-by-twitter-id twitter-id model)
+        member (if existing-member
+                       existing-member
+                       (do
+                         (ensure-members-exist (list twitter-id) token-model model)
+                         (find-member-by-twitter-id twitter-id model)))]
+    member))
+
+(defn ensure-status-having-id-exists
+  [{twitter-id :id_str
+    text :full_text
+    created-at :created_at
+    {screen-name :screen_name
+     avatar :profile_image_url
+     name :name} :user
+    :as status}
+   model]
+  (let [document (json/write-str status)
+        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
+        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
+        existing-liked-status (find-status-by-twitter-id twitter-id model)
+        token (:token @next-token)
+        status (if (pos? (count existing-liked-status))
+           (first existing-liked-status)
+           (new-status {:text text
+                        :screen-name screen-name
+                        :avatar avatar
+                        :name name
+                        :token token
+                        :document document
+                        :created-at mysql-formatted-publication-date
+                        :twitter-id twitter-id} model))]
+    status))
+
+(defn ensure-favorited-status-exists
+  [aggregate favorite favorite-author model status-model member-model token-model]
+  (let [{created-at :created_at
+         {liked-twitter-user-id :id} :user } favorite
+        liked-member (ensure-member-having-id-exists liked-twitter-user-id member-model token-model)
+        status (ensure-status-having-id-exists favorite status-model)
+        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
+        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
+        liked-member-id (:id liked-member)
+        liked-by-member-id (:id favorite-author)
+        status-id (:id status)
+        existing-liked-status (find-liked-status-by liked-member-id liked-by-member-id status-id model status-model)
+        favorited-status (if (pos? (count existing-liked-status))
+                 (first existing-liked-status)
+                 (new-liked-status {:aggregate-id (:id aggregate)
+                                    :aggregate-name (:name aggregate)
+                                    :time-range (get-time-range parsed-publication-date)
+                                    :publication-date-time mysql-formatted-publication-date
+                                    :status-id status-id
+                                    :is-archived-status 0
+                                    :member-id liked-member-id
+                                    :member-name (:screen-name liked-member)
+                                    :liked-by liked-by-member-id
+                                    :liked-by-member-name (:screen-name favorite-author)}
+                                   model status-model))]
+    {:favorite favorited-status
+     :favorite-author favorite-author
+     :status status
+     :status-author liked-member}))
+
 (defn process-like
   [like liked-by aggregate model status-model member-model token-model]
-  (let [{twitter-id :id_str
-         created-at :created_at
-         text :full_text
-         {screen-name :screen_name
-          user-id :id
-          avatar :profile_image_url
-          name :name} :user } like
-        token (:token @next-token)
-        document (json/write-str like)
-        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
-        _ (ensure-members-exist (list user-id) token-model member-model)
-        liked-member (find-member-by-twitter-id user-id member-model)
-        existing-liked-status (find-status-by-twitter-id twitter-id status-model)
-        status (if (pos? (count existing-liked-status))
-                 (first existing-liked-status)
-                 (new-status {:text text
-                              :screen-name screen-name
-                              :avatar avatar
-                              :name name
-                              :token token
-                              :document document
-                              :created-at (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
-                              :twitter-id twitter-id} status-model))
-        liked-member-id (:id liked-member)
-        liked-by-member-id (:id liked-by)
-        status-id (:id status)
-        existing-liked-status (find-liked-status-by liked-member-id liked-by-member-id status-id model)
-        liked-status (if existing-liked-status
-                       existing-liked-status
-                       (new-liked-status {:aggregate-id (:id aggregate)
-                           :aggregate-name (:name aggregate)
-                           :time-range (get-time-range parsed-publication-date)
-                           :status_id status-id
-                           :is-archived-status 0
-                           :member-id liked-member-id
-                           :member-name (:screen-name liked-member)
-                           :liked-by liked-by-member-id
-                           :liked-by-member-name (:screen-name liked-by)}
-                          model))]
-      liked-status))
+  (let [{favorite :favorite
+         favorite-author :favorite-author
+         status :status
+         status-author :status-author :as favorited-status} (ensure-favorited-status-exists aggregate
+                                                                                            like
+                                                                                            liked-by
+                                                                                            model
+                                                                                            status-model
+                                                                                            member-model
+                                                                                            token-model)]
+      (log/info (str
+                  "Status #" (:twitter-id status)
+                  " published by \"" (:screen-name status-author)
+                  "\" and liked by \"" (:screen-name favorite-author)
+                  "\" has been saved under id \"" (:id favorite) "\""))
+      favorited-status))
 
 (defn process-likes
   [payload entity-manager]
@@ -169,16 +211,25 @@
         payload-body (json/read-str (php->clj (String. payload  "UTF-8")))
         screen-name (get payload-body "screen_name")
         aggregate-id (get payload-body "aggregate_id")
-        aggregate (find-aggregate-by-id aggregate-id aggregate-model)
+        aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
         member (first (find-member-by-screen-name screen-name member-model))
-        favorites (get-favorites-of-member screen-name token-model)]
-    (doall (map #(process-like %
-                               member
-                               aggregate
-                               liked-status-model
-                               status-model
-                               member-model
-                               token-model) favorites))))
+        favorites (get-favorites-of-member
+                    {:screen-name screen-name
+                    :max-id (:min-favorite-status-id member)}
+                    token-model)
+        processed-likes (doall (pmap #(process-like %
+                                     member
+                                     aggregate
+                                     liked-status-model
+                                     status-model
+                                     member-model
+                                     token-model) favorites))
+        last-favorited-status (last processed-likes)
+        status (:status last-favorited-status)
+        favorite-author (:favorite-author last-favorited-status)
+        _ (update-min-favorite-id-for-member-having-id (:twitter-id status)
+                                                       (:id favorite-author)
+                                                       member-model)]))
 
 (defn get-message-handler
   "Get AMQP message handler"
