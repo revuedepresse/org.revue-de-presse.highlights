@@ -224,8 +224,8 @@
 (defn process-authors-of-favorited-status
   [favorites model token-model]
   (let [missing-members-ids (get-missing-members-ids favorites model)
-        missing-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-members-ids) favorites)
-        _ (ensure-authors-of-favorited-status-exist missing-favorites model token-model)]))
+        missing-members (filter #(clojure.set/subset? #{(:id_str (:user %))} missing-members-ids) favorites)
+        _ (ensure-authors-of-favorited-status-exist missing-members model token-model)]))
 
 (defn get-ids-of-statuses
   [statuses]
@@ -388,12 +388,13 @@
 (s/def ::total-messages #(pos-int? %))
 
 (defn consume-messages
-  [total-messages queue]
+  [queue total-messages]
   {:pre [(s/valid? ::total-messages total-messages)]}
   (let [rabbitmq (edn/read-string (:rabbitmq env))
         {connection :connection
          channel :channel
          message-handler :message-handler} (connect-to-amqp-server env)]
+    (log/info (str "About to consumer " total-messages " messages."))
     (if total-messages
       (loop [messages-to-consume total-messages]
         (when (> messages-to-consume 0)
