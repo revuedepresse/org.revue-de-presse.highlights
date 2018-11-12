@@ -281,25 +281,27 @@
     (process-favorited-statuses favorites status-model)
     (process-authors-of-favorited-status favorites member-model token-model)))
 
-(defn process-likes
-  [payload entity-manager]
-  (let [{member-model :members
-         token-model :tokens
-         aggregate-model :aggregates
-         liked-status-model :liked-status
-         status-model :status} entity-manager
-        payload-body (json/read-str (php->clj (String. payload  "UTF-8")))
-        screen-name (get payload-body "screen_name")
-        aggregate-id (get payload-body "aggregate_id")
-        aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
-        member (first (find-member-by-screen-name screen-name member-model))
-        favorites (get-favorites-of-member
-                    {:screen-name screen-name
-                    :max-id (if (nil? (:min-favorite-status-id member))
-                              nil
-                              (dec (Long/parseLong (:min-favorite-status-id member))))}
-                    token-model)
-        _ (preprocess-favorites favorites status-model member-model token-model)
+(defn get-next-batch-of-favorites-for-member
+  [member token-model]
+  (let [screen-name (:screen-name member)]
+    (if (:max-favorite-status-id member)
+      (get-favorites-of-member
+        {:screen-name screen-name
+         :since-id (inc (Long/parseLong (:max-favorite-status-id member)))}
+        token-model)
+      (get-favorites-of-member
+        {:screen-name screen-name
+         :max-id (if (nil? (:min-favorite-status-id member))
+                   nil
+                   (dec (Long/parseLong (:min-favorite-status-id member))))}
+        token-model))))
+
+(defn process-member-favorites
+  [member favorites aggregate {liked-status-model :liked-status
+                               member-model :members
+                               status-model :status
+                               token-model :tokens}]
+  (let [ _ (preprocess-favorites favorites status-model member-model token-model)
         processed-likes (pmap #(process-like %
                                              member
                                              aggregate
@@ -312,16 +314,41 @@
                                             #(:favorite %)
                                             missing-favorites-statuses)
                                           liked-status-model
-                                          status-model)
+                                          status-model)]
+    (doall (map #(log/info
+                   (str
+                     "Status #" (:status-id %)
+                     " published by \"" (:member-name %)
+                     "\" and liked by \"" (:liked-by-member-name %)
+                     "\" has been saved under id \"" (:id %) "\"")) new-favorites))
+    processed-likes))
+
+(defn update-max-favorite-id-for-member
+  [member aggregate entity-manager]
+  (let [screen-name (:screen-name member)
+        member-model (:members entity-manager)
+        member-id (:id member)
+        latest-favorites (get-favorites-of-member {:screen-name screen-name}  member-model)
+        _ (process-member-favorites member latest-favorites aggregate entity-manager)
+        latest-status-id (:id_str (first latest-favorites))]
+    (update-max-favorite-id-for-member-having-id latest-status-id member-id member-model)))
+
+(defn process-likes
+  [payload entity-manager]
+  (let [{member-model :members
+         token-model :tokens
+         aggregate-model :aggregates} entity-manager
+        payload-body (json/read-str (php->clj (String. payload  "UTF-8")))
+        screen-name (get payload-body "screen_name")
+        aggregate-id (get payload-body "aggregate_id")
+        aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
+        member (first (find-member-by-screen-name screen-name member-model))
+        favorites (get-next-batch-of-favorites-for-member member token-model)
+        processed-likes (process-member-favorites member favorites aggregate entity-manager)
         last-favorited-status (last processed-likes)
         status (:status last-favorited-status)
         favorite-author (:favorite-author last-favorited-status)]
-        (doall (map #(log/info
-               (str
-                  "Status #" (:status-id %)
-                  " published by \"" (:member-name %)
-                  "\" and liked by \"" (:liked-by-member-name %)
-                  "\" has been saved under id \"" (:id %) "\"")) new-favorites))
+
         (when
           (and
             (not (nil? status))
@@ -329,8 +356,9 @@
           (update-min-favorite-id-for-member-having-id (:twitter-id status)
                                                        (:id favorite-author)
                                                        member-model))
-        (when (pos? (count processed-likes))
-          (process-likes payload entity-manager))))
+        (if (pos? (count processed-likes))
+          (process-likes payload entity-manager)
+          (update-max-favorite-id-for-member member aggregate entity-manager))))
 
 (defn get-message-handler
   "Get AMQP message handler"
@@ -384,8 +412,9 @@
          queue          :queue
          entity-manager :entity-manager} options
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
-    (process-likes payload entity-manager)
-    (lb/ack channel delivery-tag)))
+    (when payload
+      (process-likes payload entity-manager)
+      (lb/ack channel delivery-tag))))
 
 (s/def ::total-messages #(pos-int? %))
 
