@@ -127,7 +127,7 @@
 
 (defn try-calling-api
   [call endpoint token-model context]
-  (let [excluded-until (get endpoint-exclusion endpoint)
+  (let [excluded-until (get @endpoint-exclusion endpoint)
         now (l/local-now)]
     (when (or
             (nil? excluded-until)

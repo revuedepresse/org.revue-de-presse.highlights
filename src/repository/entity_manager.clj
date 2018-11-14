@@ -212,9 +212,9 @@
                [:ust_status_id :twitter-id])))
 
 (defn find-statuses-having-ids
-  "Find member by theirs Twitter ids"
-  [twitter-ids model]
-  (let [ids (if twitter-ids twitter-ids '(0))
+  "Find statuses by theirs Twitter ids"
+  [ids model]
+  (let [ids (if ids ids '(0))
         matching-statuses (-> (select-statuses model)
                              (db/where {:ust_status_id [in ids]})
                              (db/select))]
@@ -267,6 +267,50 @@
       (catch Exception e (log/error (.getMessage e))))
 
     (first (find-status-by-twitter-id twitter-id model))))
+
+(defn replace-underscore-with-dash
+  [[k v]]
+  (let [key-value [(keyword (string/replace (name k) #"-" "_") ) v]]
+    key-value))
+
+(defn snake-case-keys
+  [m]
+  (let [props-having-converted-keys (->> (map replace-underscore-with-dash m)
+                                         (into {}))]
+    props-having-converted-keys))
+
+(defn get-prefixer
+  [prefix]
+  (fn [[k v]]
+    (let [keyword-name (name k)
+          prefixed-keyword-name (str prefix keyword-name)
+          key-value [(keyword prefixed-keyword-name) v]]
+      key-value)))
+
+(defn prefixed-keys
+  [m]
+  (let [prefixer (get-prefixer "ust_")
+        props-having-converted-keys (->> (map prefixer m)
+                                         (into {}))]
+    props-having-converted-keys))
+
+(defn bulk-insert-new-statuses
+  [statuses model]
+  (let [snake-cased-values (map snake-case-keys statuses)
+        statuses-values (map
+                         #(assoc
+                            %
+                            :hash (sha1 (str (:text %) (:twitter_id %))))
+                         snake-cased-values)
+        prefixed-keys-values (map prefixed-keys statuses-values)
+        twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
+    (if (pos? (count twitter-ids))
+      (do
+        (try
+          (db/insert model (db/values prefixed-keys-values))
+          (catch Exception e (log/error (.getMessage e))))
+        (find-statuses-having-ids twitter-ids model))
+      '())))
 
 (defn get-column
   [column-name model]
@@ -374,17 +418,6 @@
                               :aggregate_name aggregate-name}]))
       (catch Exception e (log/error (.getMessage e))))
     (first (find-liked-status-by-id id model status-model))))
-
-(defn replace-underscore-with-dash
-  [[k v]]
-  (let [key-value [(keyword (string/replace (name k) #"-" "_")) v]]
-    key-value))
-
-(defn snake-case-keys
-  [m]
-  (let [props-having-converted-keys (->> (map replace-underscore-with-dash m)
-                                         (into {}))]
-    props-having-converted-keys))
 
 (defn new-liked-statuses
   [liked-statuses model status-model]
@@ -515,7 +548,8 @@
   (-> (db/select* members)
   (db/fields [:usr_id :id]
              [:usr_twitter_id :twitter-id]
-             [:usr_twitter_username :screen_name])))
+             [:usr_twitter_username :screen_name]
+             [:usr_twitter_username :screen-name])))
 
 (defn find-member-by-id
   "Find a member by her / his Twitter id"
@@ -526,7 +560,7 @@
     (first matching-members)))
 
 (defn find-members-having-ids
-  "Find member by theirs Twitter ids"
+  "Find members by theirs Twitter ids"
   [twitter-ids members]
   (let [ids (if twitter-ids twitter-ids '(0))
         matching-members (-> (select-members members)
@@ -601,6 +635,37 @@
                             :total_subscriptions total-subscriptions}]))
       (catch Exception e (log/error (.getMessage e))))
     (find-member-by-id twitter-id members)))
+
+(defn bulk-insert-new-members
+  [members model]
+  (let [snake-cased-values (map snake-case-keys members)
+        members-values (map
+                         #(dissoc
+                            (assoc
+                              %
+                              :usr_position_in_hierarchy 1
+                              :usr_locked false
+                              :usr_status false
+                              :usr_email (str "@" (:screen_name %))
+                              :usr_twitter_username (:screen_name %)
+                              :usr_twitter_id (:twitter_id %)
+                              :not_found (:is_not_found %)
+                              :protected (:is_protected %)
+                              :suspended (:is_suspended %))
+                            :screen_name
+                            :twitter_id
+                            :is_not_found
+                            :is_protected
+                            :is_suspended)
+                         snake-cased-values)
+        twitter-ids (map #(:usr_twitter_id %) members-values)]
+    (if (pos? (count members-values))
+      (do
+        (try
+          (db/insert model (db/values members-values))
+          (catch Exception e (log/error (.getMessage e))))
+        (find-members-having-ids twitter-ids model))
+      '())))
 
 (defn create-member-subscription-values
   [member-id]

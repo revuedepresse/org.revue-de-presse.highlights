@@ -8,7 +8,11 @@
 
 (defn -main
   "AMQP message consuming application"
-  ([queue & [messages]]
-   (if (nil? messages)
-     (consume-messages (keyword queue) 100)
-     (consume-messages (keyword queue) (Long/parseLong messages)))))
+  [queue & [messages consumers]]
+  (let [total-messages (if (nil? messages)
+                         100
+                         (Long/parseLong messages))
+        parallel-consumers (if (nil? consumers)
+                             1
+                             (Long/parseLong consumers))]
+      (consume-messages (keyword queue) total-messages parallel-consumers)))

@@ -31,6 +31,28 @@
                             :screen-name (:screen_name twitter-user)} members)]
     member))
 
+(defn assoc-twitter-user-properties
+  [twitter-user]
+  {:description (:description twitter-user)
+   :is-protected (if (not= (:protected twitter-user) "false") 1 0)
+   :is-suspended 0
+   :is-not-found 0
+   :total-subscribees (:followers_count twitter-user)
+   :total-subscriptions (:friends_count twitter-user)
+   :twitter-id (:id_str twitter-user)
+   :screen-name (:screen_name twitter-user)})
+
+(defn assoc-properties-of-twitter-users
+  [twitter-users]
+  (log/info "Build a sequence of twitter users properties")
+  (doall (pmap assoc-twitter-user-properties twitter-users)))
+
+(defn get-twitter-user
+  [member-id tokens members]
+  (log/info (str "About to look up for member having twitter id #" member-id))
+  (let [twitter-user (get-member-by-id member-id tokens members)]
+    twitter-user))
+
 (defn ensure-members-exist
   [members-ids tokens members]
   (let [remaining-calls (how-many-remaining-calls-showing-user tokens)
@@ -212,14 +234,21 @@
         total-authors (count authors-ids)]
 
     (if (pos? total-authors)
-      (log/info (str "About to ensure " total-authors " member(s) exist."))
-      (log/info (str "No need to find some missing member.")))
-
-    (if (and
-          (not (nil? remaining-calls))
-          (< total-authors remaining-calls))
-      (doall (pmap #(:id (new-member-from-json % token-model model)) authors-ids))
-      (doall (map #(:id (new-member-from-json % token-model model)) authors-ids)))))
+      (do
+        (log/info (str "About to ensure " total-authors " member(s) exist."))
+        (let [twitter-users (if
+                              (and
+                                (not (nil? remaining-calls))
+                                (< total-authors remaining-calls))
+                              (pmap #(get-twitter-user % token-model model) authors-ids)
+                              (map #(get-twitter-user % token-model model) authors-ids))
+              twitter-users-properties (assoc-properties-of-twitter-users twitter-users)
+              deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
+              new-members (bulk-insert-new-members deduplicated-users-properties model)]
+          (doall (map #(log/info (str "Member #" (:twitter-id %)
+                                   " having screen name \"" (:screen-name %)
+                                   "\" has been saved under id \"" (:id %))) new-members)))
+      (log/info (str "No need to find some missing member."))))))
 
 (defn process-authors-of-favorited-status
   [favorites model token-model]
@@ -239,41 +268,53 @@
         missing-ids (clojure.set/difference (set ids) (set matching-ids))]
     missing-ids))
 
-(defn new-status-from-json
+(defn get-status-json
   [{twitter-id :id_str
     text :full_text
     created-at :created_at
     {screen-name :screen_name
      avatar :profile_image_url
      name :name} :user
-    :as status} model]
+    :as status}]
   (let [document (json/write-str status)
         token (:token @next-token)
         parsed-publication-date (c/to-long (f/parse date-formatter created-at))
         mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
-        twitter-status (new-status {:text text
-                                    :screen-name screen-name
-                                    :avatar avatar
-                                    :name name
-                                    :token token
-                                    :document document
-                                    :created-at mysql-formatted-publication-date
-                                    :twitter-id twitter-id} model)]
+        twitter-status {:text text
+                        :full-name screen-name
+                        :avatar avatar
+                        :name name
+                        :access-token token
+                        :api-document document
+                        :created-at mysql-formatted-publication-date
+                        :status-id twitter-id}]
     twitter-status))
 
 (defn ensure-statuses-exist
   [statuses model]
-  (let [total-statuses (count statuses)]
-    (if (pos? total-statuses)
-      (log/info (str "About to ensure " total-statuses " statuses exist."))
-      (log/info (str "No need to find some missing status.")))
-      (doall (pmap #(:id (new-status-from-json % model)) statuses))))
+  (let [total-statuses (count statuses)
+        new-statuses (if
+                       (pos? total-statuses)
+                        (do
+                          (log/info (str "About to ensure " total-statuses " statuses exist."))
+                          (bulk-insert-new-statuses
+                            (pmap #(get-status-json %) statuses)
+                            model))
+                        (do
+                          (log/info (str "No need to find some missing status."))
+                          '()))]
+    (when (pos? total-statuses)
+      (doall (map #(log/info (str "Status #" (:twitter-id %)
+                                  " authored by \"" (:screen-name %)
+                                  "\" has been saved under id \"" (:id %))) new-statuses)))
+    new-statuses))
 
 (defn process-favorited-statuses
   [favorites model]
   (let [missing-statuses-ids (get-missing-statuses-ids favorites model)
-        missing-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-statuses-ids) favorites)
-        _ (ensure-statuses-exist missing-favorites model)]))
+        remaining-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-statuses-ids) favorites)]
+    (when (pos? (count missing-statuses-ids))
+      (ensure-statuses-exist remaining-favorites model))))
 
 (defn preprocess-favorites
   [favorites status-model member-model token-model]
@@ -283,18 +324,35 @@
 
 (defn get-next-batch-of-favorites-for-member
   [member token-model]
-  (let [screen-name (:screen-name member)]
-    (if (:max-favorite-status-id member)
-      (get-favorites-of-member
-        {:screen-name screen-name
-         :since-id (inc (Long/parseLong (:max-favorite-status-id member)))}
-        token-model)
-      (get-favorites-of-member
-        {:screen-name screen-name
-         :max-id (if (nil? (:min-favorite-status-id member))
-                   nil
-                   (dec (Long/parseLong (:min-favorite-status-id member))))}
-        token-model))))
+  (let [screen-name (:screen-name member)
+        max-favorite-id (:max-favorite-status-id member)
+        min-favorite-id (:min-favorite-status-id member)
+        _ (if max-favorite-id
+            (log/info (str "About to fetch favorites since status #" max-favorite-id))
+            (log/info (str "About to fetch favorites until reaching status #" min-favorite-id)))
+        favorites (if max-favorite-id
+                    (get-favorites-of-member
+                      {:screen-name screen-name
+                       :since-id (inc (Long/parseLong (:max-favorite-status-id member)))}
+                      token-model)
+                    (get-favorites-of-member
+                      {:screen-name screen-name
+                       :max-id (if (nil? (:min-favorite-status-id member))
+                                 nil
+                                 (dec (Long/parseLong (:min-favorite-status-id member))))}
+                      token-model))
+        next-batch-of-favorites (when (and
+                                        max-favorite-id
+                                        (= (count favorites) 0))
+                                          (get-favorites-of-member
+                                            {:screen-name screen-name
+                                             :max-id (if (nil? (:min-favorite-status-id member))
+                                                       nil
+                                                       (dec (Long/parseLong (:min-favorite-status-id member))))}
+                                            token-model))]
+    (if (pos? (count favorites))
+      favorites
+      next-batch-of-favorites)))
 
 (defn process-member-favorites
   [member favorites aggregate {liked-status-model :liked-status
@@ -327,8 +385,9 @@
   [member aggregate entity-manager]
   (let [screen-name (:screen-name member)
         member-model (:members entity-manager)
+        token-model (:tokens entity-manager)
         member-id (:id member)
-        latest-favorites (get-favorites-of-member {:screen-name screen-name}  member-model)
+        latest-favorites (get-favorites-of-member {:screen-name screen-name} token-model)
         _ (process-member-favorites member latest-favorites aggregate entity-manager)
         latest-status-id (:id_str (first latest-favorites))]
     (update-max-favorite-id-for-member-having-id latest-status-id member-id member-model)))
@@ -360,16 +419,6 @@
           (process-likes payload entity-manager)
           (update-max-favorite-id-for-member member aggregate entity-manager))))
 
-(defn get-message-handler
-  "Get AMQP message handler"
-  ; About RabbitMQ message consumption and Clojure
-  ; @see http://clojurerabbitmq.info/articles/getting_started.html#hello-world-example
-  [entity-manager]
-  (fn
-      [ch {:keys [content-type delivery-tag type] :as meta} ^bytes payload]
-      (process-network payload entity-manager)
-      (lb/ack ch delivery-tag)))
-
 (defn disconnect-from-amqp-server
   "Close connection and channel"
   [ch conn]
@@ -385,12 +434,9 @@
                            :password (:password rabbitmq)
                            :port (Integer/parseInt (:port rabbitmq))
                            :vhost (:vhost rabbitmq)})
-        ch (lch/open conn)
-        entity-manager (get-entity-manager (:database environment-configuration))
-        message-handler (get-message-handler entity-manager)]
+        ch (lch/open conn)]
     (println (format "[main] Connected. Channel id: %d" (.getChannelNumber ch)))
     {:channel ch
-     :message-handler message-handler
      :connection conn}))
 
 (defn pull-messages-from-network-queue
@@ -418,33 +464,41 @@
 
 (s/def ::total-messages #(pos-int? %))
 
+(defn consume-message
+  [entity-manager rabbitmq channel queue & [message-index]]
+  (cond
+    (= queue :network)
+      (pull-messages-from-network-queue {:auto-ack false
+                                         :entity-manager entity-manager
+                                         :queue (:queue-network rabbitmq)
+                                         :channel channel})
+    (= queue :likes)
+      (pull-messages-from-likes-queue {:auto-ack false
+                                       :entity-manager entity-manager
+                                       :queue (:queue-likes rabbitmq)
+                                       :channel channel}))
+  (when message-index
+    (log/info (str "Consumed message #" message-index))))
+
 (defn consume-messages
-  [queue total-messages]
+  [queue total-messages parallel-consumers]
   {:pre [(s/valid? ::total-messages total-messages)]}
-  (let [rabbitmq (edn/read-string (:rabbitmq env))
+  (let [entity-manager (get-entity-manager (:database env))
+        rabbitmq (edn/read-string (:rabbitmq env))
         {connection :connection
-         channel :channel
-         message-handler :message-handler} (connect-to-amqp-server env)]
-    (log/info (str "About to consumer " total-messages " messages."))
+         channel :channel} (connect-to-amqp-server env)
+        single-message-consumption (= 1 parallel-consumers)
+        next-total (if single-message-consumption #(dec %) #(max 0 (- % parallel-consumers)))]
+    (log/info (str "About to consume " total-messages " messages."))
     (if total-messages
       (loop [messages-to-consume total-messages]
         (when (> messages-to-consume 0)
-          (cond
-            (= queue :network)
-              (pull-messages-from-network-queue {:auto-ack false
-                                                 :entity-manager (get-entity-manager (:database env))
-                                                 :total-messages total-messages
-                                                 :queue (:queue-network rabbitmq)
-                                                 :channel channel
-                                                 :message-handler message-handler})
-            (= queue :likes)
-              (pull-messages-from-likes-queue {:auto-ack false
-                                               :entity-manager (get-entity-manager (:database env))
-                                               :total-messages total-messages
-                                               :queue (:queue-likes rabbitmq)
-                                               :channel channel
-                                               :message-handler message-handler}))
-          (recur (dec messages-to-consume))))
-      (lc/subscribe channel queue message-handler {:auto-ack false}))
+          (if single-message-consumption
+            (consume-message entity-manager rabbitmq channel queue))
+            (doall
+              (pmap
+                #(consume-message entity-manager rabbitmq channel queue %)
+                (take total-messages (iterate inc 1))))
+          (recur (next-total messages-to-consume)))))
   (Thread/sleep 1000)
   (disconnect-from-amqp-server channel connection)))
