@@ -573,8 +573,7 @@
   [favorited-statuses-values]
   (let [matching-favorites-triples (map get-triple favorited-statuses-values)
         reduced-triples (reduce concat '() matching-favorites-triples)
-        ;matching-favorites (find-liked-statuses-by-triples (into [] reduced-triples))
-        matching-favorites '()
+        matching-favorites (find-liked-statuses-by-triples (into [] reduced-triples))
         missing-favorited-statuses (filter (not-in-set (set matching-favorites)) favorited-statuses-values)]
     (log/info (str "There are " (count matching-favorites)
                    " matching favorites vs " (count missing-favorited-statuses)
@@ -592,10 +591,7 @@
                                                                 favorites
                                                                 member-model
                                                                 status-model)
-        missing-favorites (if (pos? (count favorited-statuses-values))
-                            (remove-existing-favorites favorited-statuses-values)
-                            '())
-        new-favorites (new-liked-statuses missing-favorites liked-status-model status-model)]
+        new-favorites (new-liked-statuses favorited-statuses-values liked-status-model status-model)]
     (log/info (str "There are " (count new-favorites ) " new favorites"))))
 
 (defn update-max-favorite-id-for-member
@@ -677,9 +673,7 @@
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
     (when payload
       (process-likes payload entity-manager)
-      ;  (lb/ack channel delivery-tag)
-      )
-    ))
+      (lb/ack channel delivery-tag))))
 
 (s/def ::total-messages #(pos-int? %))
 
