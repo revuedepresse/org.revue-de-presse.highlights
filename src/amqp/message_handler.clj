@@ -19,6 +19,7 @@
     (:import java.util.Locale))
 
 (def error-mismatching-favorites-cols-length "The favorited statuses could not be saved because of missing data.")
+(def error-unavailable-aggregate "The aggregate does not seem to be available.")
 
 (defn new-member-from-json
   [member-id tokens members]
@@ -244,10 +245,9 @@
     screen-name))
 
 (defn get-favorites
-  [favorites]
-  (let [statuses-ids (pmap get-status-ids favorites)
-        screen-names (pmap get-status-author-screen-name favorites)]
-    (find-statuses-having-ids statuses-ids screen-names)))
+  [favorites model]
+  (let [statuses-ids (pmap get-status-ids favorites)]
+    (find-statuses-having-ids statuses-ids model)))
 
 (defn get-date-properties
   [date]
@@ -300,7 +300,7 @@
 (defn assoc-properties-of-favorited-statuses
   [favorites total-favorites aggregate favorite-author member-model status-model]
   (let [favorite-status-authors (get-favorited-status-authors favorites member-model)
-        favorited-statuses (get-favorites favorites)
+        favorited-statuses (get-favorites favorites status-model)
         publication-date-cols (get-publication-dates-of-favorited-statuses favorites)
         id-col (get-favorite-status-ids total-favorites)
         aggregate-cols (get-aggregate-properties aggregate total-favorites)
@@ -614,6 +614,8 @@
          token-model :tokens
          aggregate-model :aggregates} entity-manager
         aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
+        _ (when (nil? (:name aggregate))
+            (throw (Exception. (str error-unavailable-aggregate))))
         member (first (find-member-by-screen-name screen-name member-model))
         favorites (get-next-batch-of-favorites-for-member member token-model)
         processed-likes (process-favorites member favorites aggregate entity-manager)
@@ -672,9 +674,8 @@
          entity-manager :entity-manager} options
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)
         payload-body (json/read-str (php->clj (String. payload "UTF-8")))
-        screen-name                                         "philwalton" ;(get payload-body "screen_name")
-        aggregate-id                                        6892 ;(get payload-body "aggregate_id")
-        ]
+        screen-name (get payload-body "screen_name")
+        aggregate-id (get payload-body "aggregate_id")]
     (when payload
       (try
         (do
@@ -685,6 +686,11 @@
             (= (.getMessage e) error-mismatching-favorites-cols-length)
               (log/error "Likes of \"" screen-name "\" related to aggregate #"
                          aggregate-id " could not be processed")
+            (= (.getMessage e) error-unavailable-aggregate)
+              (do
+                (log/error "Likes of \"" screen-name "\" related to aggregate #"
+                         aggregate-id " could not be bound to an actual aggregate")
+                (lb/ack channel delivery-tag))
             :else
               (log/error "An error occurred with message " (.getMessage e))))))))
 

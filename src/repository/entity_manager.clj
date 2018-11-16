@@ -223,8 +223,9 @@
   [ids model]
   (let [ids (if ids ids '(0))
         matching-statuses (-> (select-statuses model)
-                             (db/where {:ust_status_id [in ids]})
-                             (db/select))]
+                              (db/where {:ust_status_id [in ids]})
+                              (db/group :ust_status_id)
+                              (db/select))]
     (if matching-statuses
       matching-statuses
       '())))
