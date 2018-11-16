@@ -18,6 +18,8 @@
           [twitter.api-client])
     (:import java.util.Locale))
 
+(def error-mismatching-favorites-cols-length "The favorited statuses could not be saved because of missing data.")
+
 (defn new-member-from-json
   [member-id tokens members]
   (log/info (str "About to look up for member having twitter id #" member-id))
@@ -231,14 +233,21 @@
     (log/info (str "Found " (count favorited-status-authors) " favorited status authors ids"))
     favorited-status-authors))
 
-(defn get-favorite-ids
-  [favorite]
-  (let [{twitter-id :id_str} favorite]
+(defn get-status-ids
+  [status]
+  (let [{twitter-id :id_str} status]
     twitter-id))
 
+(defn get-status-author-screen-name
+  [status]
+  (let [{{screen-name :screen_name} :user} status]
+    screen-name))
+
 (defn get-favorites
-  [favorites model]
-  (find-statuses-having-ids (pmap get-favorite-ids favorites) model))
+  [favorites]
+  (let [statuses-ids (pmap get-status-ids favorites)
+        screen-names (pmap get-status-author-screen-name favorites)]
+    (find-statuses-having-ids statuses-ids screen-names)))
 
 (defn get-date-properties
   [date]
@@ -291,7 +300,7 @@
 (defn assoc-properties-of-favorited-statuses
   [favorites total-favorites aggregate favorite-author member-model status-model]
   (let [favorite-status-authors (get-favorited-status-authors favorites member-model)
-        favorited-statuses (get-favorites favorites status-model)
+        favorited-statuses (get-favorites favorites)
         publication-date-cols (get-publication-dates-of-favorited-statuses favorites)
         id-col (get-favorite-status-ids total-favorites)
         aggregate-cols (get-aggregate-properties aggregate total-favorites)
@@ -334,13 +343,7 @@
                  :favorited-status-col favorited-status-col
                  :favorite-author-cols favorite-author-cols
                  :favorited-status-author-cols favorited-status-author-cols}}
-      {:columns {:id-col '()
-                 :publication-date-cols '()
-                 :aggregate-cols '()
-                 :archive-col '()
-                 :favorited-status-col '()
-                 :favorite-author-cols '()
-                 :favorited-status-author-cols '()}})))
+      (throw (Exception. (str error-mismatching-favorites-cols-length))))))
 
 
 
@@ -606,13 +609,10 @@
     (update-max-favorite-id-for-member-having-id latest-status-id member-id member-model)))
 
 (defn process-likes
-  [payload entity-manager]
+  [screen-name aggregate-id entity-manager]
   (let [{member-model :members
          token-model :tokens
          aggregate-model :aggregates} entity-manager
-        payload-body (json/read-str (php->clj (String. payload  "UTF-8")))
-        screen-name (get payload-body "screen_name")
-        aggregate-id (get payload-body "aggregate_id")
         aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
         member (first (find-member-by-screen-name screen-name member-model))
         favorites (get-next-batch-of-favorites-for-member member token-model)
@@ -629,7 +629,7 @@
                                                        (:id favorite-author)
                                                        member-model))
         (if (pos? (count processed-likes))
-          (process-likes payload entity-manager)
+          (process-likes screen-name aggregate-id entity-manager)
           (update-max-favorite-id-for-member member aggregate entity-manager))))
 
 (defn disconnect-from-amqp-server
@@ -670,10 +670,23 @@
          channel        :channel
          queue          :queue
          entity-manager :entity-manager} options
-        [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
+        [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)
+        payload-body (json/read-str (php->clj (String. payload "UTF-8")))
+        screen-name                                         "philwalton" ;(get payload-body "screen_name")
+        aggregate-id                                        6892 ;(get payload-body "aggregate_id")
+        ]
     (when payload
-      (process-likes payload entity-manager)
-      (lb/ack channel delivery-tag))))
+      (try
+        (do
+          (process-likes screen-name aggregate-id entity-manager)
+          (lb/ack channel delivery-tag))
+        (catch Exception e
+          (cond
+            (= (.getMessage e) error-mismatching-favorites-cols-length)
+              (log/error "Likes of \"" screen-name "\" related to aggregate #"
+                         aggregate-id " could not be processed")
+            :else
+              (log/error "An error occurred with message " (.getMessage e))))))))
 
 (s/def ::total-messages #(pos-int? %))
 
