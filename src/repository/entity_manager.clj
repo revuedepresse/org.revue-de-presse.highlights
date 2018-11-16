@@ -211,6 +211,13 @@
                [:ust_created_at :created-at]
                [:ust_status_id :twitter-id])))
 
+(defn find-status-by-twitter-id
+  "Find a status by id"
+  [twitter-id model]
+  (-> (select-statuses model)
+      (db/where {:ust_status_id twitter-id})
+      (db/select)))
+
 (defn find-statuses-having-ids
   "Find statuses by theirs Twitter ids"
   [ids model]
@@ -222,22 +229,20 @@
       matching-statuses
       '())))
 
-(defn find-status-by-twitter-id
-  "Find a status by id"
-  [twitter-id model]
-  (->
-    (db/select* model)
-    (db/fields [:ust_id :id]
-               [:ust_hash :hash]
-               [:ust_text :text]
-               [:ust_full_name :screen-name]
-               [:ust_name :name]
-               [:ust_access_token :access-token]
-               [:ust_api_document :document]
-               [:ust_created_at :created-at]
-               [:ust_status_id :twitter-id])
-    (db/where {:ust_status_id twitter-id})
-    (db/select)))
+(defn find-statuses-having-ids-of-authors
+  "Find statuses by theirs Twitter ids and authors name"
+  [statuses-ids screen-names]
+  (let [ids (if statuses-ids statuses-ids '(0))
+        names (if screen-names screen-names '(""))
+        params (interpose "," (take (count ids) (iterate (constantly "(?,?)") "(?,?)")))
+        question-marks (clojure.string/join "" (map str params))
+        params-values (interleave ids names)
+        results (db/exec-raw [(str
+                                "SELECT ust_status_id as `twitter-id`, ust_id as `id`, ust_full_name as `screen-name`"
+                                "FROM weaving_status "
+                                "WHERE (ust_status_id, ust_full_name) in (" question-marks ")") params-values] :results)]
+    (log/info (str "There are " (count results) " matching results."))
+    results))
 
 (defn new-status
   [status model]
@@ -294,15 +299,25 @@
                                          (into {}))]
     props-having-converted-keys))
 
+(defn get-status-hash
+  [status]
+  (let [twitter-id (:status_id status)
+        concatenated-string (str (:text status) twitter-id)
+        hash (sha1 concatenated-string)]
+    (log/info (str "Hash for " twitter-id " is \"" hash "\""))
+    hash))
+
+
+      (defn assoc-hash
+  [status]
+  (assoc status :hash (get-status-hash status)))
+
 (defn bulk-insert-new-statuses
   [statuses model]
   (let [snake-cased-values (map snake-case-keys statuses)
-        statuses-values (map
-                         #(assoc
-                            %
-                            :hash (sha1 (str (:text %) (:twitter_id %))))
-                         snake-cased-values)
-        prefixed-keys-values (map prefixed-keys statuses-values)
+        statuses-values (map assoc-hash snake-cased-values)
+        deduped-statuses (dedupe (sort-by #(:status_id %) statuses-values))
+        prefixed-keys-values (map prefixed-keys deduped-statuses)
         twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
     (if (pos? (count twitter-ids))
       (do
@@ -338,6 +353,17 @@
       (db/join status-model (= status-id-col :status_id))
       (db/where {:id id})
       (db/select))))
+
+(defn find-liked-statuses-by-triples
+  [triples]
+  (let [params (interpose "," (take (/ (count triples) 3) (iterate (constantly "(?,?,?)") "(?,?,?)")))
+        question-marks (clojure.string/join "" (map str params))
+        results (db/exec-raw [(str
+                                "SELECT status_id as `status-id`, member_id as `member-id`, liked_by as `liked-by` "
+                                "FROM liked_status "
+                                "WHERE (status_id, member_id, liked_by) in (" question-marks ")") triples] :results)]
+    (log/info (str "There are " (count results) " matching results."))
+    results))
 
 (defn find-liked-statuses
   [liked-statuses-ids model status-model]
@@ -450,7 +476,7 @@
     (db/where {:usr_id member-id})))
 
 (defn find-member-by-twitter-id
-  "Find a member by her / his username"
+  "Find a member by her / his twitter id"
   [id members]
   (->
     (db/select* members)
@@ -472,6 +498,33 @@
                [:max_like_id :max-favorite-status-id])
     (db/where {:usr_twitter_username screen-name})
     (db/select)))
+
+(defn select-members
+  [members]
+  (-> (db/select* members)
+      (db/fields [:usr_id :id]
+                 [:usr_twitter_id :twitter-id]
+                 [:usr_twitter_username :screen_name]
+                 [:usr_twitter_username :screen-name])))
+
+(defn find-member-by-id
+  "Find a member by her / his Twitter id"
+  [twitter-id members]
+  (let [matching-members (-> (select-members members)
+                             (db/where {:usr_twitter_id twitter-id})
+                             (db/select))]
+    (first matching-members)))
+
+(defn find-members-having-ids
+  "Find members by theirs Twitter ids"
+  [twitter-ids members]
+  (let [ids (if twitter-ids twitter-ids '(0))
+        matching-members (-> (select-members members)
+                             (db/where {:usr_twitter_id [in ids]})
+                             (db/select))]
+    (if matching-members
+      matching-members
+      '())))
 
 (defn select-tokens
   [model]
@@ -542,33 +595,6 @@
                                    (db/where (and (= :member_id member-id)
                                                   (in :subscribee_id ids)))
                                    (db/select))))
-
-(defn select-members
-  [members]
-  (-> (db/select* members)
-  (db/fields [:usr_id :id]
-             [:usr_twitter_id :twitter-id]
-             [:usr_twitter_username :screen_name]
-             [:usr_twitter_username :screen-name])))
-
-(defn find-member-by-id
-  "Find a member by her / his Twitter id"
-  [twitter-id members]
-  (let [matching-members (-> (select-members members)
-                                 (db/where {:usr_twitter_id twitter-id})
-                                 (db/select))]
-    (first matching-members)))
-
-(defn find-members-having-ids
-  "Find members by theirs Twitter ids"
-  [twitter-ids members]
-  (let [ids (if twitter-ids twitter-ids '(0))
-        matching-members (-> (select-members members)
-                                 (db/where {:usr_twitter_id [in ids]})
-                                 (db/select))]
-    (if matching-members
-      matching-members
-      '())))
 
 (defn map-get-in
   "Return a map of values matching the provided key coerced to integers"
@@ -658,11 +684,12 @@
                             :is_protected
                             :is_suspended)
                          snake-cased-values)
-        twitter-ids (map #(:usr_twitter_id %) members-values)]
+        deduped-values (dedupe (sort-by #(:usr_twitter_id %) members-values))
+        twitter-ids (map #(:usr_twitter_id %) deduped-values)]
     (if (pos? (count members-values))
       (do
         (try
-          (db/insert model (db/values members-values))
+          (db/insert model (db/values deduped-values))
           (catch Exception e (log/error (.getMessage e))))
         (find-members-having-ids twitter-ids model))
       '())))

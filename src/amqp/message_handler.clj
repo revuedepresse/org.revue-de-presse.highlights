@@ -12,7 +12,8 @@
               [clj-time.format :as f]
               [clj-time.coerce :as c]
               [clojure.tools.logging :as log]
-              [php_clj.core :refer [php->clj clj->php]])
+              [php_clj.core :refer [php->clj clj->php]]
+              [clj-uuid :as uuid])
     (:use [repository.entity-manager]
           [twitter.api-client])
     (:import java.util.Locale))
@@ -204,7 +205,198 @@
      :status status
      :status-author liked-member}))
 
-(defn process-like
+(defn get-favorite-statuses-author-id
+  [status]
+  (let [{{author-id :id_str} :user} status]
+    author-id))
+
+(defn get-author-key-value
+  [args]
+  (let [twitter-id (:twitter-id args)
+        key-value [(keyword twitter-id) args]]
+    key-value))
+
+(defn get-author-by-id
+  [indexed-authors]
+  (fn [status-id]
+    ((keyword status-id) indexed-authors)))
+
+(defn get-favorited-status-authors
+  [favorites model]
+  (let [author-ids (pmap get-favorite-statuses-author-id favorites)
+        distinct-favorited-status-authors (find-members-having-ids author-ids model)
+        indexed-authors (->> (map get-author-key-value distinct-favorited-status-authors)
+                             (into {}))
+        favorited-status-authors (map (get-author-by-id indexed-authors) author-ids)]
+    (log/info (str "Found " (count favorited-status-authors) " favorited status authors ids"))
+    favorited-status-authors))
+
+(defn get-favorite-ids
+  [favorite]
+  (let [{twitter-id :id_str} favorite]
+    twitter-id))
+
+(defn get-favorites
+  [favorites model]
+  (find-statuses-having-ids (pmap get-favorite-ids favorites) model))
+
+(defn get-date-properties
+  [date]
+  (let [parsed-publication-date (c/to-long (f/parse date-formatter date))]
+    {:parsed-publication-date parsed-publication-date
+     :mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))}))
+
+(defn get-favorite-formatted-dates
+  [favorite]
+  (let [formatted-date (get-date-properties (:created_at favorite))]
+    formatted-date))
+
+(defn get-publication-dates-of-favorited-statuses
+  [favorites]
+  (pmap get-favorite-formatted-dates favorites))
+
+(defn get-favorite-status-ids
+  [total-items]
+  (let [id {:id (uuid/to-string (uuid/v1))}]
+    (take total-items (iterate (constantly id) id))))
+
+(defn get-aggregate-properties
+  [aggregate total-items]
+  (let [aggregate-properties {:aggregate-id (:id aggregate)
+                              :aggregate-name (:name aggregate)}]
+    (take total-items (iterate (constantly aggregate-properties) aggregate-properties))))
+
+(defn get-archive-properties
+  [total-items]
+  (let [archive-properties {:is-archived-status 0}]
+    (take total-items (iterate (constantly archive-properties) archive-properties))))
+
+(defn get-favorite-author-properties
+  [favorite-author total-items]
+  (let [favorite-author-properties {:liked-by (:id favorite-author)
+                                    :liked-by-member-name (:screen-name favorite-author)}]
+    (take total-items (iterate (constantly favorite-author-properties) favorite-author-properties))))
+
+(defn get-favorited-status-author-properties
+  [favorited-status-author]
+  (let [favorited-status-author-properties {:member-id (:id favorited-status-author)
+                                            :member-name (:screen-name favorited-status-author)}]
+    favorited-status-author-properties))
+
+(defn get-status-id
+  [status]
+  (let [status-id {:status-id (:id status)}]
+    status-id))
+
+(defn assoc-properties-of-favorited-statuses
+  [favorites total-favorites aggregate favorite-author member-model status-model]
+  (let [favorite-status-authors (get-favorited-status-authors favorites member-model)
+        favorited-statuses (get-favorites favorites status-model)
+        publication-date-cols (get-publication-dates-of-favorited-statuses favorites)
+        id-col (get-favorite-status-ids total-favorites)
+        aggregate-cols (get-aggregate-properties aggregate total-favorites)
+        favorited-status-author-cols (pmap get-favorited-status-author-properties favorite-status-authors)
+        favorited-status-col (pmap get-status-id favorited-statuses)
+        archive-col (get-archive-properties total-favorites)
+        favorite-author-cols (get-favorite-author-properties favorite-author total-favorites)
+        total-favorite-ids (count id-col)
+        total-aggregate-properties (count aggregate-cols)
+        total-archive-properties (count archive-col)
+        total-favorite-status-authors (count favorite-status-authors)
+        total-publication-dates (count publication-date-cols)
+        total-favorite-author-properties (count favorite-author-cols)
+        total-favorited-status-author-properties (count favorited-status-author-cols)
+        total-status-ids (count favorited-status-col)
+        total-favorited-statuses (count favorited-statuses)]
+    (log/info (str "There are " total-favorite-ids " favorite ids."))
+    (log/info (str "There are " total-favorited-statuses " favorited statuses."))
+    (log/info (str "There are " total-favorite-status-authors " authors of favorited statuses."))
+    (log/info (str "There are " total-publication-dates " publication dates."))
+    (log/info (str "There are " total-archive-properties " archive properties."))
+    (log/info (str "There are " total-favorite-author-properties " favorite authors properties."))
+    (log/info (str "There are " total-favorited-status-author-properties " favorited status authors properties."))
+    (log/info (str "There are " total-status-ids " ids of statuses."))
+    (log/info (str "There are " total-aggregate-properties " aggregate maps."))
+    (if (=
+            total-favorite-ids
+            total-favorite-status-authors
+            total-favorited-statuses
+            total-publication-dates
+            total-archive-properties
+            total-favorite-author-properties
+            total-favorited-status-author-properties
+            total-status-ids
+            total-aggregate-properties)
+      {:columns {:id-col id-col
+                 :publication-date-cols publication-date-cols
+                 :aggregate-cols aggregate-cols
+                 :archive-col archive-col
+                 :favorited-status-col favorited-status-col
+                 :favorite-author-cols favorite-author-cols
+                 :favorited-status-author-cols favorited-status-author-cols}}
+      {:columns {:id-col '()
+                 :publication-date-cols '()
+                 :aggregate-cols '()
+                 :archive-col '()
+                 :favorited-status-col '()
+                 :favorite-author-cols '()
+                 :favorited-status-author-cols '()}})))
+
+
+
+(defn assoc-favorited-status-cols
+  [id-col
+   publication-date-cols
+   aggregate-cols
+   archive-cols
+   favorited-status-col
+   favorited-status-author-cols
+   favorite-author-cols]
+  (let [parsed-publication-date (:parsed-publication-date publication-date-cols)
+        publication-date-time (:mysql-formatted-publication-date publication-date-cols)]
+  {:id (:id id-col)
+   :time-range (get-time-range parsed-publication-date)
+   :publication-date-time publication-date-time
+   :is-archived-status (:is-archived-status archive-cols)
+   :aggregate-id (:aggregate-id aggregate-cols)
+   :aggregate-name (:aggregate-name aggregate-cols)
+   :status-id (:status-id favorited-status-col)
+   :liked-by (:liked-by favorite-author-cols)
+   :liked-by-member-name (:liked-by-member-name favorite-author-cols)
+   :member-id (:member-id favorited-status-author-cols)
+   :member-name (:member-name favorited-status-author-cols)}))
+
+(defn assoc-properties-of-non-empty-favorited-statuses
+  [aggregate favorite-author favorites member-model status-model]
+  (let [total-favorites (count favorites)]
+    (if (pos? total-favorites)
+      (do
+        (let [{{id-col :id-col
+                publication-date-cols :publication-date-cols
+                aggregate-cols :aggregate-cols
+                archive-col :archive-col
+                favorited-status-col :favorited-status-col
+                favorite-author-cols :favorite-author-cols
+                favorited-status-author-cols :favorited-status-author-cols}
+               :columns} (assoc-properties-of-favorited-statuses favorites
+                                                      total-favorites
+                                                      aggregate
+                                                      favorite-author
+                                                      member-model
+                                                      status-model)
+                liked-statuses-values (doall (map assoc-favorited-status-cols
+                      id-col
+                      publication-date-cols
+                      aggregate-cols
+                      archive-col
+                      favorited-status-col
+                      favorited-status-author-cols
+                      favorite-author-cols))]
+          (log/info (str (count liked-statuses-values) " favorited statuses have been accumulated."))
+          liked-statuses-values))
+        '())))
+
+      (defn process-like
   [like liked-by aggregate model status-model member-model token-model]
   (let [favorited-status (ensure-favorited-status-exists aggregate
                                                          like
@@ -297,9 +489,7 @@
                        (pos? total-statuses)
                         (do
                           (log/info (str "About to ensure " total-statuses " statuses exist."))
-                          (bulk-insert-new-statuses
-                            (pmap #(get-status-json %) statuses)
-                            model))
+                          (bulk-insert-new-statuses (pmap #(get-status-json %) statuses) model))
                         (do
                           (log/info (str "No need to find some missing status."))
                           '()))]
@@ -309,11 +499,26 @@
                                   "\" has been saved under id \"" (:id %))) new-statuses)))
     new-statuses))
 
+(defn get-id-as-string
+  [status]
+  (let [id-as-string (:id_str status)
+        id-set #{id-as-string}]
+    id-set))
+
+(defn in-ids-as-string-set
+  [set]
+  (fn [status]
+    (let [id-singleton (get-id-as-string status)]
+      (clojure.set/subset? id-singleton set))))
+
 (defn process-favorited-statuses
   [favorites model]
   (let [missing-statuses-ids (get-missing-statuses-ids favorites model)
-        remaining-favorites (filter #(clojure.set/subset? #{(:id_str %)} missing-statuses-ids) favorites)]
-    (when (pos? (count missing-statuses-ids))
+        remaining-favorites (filter (in-ids-as-string-set missing-statuses-ids) favorites)]
+    (when
+      (and
+        (pos? (count missing-statuses-ids))
+        (pos? (count remaining-favorites)))
       (ensure-statuses-exist remaining-favorites model))))
 
 (defn preprocess-favorites
@@ -354,32 +559,44 @@
       favorites
       next-batch-of-favorites)))
 
-(defn process-member-favorites
+(defn not-in-set
+  [set]
+  (fn [triple]
+    (not (clojure.set/subset? #{[(:status-id triple) (:member-id triple) (:liked-by triple)]} set))))
+
+(defn get-triple
+  [status]
+  (let [triple [(:status-id status) (:member-id status) (:liked-by status)]]
+    triple))
+
+(defn remove-existing-favorites
+  [favorited-statuses-values]
+  (let [matching-favorites-triples (map get-triple favorited-statuses-values)
+        reduced-triples (reduce concat '() matching-favorites-triples)
+        ;matching-favorites (find-liked-statuses-by-triples (into [] reduced-triples))
+        matching-favorites '()
+        missing-favorited-statuses (filter (not-in-set (set matching-favorites)) favorited-statuses-values)]
+    (log/info (str "There are " (count matching-favorites)
+                   " matching favorites vs " (count missing-favorited-statuses)
+                   " missing favorited statuses"))
+    missing-favorited-statuses))
+
+(defn process-favorites
   [member favorites aggregate {liked-status-model :liked-status
                                member-model :members
                                status-model :status
                                token-model :tokens}]
-  (let [ _ (preprocess-favorites favorites status-model member-model token-model)
-        processed-likes (pmap #(process-like %
-                                             member
-                                             aggregate
-                                             liked-status-model
-                                             status-model
-                                             member-model
-                                             token-model) favorites)
-        missing-favorites-statuses (filter #(nil? (:id (:favorite %))) processed-likes)
-        new-favorites (new-liked-statuses (map
-                                            #(:favorite %)
-                                            missing-favorites-statuses)
-                                          liked-status-model
-                                          status-model)]
-    (doall (map #(log/info
-                   (str
-                     "Status #" (:status-id %)
-                     " published by \"" (:member-name %)
-                     "\" and liked by \"" (:liked-by-member-name %)
-                     "\" has been saved under id \"" (:id %) "\"")) new-favorites))
-    processed-likes))
+  (let [_ (preprocess-favorites favorites status-model member-model token-model)
+        favorited-statuses-values (assoc-properties-of-non-empty-favorited-statuses aggregate
+                                                                member
+                                                                favorites
+                                                                member-model
+                                                                status-model)
+        missing-favorites (if (pos? (count favorited-statuses-values))
+                            (remove-existing-favorites favorited-statuses-values)
+                            '())
+        new-favorites (new-liked-statuses missing-favorites liked-status-model status-model)]
+    (log/info (str "There are " (count new-favorites ) " new favorites"))))
 
 (defn update-max-favorite-id-for-member
   [member aggregate entity-manager]
@@ -388,7 +605,7 @@
         token-model (:tokens entity-manager)
         member-id (:id member)
         latest-favorites (get-favorites-of-member {:screen-name screen-name} token-model)
-        _ (process-member-favorites member latest-favorites aggregate entity-manager)
+        _ (process-favorites member latest-favorites aggregate entity-manager)
         latest-status-id (:id_str (first latest-favorites))]
     (update-max-favorite-id-for-member-having-id latest-status-id member-id member-model)))
 
@@ -403,7 +620,7 @@
         aggregate (first (find-aggregate-by-id aggregate-id aggregate-model))
         member (first (find-member-by-screen-name screen-name member-model))
         favorites (get-next-batch-of-favorites-for-member member token-model)
-        processed-likes (process-member-favorites member favorites aggregate entity-manager)
+        processed-likes (process-favorites member favorites aggregate entity-manager)
         last-favorited-status (last processed-likes)
         status (:status last-favorited-status)
         favorite-author (:favorite-author last-favorited-status)]
@@ -460,7 +677,9 @@
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
     (when payload
       (process-likes payload entity-manager)
-      (lb/ack channel delivery-tag))))
+      ;  (lb/ack channel delivery-tag)
+      )
+    ))
 
 (s/def ::total-messages #(pos-int? %))
 
