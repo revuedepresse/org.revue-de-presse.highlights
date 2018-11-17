@@ -124,9 +124,9 @@
                   :not_found
                   :protected
                   :suspended
-                  :usr_locked
                   :usr_status
                   :description
+                  :url
                   :total_subscribees
                   :total_subscriptions))
 
@@ -533,6 +533,7 @@
     (db/select* model)
     (db/fields [:consumer_key :consumer-key]
                [:consumer_secret :consumer-secret]
+               [:frozen_until :frozen-until]
                :token
                :secret)))
 
@@ -561,7 +562,8 @@
                                             (not= (db/sqlfn coalesce :consumer_key -1) -1)
                                             (not-in :consumer_key excluded-consumer-keys)
                                             (<= :frozen_until (db/sqlfn now))))
-                                (db/select)))]
+                                         (db/order :frozen_until :ASC)
+                                         (db/select)))]
     first-available-token))
 
 (defn select-member-subscriptions
@@ -636,6 +638,7 @@
   [member members]
   (let [{twitter-id :twitter-id
          description :description
+         url :url
          total-subscribees :total-subscribees
          total-subscriptions :total-subscriptions
          is-protected :is-protected
@@ -643,18 +646,26 @@
          is-not-found :is-not-found} member
          member-screen-name (screen-name-otherwise-twitter-id member)]
 
-    (log/info (str "About to insert member with twitter id #" twitter-id
-              " and twitter screen mame \"" member-screen-name "\""))
+    (cond
+      (= 1 is-protected)
+        (log/info (str "About to cache protected member with twitter id #" twitter-id))
+      (= 1 is-not-found)
+        (log/info (str "About to cache not found member with twitter id #" twitter-id))
+      (= 1 is-suspended)
+        (log/info (str "About to cache suspended member with twitter id #" twitter-id))
+      :else
+        (log/info (str "About to cache member with twitter id #" twitter-id
+                    " and twitter screen mame \"" member-screen-name "\"")))
 
     (try
       (db/insert members
                (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
                             :usr_twitter_id twitter-id
                             :usr_twitter_username member-screen-name
-                            :usr_locked false
                             :usr_status false
                             :usr_email (str "@" member-screen-name)
                             :description description
+                            :url url
                             :not_found is-not-found
                             :suspended is-suspended
                             :protected is-protected
@@ -671,7 +682,6 @@
                             (assoc
                               %
                               :usr_position_in_hierarchy 1
-                              :usr_locked false
                               :usr_status false
                               :usr_email (str "@" (:screen_name %))
                               :usr_twitter_username (:screen_name %)

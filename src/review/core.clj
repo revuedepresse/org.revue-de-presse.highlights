@@ -7,12 +7,18 @@
   (:gen-class))
 
 (defn -main
-  "AMQP message consuming application"
-  [queue & [messages consumers]]
-  (let [total-messages (if (nil? messages)
-                         100
-                         (Long/parseLong messages))
-        parallel-consumers (if (nil? consumers)
-                             1
-                             (Long/parseLong consumers))]
-      (consume-messages (keyword queue) total-messages parallel-consumers)))
+  "Command dispatch application (AMQP message consumption / recommendation)"
+  [name & args]
+  (cond
+    (= name "consume-amqp-message")
+      (let [[queue messages consumers] args
+            total-messages (if (nil? messages)
+                             100
+                             (Long/parseLong messages))
+            parallel-consumers (if (nil? consumers)
+                                 1
+                                 (Long/parseLong consumers))]
+          (consume-messages (keyword queue) total-messages parallel-consumers))
+    (= name "recommend-subscriptions")
+      (let [[screen-name] args]
+          (recommand-subscriptions-for-member-having-screen-name screen-name))))

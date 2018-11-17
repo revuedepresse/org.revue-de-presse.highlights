@@ -21,18 +21,27 @@
 (def error-mismatching-favorites-cols-length "The favorited statuses could not be saved because of missing data.")
 (def error-unavailable-aggregate "The aggregate does not seem to be available.")
 
+(defn save-member
+  [twitter-user model]
+  (new-member {:description (:description twitter-user)
+               :is-protected (if (not= (:protected twitter-user) "false") 1 0)
+               :is-suspended 0
+               :is-not-found 0
+               :url (:url twitter-user)
+               :total-subscribees (if (nil? (:followers_count twitter-user))
+                                    0
+                                    (:followers_count twitter-user))
+               :total-subscriptions (if (nil? (:friends_count twitter-user))
+                                      0
+                                      (:friends_count twitter-user))
+               :twitter-id (:id_str twitter-user)
+               :screen-name (:screen_name twitter-user)} model))
+
 (defn new-member-from-json
   [member-id tokens members]
   (log/info (str "About to look up for member having twitter id #" member-id))
   (let [twitter-user (get-member-by-id member-id tokens members)
-        member (new-member {:description (:description twitter-user)
-                            :is-protected (if (not= (:protected twitter-user) "false") 1 0)
-                            :is-suspended 0
-                            :is-not-found 0
-                            :total-subscribees (:followers_count twitter-user)
-                            :total-subscriptions (:friends_count twitter-user)
-                            :twitter-id (:id_str twitter-user)
-                            :screen-name (:screen_name twitter-user)} members)]
+        member (save-member twitter-user members)]
     member))
 
 (defn assoc-twitter-user-properties
@@ -113,8 +122,18 @@
          member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
         member-id (get-id-of-member-having-username screen-name members tokens)]
-    (process-subscriptions member-id screen-name member-subscriptions tokens members)
-    (process-subscribees member-id screen-name member-subscribees tokens members)))
+    (try
+      (process-subscriptions member-id screen-name member-subscriptions tokens members)
+      (process-subscribees member-id screen-name member-subscribees tokens members)
+    (catch Exception e
+      (when (= (.getMessage e) error-not-authorized)
+        (guard-against-exceptional-member {:screen_name screen-name
+                                          :twitter-id member-id
+                                          :is-not-found 0
+                                          :is-protected 0
+                                          :is-suspended 1
+                                          :total-subscribees 0
+                                          :total-subscriptions 0} members))))))
 
 (defn get-time-range
   [timestamp]
@@ -734,3 +753,6 @@
           (recur (next-total messages-to-consume)))))
   (Thread/sleep 1000)
   (disconnect-from-amqp-server channel connection)))
+
+(defn recommand-subscriptions-for-member-having-screen-name
+  [screen-name])

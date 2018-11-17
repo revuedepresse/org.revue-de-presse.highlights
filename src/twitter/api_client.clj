@@ -27,6 +27,11 @@
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
+(def error-not-authorized "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
+(def error-unavailable-rate-limit "No rate limit available from headers.")
+
+; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
+(declare find-next-token)
 
 (defn twitter-credentials
   "Make Twitter OAuth credentials from the environment configuration"
@@ -66,16 +71,25 @@
   (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
   (Thread/sleep (* 60 15 1000)))
 
+(defn select-token
+  [endpoint token-candidate context model]
+  (if (and
+        (nil? token-candidate)
+        (nil? @next-token))
+    (do
+      (wait-for-15-minutes endpoint)
+      (find-next-token model endpoint context))
+    (if (nil? token-candidate) @next-token token-candidate)))
+
 (defn find-first-available-token-when
   [endpoint context model]
     (let [excluded-consumer-key @current-consumer-key
           excluded-consumer-keys (consumer-keys-of-frozen-tokens)
-          token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)]
-      (when (nil? token-candidate)
-        (wait-for-15-minutes endpoint))
+          token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)
+          selected-token (select-token endpoint token-candidate context model)]
     (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
-                   (:consumer-key token-candidate) "\" when " context))
-    token-candidate))
+                   (:consumer-key selected-token) "\" when " context))
+      selected-token))
 
 (defn format-date
   [date]
@@ -96,16 +110,6 @@
       (log/info (str "Now being \"" formatted-now "\" \""
                      (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
-
-(defn find-next-token
-  [token-model endpoint context]
-  (let [next-token-candidate (if @next-token @next-token (find-first-available-tokens token-model))
-        it-is-frozen (is-token-candidate-frozen next-token-candidate)]
-    (if it-is-frozen
-      (do
-        (set-next-token (find-first-available-token-when endpoint context token-model ) context)
-        (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint) @call-limits))))
-      (set-next-token next-token-candidate context))))
 
 (defn in-15-minutes
   []
@@ -136,11 +140,15 @@
                      (call client))
                 (catch Exception e
                   (log/warn (.getMessage e))
-                  (if (= endpoint "application/rate-limit-status")
-                    (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
-                    (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
-                      (handle-rate-limit-exceeded-error endpoint token-model)
-                      (try-calling-api call endpoint token-model context))))))))
+                  (cond
+                    (= (.getMessage e) error-not-authorized)
+                      (throw (Exception. (str error-not-authorized)))
+                    (= endpoint "application/rate-limit-status")
+                      (do
+                        (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
+                        (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
+                          (handle-rate-limit-exceeded-error endpoint token-model)
+                          (try-calling-api call endpoint token-model context)))))))))
 
 (defn get-rate-limit-status
   [model]
@@ -155,6 +163,21 @@
                   "a call to \"application/rate-limit-status\"")
         resources (:resources (:body response))]
         (swap! rate-limits (constantly resources))))
+
+(defn find-next-token
+  [token-model endpoint context]
+  (let [next-token-candidate (if @next-token
+                               @next-token
+                               (find-first-available-tokens token-model))
+        it-is-frozen (is-token-candidate-frozen next-token-candidate)]
+    (if it-is-frozen
+      (do
+        (set-next-token
+          (find-first-available-token-when endpoint context token-model)
+          context)
+        (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint)
+                                                              @call-limits))))
+      (set-next-token next-token-candidate context))))
 
 (defn how-many-remaining-calls-for
   [endpoint token-model]
@@ -186,10 +209,14 @@
 
 (defn log-remaining-calls-for
   [headers endpoint]
-  (log/info (str "Rate limit at " (:x-rate-limit-limit headers) " for \"" endpoint "\"" ))
-  (log/info (str (:x-rate-limit-remaining headers) " remaining calls for \"" endpoint
+  (let [are-headers-available (not (nil? headers))
+        limit (when are-headers-available (:x-rate-limit-remaining headers))
+        remaining-calls (if are-headers-available (:x-rate-limit-limit headers) 0)]
+    (when limit
+      (log/info (str "Rate limit at " limit " for \"" endpoint "\"" )))
+    (log/info (str remaining-calls " remaining calls for \"" endpoint
                  "\" called with consumer key \"" @current-consumer-key "\"" ))
-  (update-remaining-calls headers endpoint))
+    (update-remaining-calls headers endpoint)))
 
 (defn ten-percent-of
   [dividend]
@@ -200,18 +227,21 @@
   [headers]
   (def percentage (atom 1))
   (try (swap! percentage (constantly (ten-percent-of (Long/parseLong (:x-rate-limit-limit headers)))))
-      (catch Exception e (log/error (.getMessage e)))
+      (catch Exception e (log/error (str "An error occurred when calculating "
+                                         "the 10 percent of the rate limit")))
       (finally @percentage)))
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
   [headers endpoint]
-  (let [percentage (ten-percent-of-limit headers)]
+  (let [unavailable-rate-limit (nil? headers)
+        percentage (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
-    (try (when
-          (and
-            (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
-            (nil? @next-token))
+    (try (when (or
+                  unavailable-rate-limit
+                  (and
+                    (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
+                    (nil? @next-token)))
           (wait-for-15-minutes endpoint))
        (catch Exception e (log/error (.getMessage e))))))
 
@@ -255,6 +285,7 @@
               (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
           (string/includes? (.getMessage e) error-user-not-found)
             (guard-against-exceptional-member {:screen_name screen-name
+                                               :twitter-id id
                                                :is-not-found 1
                                                :is-protected 0
                                                :is-suspended 0
@@ -262,6 +293,7 @@
                                                :total-subscriptions 0} member-model)
           (string/includes? (.getMessage e) error-user-suspended)
             (guard-against-exceptional-member {:screen_name screen-name
+                                               :twitter-id id
                                                :is-not-found 0
                                                :is-protected 0
                                                :is-suspended 1
