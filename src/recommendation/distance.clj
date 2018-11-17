@@ -5,8 +5,7 @@
   (:use [repository.entity-manager]
         [utils.string]))
 
-(def *enable-logging* false)
-
+(def ^:dynamic *enable-logging* false)
 
 (defn normalize-contribution
   [contributions enabled-logging]
@@ -27,7 +26,7 @@
       (reduce-member-vector raw-subscriptions-ids screen-name all-subscriptions)))
   ([raw-subscriptions-ids screen-name all-subscriptions]
     (let [split-member-subscriptions-ids (explode #"," raw-subscriptions-ids)
-          member-subscriptions-ids (pmap #(Long/parseLong %) split-member-subscriptions-ids)
+          member-subscriptions-ids (map #(Long/parseLong %) split-member-subscriptions-ids)
           all-subscriptions-indices (take (count all-subscriptions) (iterate inc 0))
           member-vector (map (normalize-contribution
                                 (set member-subscriptions-ids)
@@ -49,8 +48,7 @@
 (defn power-of-difference
   [x y]
   (let [[x1 y2] [(if x x 0) (if y y 0)]
-        absolute-value-of-difference (- x1 y2)
-        res (math/expt 2 absolute-value-of-difference)]
+        res (math/expt (- x1 y2) 2)]
     res))
 
 (defn get-distance-from
@@ -67,11 +65,11 @@
     {:distance distance
      :screen-name screen-name})))
 
-(defn get-distance-printer
+(defn get-distance-logger
   [screen-name]
   (fn
   [distance]
-  (println (str "The distance between \"" (:screen-name distance)
+  (log/info (str "The distance between \"" (:screen-name distance)
                 "\" and \"" screen-name "\" is " (:distance distance)))))
 
 (defn get-distance-from-others

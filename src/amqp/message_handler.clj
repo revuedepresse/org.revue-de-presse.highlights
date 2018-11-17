@@ -5,7 +5,6 @@
               [environ.core :refer [env]]
               [langohr.channel :as lch]
               [langohr.basic :as lb]
-              [langohr.consumers :as lc]
               [langohr.core :as rmq]
               [clj-time.core :as t]
               [clj-time.local :as l]
@@ -767,10 +766,10 @@
            screen-name :screen-name
            total-subscriptions :total-subscriptions} (reduce-member-vector screen-name distinct-subscriptions-ids)
           other-members-subscriptions (find-members-closest-to-member-having-screen-name total-subscriptions)
-          other-members (pmap
-             (reduce-member-vector-against-overall-subscriptions
-               distinct-subscriptions-ids)
-             other-members-subscriptions)
+          other-members (map
+                         (reduce-member-vector-against-overall-subscriptions
+                           distinct-subscriptions-ids)
+                         other-members-subscriptions)
           distances-to-other-members-vectors (get-distance-from-others identity-vector other-members)
           sorted-distances (sort-by #(:distance %) distances-to-other-members-vectors)]
-          (doall (map (get-distance-printer screen-name) sorted-distances)))))
+          (doall (map (get-distance-logger screen-name) sorted-distances)))))
