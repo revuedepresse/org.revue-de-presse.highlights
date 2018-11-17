@@ -593,17 +593,6 @@
   (let [triple [(:status-id status) (:member-id status) (:liked-by status)]]
     triple))
 
-(defn remove-existing-favorites
-  [favorited-statuses-values]
-  (let [matching-favorites-triples (map get-triple favorited-statuses-values)
-        reduced-triples (reduce concat '() matching-favorites-triples)
-        matching-favorites (find-liked-statuses-by-triples (into [] reduced-triples))
-        missing-favorited-statuses (filter (not-in-set (set matching-favorites)) favorited-statuses-values)]
-    (log/info (str "There are " (count matching-favorites)
-                   " matching favorites vs " (count missing-favorited-statuses)
-                   " missing favorited statuses"))
-    missing-favorited-statuses))
-
 (defn process-favorites
   [member favorites aggregate {liked-status-model :liked-status
                                member-model :members
