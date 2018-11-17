@@ -124,7 +124,7 @@
 (defn handle-rate-limit-exceeded-error
   [endpoint token-model]
   (freeze-current-token)
-  (freeze-token @current-consumer-key token-model)
+  (freeze-token @current-consumer-key)
   (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
   (when (nil? @next-token)
     (wait-for-15-minutes endpoint)))

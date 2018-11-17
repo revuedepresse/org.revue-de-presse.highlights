@@ -18,8 +18,24 @@ cp lein-env{.dist,}
 # in the newly created configuration file
 ```
 
-## How to run the consumption of AQMP messages
+## How to import first degree subscriptions?
 
 ```
-lein run
+# 1000 ; Maximum number of messages to be consumed
+# 5    ; Parallel consumers
+lein run consume-amqp-message network [1000] [5]
+```
+
+## How to import favorited statuses?
+
+```
+# 100 ; Maximum number of messages to be consumed
+# 2   ; Parallel consumers
+lein run likes [100] [2]
+```
+
+## How to recommend new subscriptions based on a history of subscriptions?
+
+```
+lein run recommend-subscriptions twitter_handle
 ```

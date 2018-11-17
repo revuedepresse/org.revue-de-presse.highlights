@@ -6,7 +6,7 @@
               [pandect.algo.sha1 :refer :all]
               [clj-uuid :as uuid])
     (:use [korma.db]
-          [recommendation.distance]))
+          [utils.string]))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
@@ -273,6 +273,54 @@
         subscriptions-ids (explode #"," raw-subscriptions-ids)]
     {:member-subscriptions subscriptions-ids
      :raw-subscriptions-ids raw-subscriptions-ids}))
+
+;; Create table containing total subscriptions per member
+;
+; CREATE TABLE tmp_subscriptions
+; SELECT u.usr_id,
+; COUNT(DISTINCT s.subscription_id) total_subscriptions
+; FROM member_subscription s, weaving_user u
+; WHERE u.usr_id = s.member_id GROUP BY member_id;
+
+;; Add Index to temporary table
+;
+; ALTER TABLE `tmp_subscriptions` ADD INDEX `id` (`usr_id`, `total_subscriptions`);
+
+;; Update member table
+;
+; UPDATE weaving_user u, tmp_subscriptions t
+; SET u.total_subscriptions = t.total_subscriptions
+; WHERE t.usr_id = u.usr_id;
+; DROP table tmp_subscriptions;
+
+(defn find-members-closest-to-member-having-screen-name
+  [total-subscriptions]
+  (let [min-subscriptions (* 0.5 total-subscriptions)
+        max-subscriptions (* 1 total-subscriptions)
+        params [min-subscriptions max-subscriptions]
+        select-members-query (str
+                  "SELECT                                               "
+                  "u.usr_twitter_username identifier,                   "
+                  "GROUP_CONCAT(                                        "
+                  "  FIND_IN_SET(                                       "
+                  "    subscription_id,                                 "
+                  "    (SELECT group_concat(DISTINCT subscription_id)   "
+                  "     FROM member_subscription)                       "
+                  "    )                                                "
+                  "  ) subscription_ids,                                "
+                  "u.total_subscriptions                                "
+                  "FROM member_subscription s, weaving_user u           "
+                  "WHERE u.usr_id = s.member_id                         "
+                  "AND total_subscriptions BETWEEN ? AND ?              "
+                  "AND s.member_id in (                                 "
+                  "   SELECT usr_id                                     "
+                  "   FROM weaving_user                                 "
+                  "   WHERE total_subscriptions > 0)                    "
+                  "AND total_subscriptions > 0                          "
+                  "GROUP BY member_id                                   "
+                  "LIMIT 50                                             ")
+        results (db/exec-raw [select-members-query params] :results)]
+    results))
 
 (defn new-status
   [status model]
@@ -567,7 +615,7 @@
                :secret)))
 
 (defn freeze-token
-  [consumer-key model]
+  [consumer-key]
   (db/exec-raw [(str "UPDATE weaving_access_token "
                      "SET frozen_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) "
                      "WHERE consumer_key = ?") [consumer-key]]))

@@ -18,6 +18,7 @@
                  [twitter-api "1.8.0"]
                  [danlentz/clj-uuid "0.1.7"]
                  [org.clojure/tools.logging "0.4.1"]
+                 [org.clojure/math.numeric-tower "0.0.4"]
                  [org.slf4j/slf4j-api "1.6.2"]
                  [org.slf4j/slf4j-log4j12 "1.6.2"]
                  [php-clj "0.4.1"]

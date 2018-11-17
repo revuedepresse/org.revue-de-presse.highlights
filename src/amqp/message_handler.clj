@@ -758,9 +758,19 @@
   (disconnect-from-amqp-server channel connection)))
 
 (defn recommand-subscriptions-for-member-having-screen-name
+  "Port of command written in PHP to recommend subscriptions from the existing subscribing history of a member"
+  ; @see https://github.com/thierrymarianne/daily-press-review/pull/91
   [screen-name]
-  (let [entity-manager (get-entity-manager (:database env))]
+  (let [_ (get-entity-manager (:database env))]
     (let [distinct-subscriptions-ids (find-distinct-ids-of-subscriptions)
-          {raw-subscriptions-ids :raw-subscriptions-ids
-          member-subscriptions :member-subscriptions} (find-member-subscriptions screen-name)
-          distance (reduce-member-vector raw-subscriptions-ids distinct-subscriptions-ids)])))
+          {identity-vector :member-vector
+           screen-name :screen-name
+           total-subscriptions :total-subscriptions} (reduce-member-vector screen-name distinct-subscriptions-ids)
+          other-members-subscriptions (find-members-closest-to-member-having-screen-name total-subscriptions)
+          other-members (pmap
+             (reduce-member-vector-against-overall-subscriptions
+               distinct-subscriptions-ids)
+             other-members-subscriptions)
+          distances-to-other-members-vectors (get-distance-from-others identity-vector other-members)
+          sorted-distances (sort-by #(:distance %) distances-to-other-members-vectors)]
+          (doall (map (get-distance-printer screen-name) sorted-distances)))))
