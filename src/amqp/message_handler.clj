@@ -15,6 +15,7 @@
               [php_clj.core :refer [php->clj clj->php]]
               [clj-uuid :as uuid])
     (:use [repository.entity-manager]
+          [recommendation.distance]
           [twitter.api-client])
     (:import java.util.Locale))
 
@@ -24,7 +25,7 @@
 (defn save-member
   [twitter-user model]
   (new-member {:description (:description twitter-user)
-               :is-protected (if (not= (:protected twitter-user) "false") 1 0)
+               :is-protected (if (false? (:protected twitter-user)) 0 1)
                :is-suspended 0
                :is-not-found 0
                :url (:url twitter-user)
@@ -121,19 +122,21 @@
          member-subscriptions :member-subscriptions
          member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
-        member-id (get-id-of-member-having-username screen-name members tokens)]
+        {member-id :id
+         twitter-id :twitter-id} (get-id-of-member-having-username screen-name members tokens)]
     (try
       (process-subscriptions member-id screen-name member-subscriptions tokens members)
       (process-subscribees member-id screen-name member-subscribees tokens members)
     (catch Exception e
       (when (= (.getMessage e) error-not-authorized)
-        (guard-against-exceptional-member {:screen_name screen-name
-                                          :twitter-id member-id
-                                          :is-not-found 0
-                                          :is-protected 0
-                                          :is-suspended 1
-                                          :total-subscribees 0
-                                          :total-subscriptions 0} members))))))
+        (guard-against-exceptional-member {:id member-id
+                                           :screen_name screen-name
+                                           :twitter-id twitter-id
+                                           :is-not-found 0
+                                           :is-protected 0
+                                           :is-suspended 1
+                                           :total-subscribees 0
+                                           :total-subscriptions 0} members))))))
 
 (defn get-time-range
   [timestamp]
@@ -742,7 +745,7 @@
         next-total (if single-message-consumption #(dec %) #(max 0 (- % parallel-consumers)))]
     (log/info (str "About to consume " total-messages " messages."))
     (if total-messages
-      (loop [messages-to-consume total-messages]
+      (loop [messages-to-consume (if total-messages total-messages 0)]
         (when (> messages-to-consume 0)
           (if single-message-consumption
             (consume-message entity-manager rabbitmq channel queue))
@@ -755,4 +758,9 @@
   (disconnect-from-amqp-server channel connection)))
 
 (defn recommand-subscriptions-for-member-having-screen-name
-  [screen-name])
+  [screen-name]
+  (let [entity-manager (get-entity-manager (:database env))]
+    (let [distinct-subscriptions-ids (find-distinct-ids-of-subscriptions)
+          {raw-subscriptions-ids :raw-subscriptions-ids
+          member-subscriptions :member-subscriptions} (find-member-subscriptions screen-name)
+          distance (reduce-member-vector raw-subscriptions-ids distinct-subscriptions-ids)])))

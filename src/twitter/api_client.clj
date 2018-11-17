@@ -247,10 +247,11 @@
 
 (defn guard-against-exceptional-member
   [member model]
-  (if (or (:is-not-found member)
-          (:is-protected member)
-          (:is-suspended member))
-    (new-member member model)
+  (if (or
+        (= 1 (:is-not-found member))
+        (= 1 (:is-protected member))
+        (= 1 (:is-suspended member)))
+      (new-member member model)
     member))
 
 (defn get-twitter-user-by-screen-name
@@ -350,7 +351,8 @@
         member (if matching-members
                  (first matching-members)
                  (get-member-by-screen-name screen-name token-model member-model))]
-    (:id member)))
+    {:twitter-id (:twitter-id member)
+     :id (:id member)}))
 
 (defn get-subscriptions-by-screen-name
   [screen-name tokens-model]
@@ -365,12 +367,12 @@
 (defn get-subscribers-by-screen-name
   [screen-name tokens-model]
   (try-calling-api
-      #(followers-ids :client %
-                      :oauth-creds (twitter-credentials @next-token)
-                      :params {:screen-name screen-name})
-      "followers/id"
-      tokens-model
-      "a call to \"followers/id\""))
+    #(followers-ids :client %
+                    :oauth-creds (twitter-credentials @next-token)
+                    :params {:screen-name screen-name})
+    "followers/id"
+    tokens-model
+    "a call to \"followers/id\""))
 
 (defn get-subscriptions-of-member
   [screen-name token-model]

@@ -5,7 +5,8 @@
               [clojure.tools.logging :as log]
               [pandect.algo.sha1 :refer :all]
               [clj-uuid :as uuid])
-    (:use [korma.db]))
+    (:use [korma.db]
+          [recommendation.distance]))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
@@ -230,20 +231,48 @@
       matching-statuses
       '())))
 
-(defn find-statuses-having-ids-of-authors
-  "Find statuses by theirs Twitter ids and authors name"
-  [statuses-ids screen-names]
-  (let [ids (if statuses-ids statuses-ids '(0))
-        names (if screen-names screen-names '(""))
-        params (interpose "," (take (count ids) (iterate (constantly "(?,?)") "(?,?)")))
-        question-marks (clojure.string/join "" (map str params))
-        params-values (interleave ids names)
-        results (db/exec-raw [(str
-                                "SELECT ust_status_id as `twitter-id`, ust_id as `id`, ust_full_name as `screen-name`"
-                                "FROM weaving_status "
-                                "WHERE (ust_status_id, ust_full_name) in (" question-marks ")") params-values] :results)]
-    (log/info (str "There are " (count results) " matching results."))
-    results))
+(defn find-distinct-ids-of-subscriptions
+  "Find distinct ids of subscription"
+  []
+  (let [results (db/exec-raw [(str "SELECT GROUP_CONCAT( "
+                                   " DISTINCT subscription_id ORDER BY subscription_id DESC"
+                                   " ) AS all_subscription_ids,"
+                                   " COUNT(DISTINCT subscription_id) AS total_subscription_ids "
+                                   "FROM member_subscription")] :results)
+        all-subscriptions-ids (:all_subscription_ids (first results))
+        total-subscription-ids (:total_subscription_ids (first results))
+        subscriptions-ids (map
+                            #(when % (Long/parseLong %))
+                            (reverse
+                              (conj (explode #"," all-subscriptions-ids) nil)))]
+    (log/info (str "There are " (inc total-subscription-ids) " unique subscriptions ids."))
+    subscriptions-ids))
+
+(defn find-member-subscriptions
+  "Find member subscription"
+  [screen-name]
+  (let [results (db/exec-raw [(str "SELECT                                "
+                                   "member_id,                            "
+                                   "GROUP_CONCAT(                         "
+                                   "   FIND_IN_SET(                       "
+                                   "     COALESCE(subscription_id, 0), (  "
+                                   "       SELECT GROUP_CONCAT(           "
+                                   "          DISTINCT subscription_id    "
+                                   "       ) FROM member_subscription     "
+                                   "     )                                "
+                                   "   )                                  "
+                                   " ) subscription_ids                   "
+                                   " FROM member_subscription             "
+                                   " WHERE member_id IN (                 "
+                                   "   SELECT usr_id                      "
+                                   "   FROM weaving_user                  "
+                                   "   WHERE usr_twitter_username = ?     "
+                                   " )                                    "
+                                   " GROUP BY member_id") [screen-name]] :results)
+        raw-subscriptions-ids (:subscription_ids (first results))
+        subscriptions-ids (explode #"," raw-subscriptions-ids)]
+    {:member-subscriptions subscriptions-ids
+     :raw-subscriptions-ids raw-subscriptions-ids}))
 
 (defn new-status
   [status model]
@@ -636,7 +665,8 @@
 
 (defn new-member
   [member members]
-  (let [{twitter-id :twitter-id
+  (let [{id :id
+         twitter-id :twitter-id
          description :description
          url :url
          total-subscribees :total-subscribees
@@ -657,21 +687,28 @@
         (log/info (str "About to cache member with twitter id #" twitter-id
                     " and twitter screen mame \"" member-screen-name "\"")))
 
-    (try
-      (db/insert members
-               (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
-                            :usr_twitter_id twitter-id
-                            :usr_twitter_username member-screen-name
-                            :usr_status false
-                            :usr_email (str "@" member-screen-name)
-                            :description description
-                            :url url
-                            :not_found is-not-found
-                            :suspended is-suspended
-                            :protected is-protected
-                            :total_subscribees total-subscribees
-                            :total_subscriptions total-subscriptions}]))
-      (catch Exception e (log/error (.getMessage e))))
+      (try
+        (if id
+          (db/update members
+                     (db/set-fields {:not_found is-not-found
+                                     :suspended is-suspended
+                                     :protected is-protected})
+                     (db/where {:usr_id id}))
+          (db/insert members
+                     (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
+                                  :usr_twitter_id twitter-id
+                                  :usr_twitter_username member-screen-name
+                                  :usr_status false
+                                  :usr_email (str "@" member-screen-name)
+                                  :description description
+                                  :url url
+                                  :not_found is-not-found
+                                  :suspended is-suspended
+                                  :protected is-protected
+                                  :total_subscribees total-subscribees
+                                  :total_subscriptions total-subscriptions}])))
+         (catch Exception e (log/error (.getMessage e))))
+
     (find-member-by-id twitter-id members)))
 
 (defn bulk-insert-new-members

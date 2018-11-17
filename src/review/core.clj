@@ -1,6 +1,7 @@
 ; About gen-class examples
 ; @see https://clojure.org/reference/compilation#_gen_class_examples
 (ns review.core
+  (:require [clojure.tools.logging :as log])
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler])
@@ -21,4 +22,6 @@
           (consume-messages (keyword queue) total-messages parallel-consumers))
     (= name "recommend-subscriptions")
       (let [[screen-name] args]
-          (recommand-subscriptions-for-member-having-screen-name screen-name))))
+          (recommand-subscriptions-for-member-having-screen-name screen-name))
+    :else
+      (log/info "Invalid command")))
