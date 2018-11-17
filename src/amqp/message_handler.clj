@@ -82,8 +82,8 @@
     (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))))
 
 (defn process-subscriptions
-  [member-id screen-name member-subscription-model token-model member-model]
-  (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model)
+  [member-id screen-name member-subscription-model token-model member-model on-reached-api-limit]
+  (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model on-reached-api-limit)
         matching-subscriptions-members (find-members-having-ids subscriptions-ids member-model)
         matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
         missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
@@ -122,10 +122,11 @@
          member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
         {member-id :id
-         twitter-id :twitter-id} (get-id-of-member-having-username screen-name members tokens)]
+         twitter-id :twitter-id} (get-id-of-member-having-username screen-name members tokens)
+        subscribees-processor (fn [] (process-subscribees member-id screen-name member-subscribees tokens members))]
     (try
-      (process-subscriptions member-id screen-name member-subscriptions tokens members)
-      (process-subscribees member-id screen-name member-subscribees tokens members)
+      (process-subscriptions member-id screen-name member-subscriptions tokens members subscribees-processor)
+      (subscribees-processor)
     (catch Exception e
       (when (= (.getMessage e) error-not-authorized)
         (guard-against-exceptional-member {:id member-id
@@ -259,11 +260,6 @@
   [status]
   (let [{twitter-id :id_str} status]
     twitter-id))
-
-(defn get-status-author-screen-name
-  [status]
-  (let [{{screen-name :screen_name} :user} status]
-    screen-name))
 
 (defn get-favorites
   [favorites model]
@@ -420,17 +416,6 @@
           liked-statuses-values))
         '())))
 
-      (defn process-like
-  [like liked-by aggregate model status-model member-model token-model]
-  (let [favorited-status (ensure-favorited-status-exists aggregate
-                                                         like
-                                                         liked-by
-                                                         model
-                                                         status-model
-                                                         member-model
-                                                         token-model)]
-      favorited-status))
-
 (defn get-ids-of-statuses-authors
   [statuses]
   (map (fn [{{member-id :id_str} :user}] member-id) statuses))
@@ -582,16 +567,6 @@
     (if (pos? (count favorites))
       favorites
       next-batch-of-favorites)))
-
-(defn not-in-set
-  [set]
-  (fn [triple]
-    (not (clojure.set/subset? #{[(:status-id triple) (:member-id triple) (:liked-by triple)]} set))))
-
-(defn get-triple
-  [status]
-  (let [triple [(:status-id status) (:member-id status) (:liked-by status)]]
-    triple))
 
 (defn process-favorites
   [member favorites aggregate {liked-status-model :liked-status

@@ -234,7 +234,7 @@
 (defn find-distinct-ids-of-subscriptions
   "Find distinct ids of subscription"
   []
-  (let [results (db/exec-raw [(str "SELECT GROUP_CONCAT( "
+  (let [results (db/exec-raw [(str "SELECT SQL_CACHE GROUP_CONCAT( "
                                    " DISTINCT subscription_id ORDER BY subscription_id DESC"
                                    " ) AS all_subscription_ids,"
                                    " COUNT(DISTINCT subscription_id) AS total_subscription_ids "
@@ -251,7 +251,7 @@
 (defn find-member-subscriptions
   "Find member subscription"
   [screen-name]
-  (let [results (db/exec-raw [(str "SELECT                                "
+  (let [results (db/exec-raw [(str "SELECT SQL_CACHE                      "
                                    "member_id,                            "
                                    "GROUP_CONCAT(                         "
                                    "   FIND_IN_SET(                       "
@@ -299,7 +299,7 @@
         max-subscriptions (* 1 total-subscriptions)
         params [min-subscriptions max-subscriptions]
         select-members-query (str
-                  "SELECT                                               "
+                  "SELECT SQL_CACHE                                     "
                   "u.usr_twitter_username identifier,                   "
                   "GROUP_CONCAT(                                        "
                   "  FIND_IN_SET(                                       "
@@ -409,40 +409,6 @@
   [column-name model]
   (keyword (str (:table model) "." column-name)))
 
-(defn find-liked-status-by-id
-  "Find a liked status by id"
-  [id model status-model]
-  (let [status-id-col (get-column "ust_id" status-model)
-        twitter-id-col (get-column "ust_status_id" status-model)]
-    (->
-      (db/select* model)
-      (db/fields :id
-                 [twitter-id-col :twitter-id]
-                 [:status_id :status-id]
-                 [:archived_status_id :archived-status-id]
-                 [:time_range :time-range]
-                 [:is_archived_status :is-archived-status]
-                 [:member_id :member-id]
-                 [:member_name :member-name]
-                 [:liked_by :liked-by]
-                 [:liked_by_member_name :liked-by-member-name]
-                 [:aggregate_id :aggregate-id]
-                 [:aggregate_name :aggregate-name])
-      (db/join status-model (= status-id-col :status_id))
-      (db/where {:id id})
-      (db/select))))
-
-(defn find-liked-statuses-by-triples
-  [triples]
-  (let [params (interpose "," (take (/ (count triples) 3) (iterate (constantly "(?,?,?)") "(?,?,?)")))
-        question-marks (clojure.string/join "" (map str params))
-        results (db/exec-raw [(str
-                                "SELECT status_id as `status-id`, member_id as `member-id`, liked_by as `liked-by` "
-                                "FROM liked_status "
-                                "WHERE (status_id, member_id, liked_by) in (" question-marks ")") triples] :results)]
-    (log/info (str "There are " (count results) " matching results."))
-    results))
-
 (defn find-liked-statuses
   [liked-statuses-ids model status-model]
   (let [status-id-col (get-column "ust_id" status-model)
@@ -489,39 +455,6 @@
                  :member_id member-id
                  :status_id status-id})
       (db/select))))
-
-(defn new-liked-status
-  [liked-status model status-model]
-  (let [{status-id :status-id
-         archived-status-id :archived-status-id
-         publication-date-time :publication-date-time
-         time-range :time-range
-         is-archived-status :is-archived-status
-         member-id :member-id
-         member-name :member-name
-         liked-by :liked-by
-         liked-by-member-name :liked-by-member-name
-         aggregate-id :aggregate-id
-         aggregate-name :aggregate-name} liked-status
-        id (uuid/to-string (uuid/v1))]
-    (log/info (str "About to insert status liked by \"" liked-by-member-name
-                   "\" authored by \"" member-name "\""))
-    (try
-      (db/insert model
-                 (db/values [{:id id
-                              :status_id status-id
-                              :archived_status_id archived-status-id
-                              :time_range time-range
-                              :is_archived_status is-archived-status
-                              :member_id member-id
-                              :member_name member-name
-                              :publication_date_time publication-date-time
-                              :liked_by liked-by
-                              :liked_by_member_name liked-by-member-name
-                              :aggregate_id aggregate-id
-                              :aggregate_name aggregate-name}]))
-      (catch Exception e (log/error (.getMessage e))))
-    (first (find-liked-status-by-id id model status-model))))
 
 (defn new-liked-statuses
   [liked-statuses model status-model]

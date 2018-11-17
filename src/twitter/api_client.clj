@@ -25,10 +25,8 @@
 
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
-(def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
 (def error-not-authorized "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
-(def error-unavailable-rate-limit "No rate limit available from headers.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
 (declare find-next-token)
@@ -40,8 +38,7 @@
   (let [{consumer-key :consumer-key
          consumer-secret :consumer-secret
          token :token
-         secret :secret} token
-        credentials (edn/read-string (:twitter env))]
+         secret :secret} token]
     (make-oauth-creds consumer-key
                       consumer-secret
                       token
@@ -233,16 +230,19 @@
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
-  [headers endpoint]
+  [headers endpoint & [on-reached-api-limit]]
   (let [unavailable-rate-limit (nil? headers)
         percentage (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
-    (try (when (or
-                  unavailable-rate-limit
-                  (and
-                    (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
-                    (nil? @next-token)))
-          (wait-for-15-minutes endpoint))
+    (try (when
+           (or
+              unavailable-rate-limit
+              (and
+                (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
+                (nil? @next-token)))
+           (when (fn? on-reached-api-limit)
+             (on-reached-api-limit)
+             (wait-for-15-minutes endpoint)))
        (catch Exception e (log/error (.getMessage e))))))
 
 (defn guard-against-exceptional-member
@@ -375,12 +375,12 @@
     "a call to \"followers/id\""))
 
 (defn get-subscriptions-of-member
-  [screen-name token-model]
+  [screen-name token-model on-reached-api-limit]
   (let [_ (find-next-token token-model "users/show" "trying to make a call to \"friends/ids\"")
         subscriptions (get-subscriptions-by-screen-name screen-name token-model)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
-    (guard-against-api-rate-limit headers "friends/ids")
+    (guard-against-api-rate-limit headers "friends/ids" on-reached-api-limit)
     (:ids friends)))
 
 (defn get-subscribees-of-member
