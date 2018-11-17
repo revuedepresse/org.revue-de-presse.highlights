@@ -88,7 +88,7 @@
         matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
         missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
 
-    (if missing-subscriptions-members-ids
+    (if (pos? (count missing-subscriptions-members-ids))
       (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
                                                         :model member-subscription-model
                                                         :matching-subscriptions-members-ids
@@ -105,10 +105,10 @@
         matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
         missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)]
 
-    (if missing-subscribees-members-ids
+    (if (pos? (count missing-subscribees-members-ids))
       (ensure-subscribees-exist-for-member-having-id {:member-id member-id
                                                       :model member-subscribee-model
-                                                      :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids tokens members)})
+                                                      :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids token-model member-model)})
       (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
     (ensure-subscribees-exist-for-member-having-id {:member-id member-id
                                                     :model member-subscribee-model
