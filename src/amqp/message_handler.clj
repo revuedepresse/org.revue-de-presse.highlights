@@ -18,12 +18,14 @@
           [twitter.api-client])
     (:import java.util.Locale))
 
+(def ^:dynamic *message-handler-enabled-logging* false)
+
 (def error-mismatching-favorites-cols-length "The favorited statuses could not be saved because of missing data.")
 (def error-unavailable-aggregate "The aggregate does not seem to be available.")
 
 (defn save-member
-  [twitter-user model]
-  (new-member {:description (:description twitter-user)
+  [twitter-user model & [only-props]]
+  (let [props {:description (:description twitter-user)
                :is-protected (if (false? (:protected twitter-user)) 0 1)
                :is-suspended 0
                :is-not-found 0
@@ -35,13 +37,25 @@
                                       0
                                       (:friends_count twitter-user))
                :twitter-id (:id_str twitter-user)
-               :screen-name (:screen_name twitter-user)} model))
+               :screen-name (:screen_name twitter-user)}]
+    (if only-props
+      props
+      (new-member props model))))
 
 (defn new-member-from-json
   [member-id tokens members]
-  (log/info (str "About to look up for member having twitter id #" member-id))
+  (when *message-handler-enabled-logging*
+    (log/info (str "About to look up for member having twitter id #" member-id)))
   (let [twitter-user (get-member-by-id member-id tokens members)
         member (save-member twitter-user members)]
+    member))
+
+(defn new-member-props-from-json
+  [member-id tokens members]
+  (when *message-handler-enabled-logging*
+    (log/info (str "About to look up for member having twitter id #" member-id)))
+  (let [twitter-user (get-member-by-id member-id tokens members)
+        member (save-member twitter-user members :only-props)]
     member))
 
 (defn assoc-twitter-user-properties
@@ -67,7 +81,7 @@
     twitter-user))
 
 (defn ensure-members-exist
-  [members-ids tokens members]
+  [members-ids tokens members register-member]
   (let [remaining-calls (how-many-remaining-calls-showing-user tokens)
         total-members (count members-ids)]
 
@@ -78,8 +92,38 @@
   (if (and
         (not (nil? remaining-calls))
         (< total-members remaining-calls))
-    (doall (pmap #(:id (new-member-from-json % tokens members)) members-ids))
-    (doall (map #(:id (new-member-from-json % tokens members)) members-ids)))))
+    (doall (pmap #(register-member % tokens members) members-ids))
+    (doall (map #(register-member % tokens members) members-ids)))))
+
+(defn get-new-member-logger
+  [member-type]
+  (fn [member]
+  (log/info (str "New " member-type " \"" (:screen-name member)
+                 "\" having id #" (:twitter-id member) " has been cached."))))
+
+(defn ensure-relationship-exists-for-member-having-id
+   [{missing-members-ids :missing-members-ids
+     member-id :member-id
+     member-type :member-type}
+    ensure-relationship-exists
+    model member-model token-model]
+  (let [props (ensure-members-exist
+          missing-members-ids
+          token-model
+          member-model
+          new-member-props-from-json)
+        existing-members (find-members-from-props props member-model)
+        existing-members-ids (set (map #(:twitter-id %) existing-members))
+        ; Member Twitter ids singleton belonging to the set of existing members Twitter ids are filtered out
+        first-seen-props (filter #(not (clojure.set/subset? #{(:twitter-id %)} existing-members-ids)) props)
+        new-members (bulk-insert-new-members first-seen-props member-model)
+        _ (doall (map (get-new-member-logger member-type) new-members))
+        new-members-ids (pmap #(:id %) new-members)
+        relationships (ensure-relationship-exists
+                              {:member-id member-id
+                               :model model
+                               :matching-members-ids new-members-ids})]
+    relationships))
 
 (defn process-subscriptions
   [member-id screen-name member-subscription-model token-model member-model on-reached-api-limit]
@@ -89,14 +133,19 @@
         missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
 
     (if (pos? (count missing-subscriptions-members-ids))
-      (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
-                                                        :model member-subscription-model
-                                                        :matching-subscriptions-members-ids
-                                                                   (ensure-members-exist missing-subscriptions-members-ids token-model member-model)})
+      (ensure-relationship-exists-for-member-having-id
+        {:member-id member-id
+         :member-type "subscription"
+         :missing-members-ids missing-subscriptions-members-ids}
+        ensure-subscriptions-exist-for-member-having-id
+        member-subscription-model
+        member-model
+        token-model)
       (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
+
     (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
                                                       :model member-subscription-model
-                                                      :matching-subscriptions-members-ids matching-subscriptions-members-ids})))
+                                                      :matching-members-ids matching-subscriptions-members-ids})))
 
 (defn process-subscribees
   [member-id screen-name member-subscribee-model token-model member-model]
@@ -106,10 +155,16 @@
         missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)]
 
     (if (pos? (count missing-subscribees-members-ids))
-      (ensure-subscribees-exist-for-member-having-id {:member-id member-id
-                                                      :model member-subscribee-model
-                                                      :matching-subscribees-members-ids (ensure-members-exist missing-subscribees-members-ids token-model member-model)})
+      (ensure-relationship-exists-for-member-having-id
+        {:member-id member-id
+         :member-type "subscribee"
+         :missing-members-ids missing-subscribees-members-ids}
+        ensure-subscribees-exist-for-member-having-id
+        member-subscribee-model
+        member-model
+        token-model)
       (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
+
     (ensure-subscribees-exist-for-member-having-id {:member-id member-id
                                                     :model member-subscribee-model
                                                     :matching-subscribees-members-ids matching-subscribees-members-ids})))

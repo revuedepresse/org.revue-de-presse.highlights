@@ -14,6 +14,8 @@
           [twitter.callbacks.handlers]
           [twitter.api.restful]))
 
+(def ^:dynamic *api-client-enabled-logging* false)
+
 (def current-consumer-key (atom nil))
 (def next-token (atom nil))
 
@@ -52,7 +54,8 @@
         consumer-key (:consumer-key token)]
     (swap! next-token (constantly token-candidate))         ; @see https://clojuredocs.org/clojure.core/constantly
     (swap! current-consumer-key (constantly consumer-key))
-    (log/info (str "The next consumer key issued from " context " is about to be \"" (:consumer-key token) "\""))
+    (when *api-client-enabled-logging*
+      (log/info (str "The next consumer key issued from " context " is about to be \"" (:consumer-key token) "\"")))
     @next-token))
 
 (defn consumer-keys-of-frozen-tokens
@@ -84,8 +87,9 @@
           excluded-consumer-keys (consumer-keys-of-frozen-tokens)
           token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)
           selected-token (select-token endpoint token-candidate context model)]
-    (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
-                   (:consumer-key selected-token) "\" when " context))
+    (when *api-client-enabled-logging*
+      (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
+                   (:consumer-key selected-token) "\" when " context)))
       selected-token))
 
 (defn format-date
@@ -103,7 +107,9 @@
                     (or
                       (nil? unfrozen-at)
                       (t/after? now unfrozen-at)))]
-    (when (not (nil? unfrozen-at))
+    (when (and
+            *api-client-enabled-logging*
+            (not (nil? unfrozen-at)))
       (log/info (str "Now being \"" formatted-now "\" \""
                      (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
@@ -116,7 +122,8 @@
   []
   (let [later (in-15-minutes)]
     (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
-    (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later)))))
+    (when *api-client-enabled-logging*
+      (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later))))))
 
 (defn handle-rate-limit-exceeded-error
   [endpoint token-model]
@@ -233,7 +240,8 @@
   [headers endpoint & [on-reached-api-limit]]
   (let [unavailable-rate-limit (nil? headers)
         percentage (ten-percent-of-limit headers)]
-    (log-remaining-calls-for headers endpoint)
+    (when *api-client-enabled-logging*
+      (log-remaining-calls-for headers endpoint))
     (try (when
            (or
               unavailable-rate-limit

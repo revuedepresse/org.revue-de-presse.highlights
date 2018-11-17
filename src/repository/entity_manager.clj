@@ -692,8 +692,8 @@
 
     (find-member-by-id twitter-id members)))
 
-(defn bulk-insert-new-members
-  [members model]
+(defn normalize-columns
+  [members]
   (let [snake-cased-values (map snake-case-keys members)
         members-values (map
                          #(dissoc
@@ -715,6 +715,23 @@
                          snake-cased-values)
         deduped-values (dedupe (sort-by #(:usr_twitter_id %) members-values))
         twitter-ids (map #(:usr_twitter_id %) deduped-values)]
+    {:deduped-values deduped-values
+     :members-values members-values
+     :twitter-ids twitter-ids}))
+
+(defn find-members-from-props
+  [members model]
+    (let [{members-values :members-values
+           twitter-ids :twitter-ids} (normalize-columns members)]
+    (if (pos? (count members-values))
+      (find-members-having-ids twitter-ids model))
+      '()))
+
+(defn bulk-insert-new-members
+  [members model]
+    (let [{deduped-values :deduped-values
+           members-values :members-values
+           twitter-ids :twitter-ids} (normalize-columns members)]
     (if (pos? (count members-values))
       (do
         (try
@@ -740,7 +757,7 @@
 (defn ensure-subscriptions-exist-for-member-having-id
   [{member-id :member-id
     model     :model
-    matching-subscriptions-members-ids :matching-subscriptions-members-ids}]
+    matching-subscriptions-members-ids :matching-members-ids}]
   (let [existing-member-subscriptions (find-member-subscriptions-by {:member-id         member-id
                                                                      :subscriptions-ids matching-subscriptions-members-ids}
                                                                     model)
@@ -748,18 +765,17 @@
         member-subscriptions (clojure.set/difference (set matching-subscriptions-members-ids) (set existing-member-subscriptions-ids))
         missing-member-subscriptions (map (create-member-subscription-values member-id) member-subscriptions)]
 
-    (log/info (str "About to ensure " (count missing-member-subscriptions)
-                   " subscriptions for member having id #" member-id " are recorded."))
-
-    (new-member-subscriptions missing-member-subscriptions model)
-
-    (log/info (str (count missing-member-subscriptions)
-                 " subscriptions have been recorded successfully"))))
+    (when (pos? (count missing-member-subscriptions))
+      (log/info (str "About to ensure " (count missing-member-subscriptions)
+                     " subscriptions for member having id #" member-id " are recorded."))
+      (new-member-subscriptions missing-member-subscriptions model)
+      (log/info (str (count missing-member-subscriptions)
+                   " subscriptions have been recorded successfully")))))
 
 (defn ensure-subscribees-exist-for-member-having-id
   [{member-id :member-id
     model     :model
-    matching-subscribees-members-ids :matching-subscribees-members-ids}]
+    matching-subscribees-members-ids :matching-members-ids}]
   (let [existing-member-subscribees (find-member-subscribees-by {:member-id member-id
                                                                  :subscribees-ids matching-subscribees-members-ids}
                                                                 model)
@@ -767,12 +783,11 @@
         member-subscribees (clojure.set/difference (set matching-subscribees-members-ids) (set existing-member-subscribees-ids))
         missing-member-subscribees (map (create-member-subscribee-values member-id) member-subscribees)]
 
-    (log/info (str "About to ensure " (count missing-member-subscribees)
-                   " subscribees for member having id #" member-id " are recorded."))
-
-    (new-member-subscribees missing-member-subscribees model)
-
-    (log/info (str (count missing-member-subscribees)
-                 " subscribees have been recorded successfully"))))
+    (when (pos? (count missing-member-subscribees))
+      (log/info (str "About to ensure " (count missing-member-subscribees)
+                     " subscribees for member having id #" member-id " are recorded."))
+      (new-member-subscribees missing-member-subscribees model)
+      (log/info (str (count missing-member-subscribees)
+                 " subscribees have been recorded successfully")))))
 
 

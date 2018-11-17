@@ -5,7 +5,7 @@
   (:use [repository.entity-manager]
         [utils.string]))
 
-(def ^:dynamic *enable-logging* false)
+(def ^:dynamic *distance-enabled-logging* false)
 
 (defn normalize-contribution
   [contributions enabled-logging]
@@ -30,10 +30,10 @@
           all-subscriptions-indices (take (count all-subscriptions) (iterate inc 0))
           member-vector (map (normalize-contribution
                                 (set member-subscriptions-ids)
-                                *enable-logging*)
+                                *distance-enabled-logging*)
                              all-subscriptions all-subscriptions-indices)
           total-subscriptions (count (filter #(when % %) member-vector))]
-      (when *enable-logging*
+      (when *distance-enabled-logging*
         (log/info (str "There are " (count member-vector) " subscriptions."))
         (log/info (str "Subscriptions of \"" screen-name "\" counts " total-subscriptions " contributions.")))
       {:total-subscriptions total-subscriptions
@@ -59,7 +59,7 @@
          to-vector :member-vector} vector-props
         power-of-differences (map power-of-difference from-vector to-vector)
         distance (math/sqrt (apply + power-of-differences))]
-    (when *enable-logging*
+    (when *distance-enabled-logging*
       (log/info (str "Distance to reference vector for member \""
                      screen-name "\" is " distance)))
     {:distance distance
