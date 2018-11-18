@@ -46,9 +46,14 @@
          queue :queue
          entity-manager :entity-manager} options
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
-    (when payload
+    (when (not (nil? payload))
       (process-network payload entity-manager))
-    (lb/ack channel delivery-tag)))
+    (when (not (nil? delivery-tag))
+      (lb/ack channel delivery-tag))
+    (when (and
+            (nil? delivery-tag)
+            (nil? payload))
+      (throw (Exception. (str error-invalid-amqp-message-payload))))))
 
 (defn pull-messages-from-likes-queue
   "Pull messages from a queue dedicated to likes collection"

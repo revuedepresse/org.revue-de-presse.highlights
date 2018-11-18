@@ -20,7 +20,9 @@
             parallel-consumers (if (nil? consumers)
                                  1
                                  (Long/parseLong consumers))]
-          (consume-messages (keyword queue) total-messages parallel-consumers))
+        (try
+          (consume-messages (keyword queue) total-messages parallel-consumers)
+          (catch Exception e (log/error (str "An error occurred with message: " (.getMessage e))))))
     (= name "recommend-subscriptions")
       (let [[screen-name] args]
           (recommend-subscriptions-from-member-subscription-history screen-name))
