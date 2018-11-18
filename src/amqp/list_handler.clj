@@ -21,7 +21,6 @@
       (try
         (do
           (process-lists screen-name aggregate-id entity-manager error-unavailable-aggregate)
-          ;(lb/ack channel delivery-tag)
-          )
+          (lb/ack channel delivery-tag))
         (catch Exception e
           (log/error "An error occurred with message " (.getMessage e)))))))
