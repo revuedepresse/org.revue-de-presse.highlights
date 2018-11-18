@@ -9,6 +9,8 @@
         [twitter.date]
         [twitter.member]))
 
+(def ^:dynamic *twitter-status-enabled-logging* false)
+
 (defn get-ids-of-statuses
   [statuses]
   (map (fn [{twitter-id :id_str}] twitter-id) statuses))
@@ -54,7 +56,9 @@
                        (do
                          (log/info (str "No need to find some missing status."))
                          '()))]
-    (when (pos? total-statuses)
+    (when (and
+            *twitter-status-enabled-logging*
+           (pos? total-statuses))
       (doall (map #(log/info (str "Status #" (:twitter-id %)
                                   " authored by \"" (:screen-name %)
                                   "\" has been saved under id \"" (:id %))) new-statuses)))

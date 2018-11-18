@@ -82,9 +82,10 @@
               twitter-users-properties (assoc-properties-of-twitter-users twitter-users)
               deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
               new-members (bulk-insert-new-members deduplicated-users-properties model)]
-          (doall (map #(log/info (str "Member #" (:twitter-id %)
-                                      " having screen name \"" (:screen-name %)
-                                      "\" has been saved under id \"" (:id %))) new-members)))
+          (when *twitter-member-enabled-logging*
+            (doall (map #(log/info (str "Member #" (:twitter-id %)
+                                        " having screen name \"" (:screen-name %)
+                                        "\" has been saved under id \"" (:id %))) new-members))))
         (log/info (str "No need to find some missing member."))))))
 
 (defn process-authors-of-statuses
