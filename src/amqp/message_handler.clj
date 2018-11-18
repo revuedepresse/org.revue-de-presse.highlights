@@ -46,7 +46,8 @@
          queue :queue
          entity-manager :entity-manager} options
         [{:keys [delivery-tag]} payload] (lb/get channel queue auto-ack)]
-    (process-network payload entity-manager)
+    (when payload
+      (process-network payload entity-manager))
     (lb/ack channel delivery-tag)))
 
 (defn pull-messages-from-likes-queue
