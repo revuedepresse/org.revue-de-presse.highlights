@@ -486,6 +486,18 @@
     (db/set-fields {:max_like_id max-favorite-id})
     (db/where {:usr_id member-id})))
 
+(defn update-min-status-id-for-member-having-id
+  [min-status-id member-id model]
+  (db/update model
+    (db/set-fields {:min_status_id min-status-id})
+    (db/where {:usr_id member-id})))
+
+(defn update-max-status-id-for-member-having-id
+  [max-status-id member-id model]
+  (db/update model
+    (db/set-fields {:max_status_id max-status-id})
+    (db/where {:usr_id member-id})))
+
 (defn find-member-by-twitter-id
   "Find a member by her / his twitter id"
   [id members]

@@ -439,3 +439,40 @@
         favorites (:body response)]
     (guard-against-api-rate-limit headers endpoint)
     favorites))
+
+(defn get-statuses-by-screen-name
+  [opts endpoint context tokens-model]
+  (let [base-params {:count 200
+                    :include-entities 1
+                    :include-rts 1
+                    :exclude-replies 0
+                    :screen-name (:screen-name opts)
+                    :trim-user 0
+                    :tweet-mode "extended"}
+        params (cond
+          (not (nil? (:since-id opts)))
+            (assoc base-params :since-id (:since-id opts))
+          (not (nil? (:max-id opts)))
+            (assoc base-params :max-id (:max-id opts))
+          :else
+            base-params)]
+
+  (try-calling-api
+    #(statuses-user-timeline :client %
+                    :oauth-creds (twitter-credentials @next-token)
+                    :params params)
+    endpoint
+    tokens-model
+    (str "a " context))))
+
+(defn get-statuses-of-member
+  [opts token-model]
+  (let [endpoint "statuses/user_timeline"
+        call "call to \"favorites/list\""
+        context (str "trying to make a " call)
+        _ (find-next-token token-model endpoint context)
+        response (get-statuses-by-screen-name opts endpoint call token-model)
+        headers (:headers response)
+        favorites (:body response)]
+    (guard-against-api-rate-limit headers endpoint)
+    favorites))

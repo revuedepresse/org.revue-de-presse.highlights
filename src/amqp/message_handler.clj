@@ -14,92 +14,13 @@
               [php_clj.core :refer [php->clj clj->php]]
               [clj-uuid :as uuid])
     (:use [repository.entity-manager]
-          [recommendation.distance]
-          [twitter.api-client])
-    (:import java.util.Locale))
-
-(def ^:dynamic *message-handler-enabled-logging* false)
+          [twitter.status]
+          [twitter.member]
+          [amqp.list_handler]
+          [twitter.api-client]))
 
 (def error-mismatching-favorites-cols-length "The favorited statuses could not be saved because of missing data.")
 (def error-unavailable-aggregate "The aggregate does not seem to be available.")
-
-(defn save-member
-  [twitter-user model & [only-props]]
-  (let [props {:description (:description twitter-user)
-               :is-protected (if (false? (:protected twitter-user)) 0 1)
-               :is-suspended 0
-               :is-not-found 0
-               :url (:url twitter-user)
-               :total-subscribees (if (nil? (:followers_count twitter-user))
-                                    0
-                                    (:followers_count twitter-user))
-               :total-subscriptions (if (nil? (:friends_count twitter-user))
-                                      0
-                                      (:friends_count twitter-user))
-               :twitter-id (:id_str twitter-user)
-               :screen-name (:screen_name twitter-user)}]
-    (if only-props
-      props
-      (new-member props model))))
-
-(defn new-member-from-json
-  [member-id tokens members]
-  (when *message-handler-enabled-logging*
-    (log/info (str "About to look up for member having twitter id #" member-id)))
-  (let [twitter-user (get-member-by-id member-id tokens members)
-        member (save-member twitter-user members)]
-    member))
-
-(defn new-member-props-from-json
-  [member-id tokens members]
-  (when *message-handler-enabled-logging*
-    (log/info (str "About to look up for member having twitter id #" member-id)))
-  (let [twitter-user (get-member-by-id member-id tokens members)
-        member (save-member twitter-user members :only-props)]
-    member))
-
-(defn assoc-twitter-user-properties
-  [twitter-user]
-  {:description (:description twitter-user)
-   :is-protected (if (not= (:protected twitter-user) "false") 1 0)
-   :is-suspended 0
-   :is-not-found 0
-   :total-subscribees (:followers_count twitter-user)
-   :total-subscriptions (:friends_count twitter-user)
-   :twitter-id (:id_str twitter-user)
-   :screen-name (:screen_name twitter-user)})
-
-(defn assoc-properties-of-twitter-users
-  [twitter-users]
-  (log/info "Build a sequence of twitter users properties")
-  (doall (pmap assoc-twitter-user-properties twitter-users)))
-
-(defn get-twitter-user
-  [member-id tokens members]
-  (log/info (str "About to look up for member having twitter id #" member-id))
-  (let [twitter-user (get-member-by-id member-id tokens members)]
-    twitter-user))
-
-(defn ensure-members-exist
-  [members-ids tokens members register-member]
-  (let [remaining-calls (how-many-remaining-calls-showing-user tokens)
-        total-members (count members-ids)]
-
-  (if (pos? total-members)
-    (log/info (str "About to ensure " total-members " member(s) exist."))
-    (log/info (str "No need to find some missing member.")))
-
-  (if (and
-        (not (nil? remaining-calls))
-        (< total-members remaining-calls))
-    (doall (pmap #(register-member % tokens members) members-ids))
-    (doall (map #(register-member % tokens members) members-ids)))))
-
-(defn get-new-member-logger
-  [member-type]
-  (fn [member]
-  (log/info (str "New " member-type " \"" (:screen-name member)
-                 "\" having id #" (:twitter-id member) " has been cached."))))
 
 (defn ensure-relationship-exists-for-member-having-id
    [{missing-members-ids :missing-members-ids
@@ -216,19 +137,6 @@
           :else
             5)))
 
-(def date-formatter (f/with-locale (f/formatter "EEE MMM dd HH:mm:ss Z yyyy") Locale/ENGLISH))
-(def mysql-date-formatter (f/formatters :mysql))
-
-(defn ensure-member-having-id-exists
-  [twitter-id model token-model]
-  (let [existing-member (find-member-by-twitter-id twitter-id model)
-        member (if (pos? (count existing-member))
-                     (first existing-member)
-                     (do
-                       (ensure-members-exist (list twitter-id) token-model model)
-                       (first (find-member-by-twitter-id twitter-id model))))]
-    member))
-
 (defn ensure-status-having-id-exists
   [{twitter-id :id_str
     text :full_text
@@ -321,21 +229,6 @@
   (let [statuses-ids (pmap get-status-ids favorites)]
     (find-statuses-having-ids statuses-ids model)))
 
-(defn get-date-properties
-  [date]
-  (let [parsed-publication-date (c/to-long (f/parse date-formatter date))]
-    {:parsed-publication-date parsed-publication-date
-     :mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))}))
-
-(defn get-favorite-formatted-dates
-  [favorite]
-  (let [formatted-date (get-date-properties (:created_at favorite))]
-    formatted-date))
-
-(defn get-publication-dates-of-favorited-statuses
-  [favorites]
-  (pmap get-favorite-formatted-dates favorites))
-
 (defn get-favorite-status-ids
   [total-items]
   (let [id {:id (uuid/to-string (uuid/v1))}]
@@ -373,7 +266,7 @@
   [favorites total-favorites aggregate favorite-author member-model status-model]
   (let [favorite-status-authors (get-favorited-status-authors favorites member-model)
         favorited-statuses (get-favorites favorites status-model)
-        publication-date-cols (get-publication-dates-of-favorited-statuses favorites)
+        publication-date-cols (get-publication-dates-of-statuses favorites)
         id-col (get-favorite-status-ids total-favorites)
         aggregate-cols (get-aggregate-properties aggregate total-favorites)
         favorited-status-author-cols (pmap get-favorited-status-author-properties favorite-status-authors)
@@ -471,109 +364,11 @@
           liked-statuses-values))
         '())))
 
-(defn get-ids-of-statuses-authors
-  [statuses]
-  (map (fn [{{member-id :id_str} :user}] member-id) statuses))
-
-(defn get-missing-members-ids
-  [statuses model]
-  (let [ids (get-ids-of-statuses-authors statuses)
-        found-members (find-members-having-ids ids model)
-        matching-ids (set (map #(:twitter-id %) found-members))
-        missing-ids (clojure.set/difference (set ids) (set matching-ids))]
-    missing-ids))
-
-(defn ensure-authors-of-favorited-status-exist
-  [statuses model token-model]
-  (let [remaining-calls (how-many-remaining-calls-showing-user token-model)
-        authors-ids (map #(:id (:user %)) statuses)
-        total-authors (count authors-ids)]
-
-    (if (pos? total-authors)
-      (do
-        (log/info (str "About to ensure " total-authors " member(s) exist."))
-        (let [twitter-users (if
-                              (and
-                                (not (nil? remaining-calls))
-                                (< total-authors remaining-calls))
-                              (pmap #(get-twitter-user % token-model model) authors-ids)
-                              (map #(get-twitter-user % token-model model) authors-ids))
-              twitter-users-properties (assoc-properties-of-twitter-users twitter-users)
-              deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
-              new-members (bulk-insert-new-members deduplicated-users-properties model)]
-          (doall (map #(log/info (str "Member #" (:twitter-id %)
-                                   " having screen name \"" (:screen-name %)
-                                   "\" has been saved under id \"" (:id %))) new-members)))
-      (log/info (str "No need to find some missing member."))))))
-
 (defn process-authors-of-favorited-status
   [favorites model token-model]
   (let [missing-members-ids (get-missing-members-ids favorites model)
         missing-members (filter #(clojure.set/subset? #{(:id_str (:user %))} missing-members-ids) favorites)
-        _ (ensure-authors-of-favorited-status-exist missing-members model token-model)]))
-
-(defn get-ids-of-statuses
-  [statuses]
-  (map (fn [{twitter-id :id_str}] twitter-id) statuses))
-
-(defn get-missing-statuses-ids
-  [statuses model]
-  (let [ids (get-ids-of-statuses statuses)
-        found-statuses (find-statuses-having-ids ids model)
-        matching-ids (set (map #(:twitter-id %) found-statuses))
-        missing-ids (clojure.set/difference (set ids) (set matching-ids))]
-    missing-ids))
-
-(defn get-status-json
-  [{twitter-id :id_str
-    text :full_text
-    created-at :created_at
-    {screen-name :screen_name
-     avatar :profile_image_url
-     name :name} :user
-    :as status}]
-  (let [document (json/write-str status)
-        token (:token @next-token)
-        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
-        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
-        twitter-status {:text text
-                        :full-name screen-name
-                        :avatar avatar
-                        :name name
-                        :access-token token
-                        :api-document document
-                        :created-at mysql-formatted-publication-date
-                        :status-id twitter-id}]
-    twitter-status))
-
-(defn ensure-statuses-exist
-  [statuses model]
-  (let [total-statuses (count statuses)
-        new-statuses (if
-                       (pos? total-statuses)
-                        (do
-                          (log/info (str "About to ensure " total-statuses " statuses exist."))
-                          (bulk-insert-new-statuses (pmap #(get-status-json %) statuses) model))
-                        (do
-                          (log/info (str "No need to find some missing status."))
-                          '()))]
-    (when (pos? total-statuses)
-      (doall (map #(log/info (str "Status #" (:twitter-id %)
-                                  " authored by \"" (:screen-name %)
-                                  "\" has been saved under id \"" (:id %))) new-statuses)))
-    new-statuses))
-
-(defn get-id-as-string
-  [status]
-  (let [id-as-string (:id_str status)
-        id-set #{id-as-string}]
-    id-set))
-
-(defn in-ids-as-string-set
-  [set]
-  (fn [status]
-    (let [id-singleton (get-id-as-string status)]
-      (clojure.set/subset? id-singleton set))))
+        _ (ensure-authors-of-status-exist missing-members model token-model)]))
 
 (defn process-favorited-statuses
   [favorites model]
@@ -734,23 +529,30 @@
             :else
               (log/error "An error occurred with message " (.getMessage e))))))))
 
-(s/def ::total-messages #(pos-int? %))
-
 (defn consume-message
   [entity-manager rabbitmq channel queue & [message-index]]
   (cond
+    (= queue :likes)
+      (pull-messages-from-likes-queue {:auto-ack false
+                                     :entity-manager entity-manager
+                                     :queue (:queue-likes rabbitmq)
+                                     :channel channel})
+    (= queue :lists)
+      (pull-messages-from-lists-queue {:auto-ack false
+                                     :entity-manager entity-manager
+                                     :queue (:queue-lists rabbitmq)
+                                     :channel channel})
     (= queue :network)
       (pull-messages-from-network-queue {:auto-ack false
                                          :entity-manager entity-manager
                                          :queue (:queue-network rabbitmq)
                                          :channel channel})
-    (= queue :likes)
-      (pull-messages-from-likes-queue {:auto-ack false
-                                       :entity-manager entity-manager
-                                       :queue (:queue-likes rabbitmq)
-                                       :channel channel}))
+    :else
+      (println (str "Unknown queue name, please select one of the following: lists, likes or network")))
   (when message-index
     (log/info (str "Consumed message #" message-index))))
+
+(s/def ::total-messages #(pos-int? %))
 
 (defn consume-messages
   [queue total-messages parallel-consumers]
@@ -774,21 +576,3 @@
           (recur (next-total messages-to-consume)))))
   (Thread/sleep 1000)
   (disconnect-from-amqp-server channel connection)))
-
-(defn recommand-subscriptions-for-member-having-screen-name
-  "Port of command written in PHP to recommend subscriptions from the existing subscribing history of a member"
-  ; @see https://github.com/thierrymarianne/daily-press-review/pull/91
-  [screen-name]
-  (let [_ (get-entity-manager (:database env))]
-    (let [distinct-subscriptions-ids (find-distinct-ids-of-subscriptions)
-          {identity-vector :member-vector
-           screen-name :screen-name
-           total-subscriptions :total-subscriptions} (reduce-member-vector screen-name distinct-subscriptions-ids)
-          other-members-subscriptions (find-members-closest-to-member-having-screen-name total-subscriptions)
-          other-members (map
-                         (reduce-member-vector-against-overall-subscriptions
-                           distinct-subscriptions-ids)
-                         other-members-subscriptions)
-          distances-to-other-members-vectors (get-distance-from-others identity-vector other-members)
-          sorted-distances (sort-by #(:distance %) distances-to-other-members-vectors)]
-          (doall (map (get-distance-logger screen-name) sorted-distances)))))

@@ -15,5 +15,6 @@
     :vhost          "update_me"
     :queue-network  "update_me"
     :queue-likes    "update_me"
+    :queue-lists    "update_me"
   }
 }

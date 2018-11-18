@@ -4,7 +4,8 @@
   (:require [clojure.tools.logging :as log])
   (:use [korma.db]
         [twitter.api-client]
-        [amqp.message-handler])
+        [amqp.message-handler]
+        [amqp.recommendation_handler])
   (:gen-class))
 
 (defn -main
@@ -22,6 +23,6 @@
           (consume-messages (keyword queue) total-messages parallel-consumers))
     (= name "recommend-subscriptions")
       (let [[screen-name] args]
-          (recommand-subscriptions-for-member-having-screen-name screen-name))
+          (recommend-subscriptions-from-member-subscription-history screen-name))
     :else
       (log/info "Invalid command")))
