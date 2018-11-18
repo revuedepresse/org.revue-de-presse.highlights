@@ -252,8 +252,8 @@
                 (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
                 (nil? @next-token)))
            (when (fn? on-reached-api-limit)
-             (on-reached-api-limit)
-             (wait-for-15-minutes endpoint)))
+             (on-reached-api-limit))
+           (wait-for-15-minutes endpoint))
        (catch Exception e (log/error (.getMessage e))))))
 
 (defn guard-against-exceptional-member
