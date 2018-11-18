@@ -4,6 +4,7 @@
             [clj-time.coerce :as c]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
+        [repository.aggregate]
         [twitter.api-client]
         [twitter.date]
         [twitter.member]))
@@ -82,10 +83,10 @@
       (ensure-statuses-exist remaining-favorites model))))
 
 (defn preprocess-statuses
-  [favorites status-model member-model token-model]
-  (when (pos? (count favorites))
-    (process-statuses favorites status-model)
-    (process-authors-of-statuses favorites member-model token-model)))
+  [statuses status-model member-model token-model]
+  (when (pos? (count statuses))
+    (process-authors-of-statuses statuses member-model token-model)
+    (process-statuses statuses status-model)))
 
 (defn get-author-by-id
   "Provide with a map of authors indexed by theirs Twitter ids
@@ -117,3 +118,47 @@
         favorited-status-authors (map (get-author-by-id indexed-authors) author-ids)]
     (log/info (str "Found " (count favorited-status-authors) " ids of status authors"))
     favorited-status-authors))
+
+(defn new-relationship
+  [aggregate-id]
+  (fn [status-id]
+  (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
+    relationship)))
+
+(defn new-relationships
+  [aggregate new-statuses model status-model]
+  (if (pos? (count new-statuses))
+    (let [aggregate-id (:id aggregate)
+          new-statuses-ids (map #(:id %) new-statuses)
+          relationship-values (doall (map (new-relationship aggregate-id) new-statuses-ids))
+          new-relationships (bulk-insert-status-aggregate-relationship
+                              relationship-values
+                              aggregate-id
+                              model
+                              status-model)
+          total-new-relationships (count new-relationships)]
+      {:new-relationships new-relationships
+       :total-new-relationships total-new-relationships})
+      {:new-relationships '()
+       :total-new-relationships 0}))
+
+(defn cache-statuses-along-with-authors
+  "Ensure statuses and their authors are cached"
+  [statuses screen-name aggregate {member-model :members
+                       status-model :status
+                       token-model :tokens
+                       status-aggregate-model :status-aggregate}]
+  (if (pos? (count statuses))
+    (let [new-statuses (preprocess-statuses statuses status-model member-model token-model)
+          {total-new-relationships :total-new-relationships
+           new-relationships :new-relationships} (new-relationships
+                                                   aggregate
+                                                   new-statuses
+                                                   status-aggregate-model
+                                                   status-model)]
+      (if (pos? total-new-relationships)
+        (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
+                       (:name aggregate) "\" for \"" screen-name "\" and " (count new-statuses) " statuses"))
+        (log/info (str "There are no new relationships for aggregate \"" (:name aggregate) "\"")))
+    new-relationships)
+    '()))

@@ -1,35 +1,19 @@
 (ns repository.entity-manager
     (:require [korma.core :as db]
-              [clojure.string :as string]
               [clojure.edn :as edn]
               [clojure.tools.logging :as log]
-              [pandect.algo.sha1 :refer :all]
               [clj-uuid :as uuid])
     (:use [korma.db]
-          [utils.string]))
+          [repository.aggregate]
+          [repository.database-schema]
+          [utils.string]
+          [twitter.status-hash]))
 
 (declare tokens
-         aggregate
          users members
          subscriptions subscribees
          member-subscriptions member-subscribees
          archived-status liked-status status)
-
-(defn get-aggregate-model
-  [connection]
-  (db/defentity aggregate
-                (db/table :weaving_aggregate)
-                (db/database connection)
-                (db/entity-fields
-                  :id
-                  :name
-                  :created_at
-                  :locked
-                  :locked_at
-                  :unlocked_at
-                  :screen_name
-                  :list_id))
-  aggregate)
 
 (defn get-status-model
   [connection]
@@ -95,7 +79,8 @@
               :secret
               :consumer_key
               :consumer_secret
-              :frozen_until)))
+              :frozen_until))
+  tokens)
 
 (defn get-user-model
   [connection]
@@ -209,6 +194,7 @@
   [config]
   (let [connection (prepare-connection config)]
     {:aggregates (get-aggregate-model connection)
+     :status-aggregate (get-status-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
      :users (get-user-model connection)
      :liked-status (get-liked-status-model connection)
@@ -224,17 +210,6 @@
   [config]
   (connect-to-db (edn/read-string config)))
 
-(defn find-aggregate-by-id
-  "Find an aggregate by id"
-  [id model]
-  (->
-    (db/select* model)
-    (db/fields :id
-               :name
-               [:screen_name :screen-name])
-    (db/where {:id id})
-    (db/select)))
-
 (defn select-statuses
   [model]
   (->
@@ -248,13 +223,6 @@
                [:ust_api_document :document]
                [:ust_created_at :created-at]
                [:ust_status_id :twitter-id])))
-
-(defn find-status-by-twitter-id
-  "Find a status by id"
-  [twitter-id model]
-  (-> (select-statuses model)
-      (db/where {:ust_status_id twitter-id})
-      (db/select)))
 
 (defn find-statuses-having-ids
   "Find statuses by theirs Twitter ids"
@@ -359,74 +327,6 @@
         results (db/exec-raw [select-members-query params] :results)]
     results))
 
-(defn new-status
-  [status model]
-  (let [{text :text
-         screen-name :screen-name
-         name :name
-         access-token :token
-         avatar :avatar
-         document :document
-         created-at :created-at
-         twitter-id :twitter-id} status]
-
-    (log/info (str "About to insert status #" twitter-id
-                   " authored by \"" screen-name "\""))
-
-    (try
-      (db/insert model
-        (db/values [{:ust_hash (sha1 (str text twitter-id))
-                    :ust_text text
-                    :ust_full_name screen-name
-                    :ust_name name
-                    :ust_avatar avatar
-                    :ust_access_token access-token
-                    :ust_api_document document
-                    :ust_created_at created-at
-                    :ust_status_id twitter-id}]))
-      (catch Exception e (log/error (.getMessage e))))
-
-    (first (find-status-by-twitter-id twitter-id model))))
-
-(defn replace-underscore-with-dash
-  [[k v]]
-  (let [key-value [(keyword (string/replace (name k) #"-" "_") ) v]]
-    key-value))
-
-(defn snake-case-keys
-  [m]
-  (let [props-having-converted-keys (->> (map replace-underscore-with-dash m)
-                                         (into {}))]
-    props-having-converted-keys))
-
-(defn get-prefixer
-  [prefix]
-  (fn [[k v]]
-    (let [keyword-name (name k)
-          prefixed-keyword-name (str prefix keyword-name)
-          key-value [(keyword prefixed-keyword-name) v]]
-      key-value)))
-
-(defn prefixed-keys
-  [m]
-  (let [prefixer (get-prefixer "ust_")
-        props-having-converted-keys (->> (map prefixer m)
-                                         (into {}))]
-    props-having-converted-keys))
-
-(defn get-status-hash
-  [status]
-  (let [twitter-id (:status_id status)
-        concatenated-string (str (:text status) twitter-id)
-        hash (sha1 concatenated-string)]
-    (log/info (str "Hash for " twitter-id " is \"" hash "\""))
-    hash))
-
-
-      (defn assoc-hash
-  [status]
-  (assoc status :hash (get-status-hash status)))
-
 (defn bulk-insert-new-statuses
   [statuses model]
   (let [snake-cased-values (map snake-case-keys statuses)
@@ -441,10 +341,6 @@
           (catch Exception e (log/error (.getMessage e))))
         (find-statuses-having-ids twitter-ids model))
       '())))
-
-(defn get-column
-  [column-name model]
-  (keyword (str (:table model) "." column-name)))
 
 (defn find-liked-statuses
   [liked-statuses-ids model status-model]
@@ -466,31 +362,6 @@
                  [:aggregate_name :aggregate-name])
       (db/join status-model (= status-id-col :status_id))
       (db/where {:id [in liked-statuses-ids]})
-      (db/select))))
-
-(defn find-liked-status-by
-  "Find a liked status by ids of status, members"
-  [member-id liked-by-member-id status-id model status-model]
-  (let [status-id-col (get-column "ust_id" status-model)
-        twitter-id-col (get-column "ust_status_id" status-model)]
-    (->
-      (db/select* model)
-      (db/fields :id
-                 [twitter-id-col :twitter-id]
-                 [:status_id :status-id]
-                 [:archived_status_id :archived-status-id]
-                 [:time_range :time-range]
-                 [:is_archived_status :is-archived-status]
-                 [:member_id :member-id]
-                 [:member_name :member-name]
-                 [:liked_by :liked-by]
-                 [:liked_by_member_name :liked-by-member-name]
-                 [:aggregate_id :aggregate-id]
-                 [:aggregate_name :aggregate-name])
-      (db/join status-model (= status-id-col :status_id))
-      (db/where {:liked_by liked-by-member-id
-                 :member_id member-id
-                 :status_id status-id})
       (db/select))))
 
 (defn new-liked-statuses

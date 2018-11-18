@@ -2,9 +2,9 @@
   (:require [clojure.data.json :as json]
             [clojure.tools.logging :as log]
             [langohr.basic :as lb]
-            [php_clj.core :refer [php->clj clj->php]]))
-
-(declare process-lists)
+            [php_clj.core :refer [php->clj clj->php]])
+  (:use [amqp.handling-errors]
+        [amqp.status-handler]))
 
 (defn pull-messages-from-lists-queue
   "Pull messages from a queue dedicated to status collection from lists"
@@ -20,10 +20,8 @@
     (when payload
       (try
         (do
-          (process-lists screen-name aggregate-id entity-manager)
-          (lb/ack channel delivery-tag))
+          (process-lists screen-name aggregate-id entity-manager error-unavailable-aggregate)
+          ;(lb/ack channel delivery-tag)
+          )
         (catch Exception e
           (log/error "An error occurred with message " (.getMessage e)))))))
-
-(defn process-lists
-  [& args])

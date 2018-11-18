@@ -12,6 +12,7 @@
           [repository.entity-manager]
           [twitter.status]
           [twitter.member]
+          [amqp.handling-errors]
           [amqp.favorite-status-handler]
           [amqp.list-handler]
           [amqp.network-handler]
@@ -62,7 +63,7 @@
     (when payload
       (try
         (do
-          (process-likes screen-name aggregate-id entity-manager)
+          (process-likes screen-name aggregate-id entity-manager error-unavailable-aggregate)
           (lb/ack channel delivery-tag))
         (catch Exception e
           (cond

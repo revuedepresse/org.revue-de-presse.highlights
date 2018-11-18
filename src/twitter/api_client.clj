@@ -468,7 +468,7 @@
 (defn get-statuses-of-member
   [opts token-model]
   (let [endpoint "statuses/user_timeline"
-        call "call to \"favorites/list\""
+        call "call to \"statuses/user_timeline\""
         context (str "trying to make a " call)
         _ (find-next-token token-model endpoint context)
         response (get-statuses-by-screen-name opts endpoint call token-model)
