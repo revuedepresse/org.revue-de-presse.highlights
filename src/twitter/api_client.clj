@@ -212,14 +212,18 @@
       (swap! call-limits #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-limit headers))))))))
 
 (defn log-remaining-calls-for
+  "Log remaining calls to endpoint by extracting limit and remaining values from HTTP headers"
   [headers endpoint]
   (let [are-headers-available (not (nil? headers))
         limit (when are-headers-available (:x-rate-limit-remaining headers))
         remaining-calls (if are-headers-available (:x-rate-limit-limit headers) 0)]
-    (when limit
-      (log/info (str "Rate limit at " limit " for \"" endpoint "\"" )))
-    (log/info (str remaining-calls " remaining calls for \"" endpoint
-                 "\" called with consumer key \"" @current-consumer-key "\"" ))
+
+    (when *api-client-enabled-logging*
+      (when limit
+        (log/info (str "Rate limit at " limit " for \"" endpoint "\"" )))
+      (log/info (str remaining-calls " remaining calls for \"" endpoint
+                 "\" called with consumer key \"" @current-consumer-key "\"" )))
+
     (update-remaining-calls headers endpoint)))
 
 (defn ten-percent-of
@@ -240,8 +244,7 @@
   [headers endpoint & [on-reached-api-limit]]
   (let [unavailable-rate-limit (nil? headers)
         percentage (ten-percent-of-limit headers)]
-    (when *api-client-enabled-logging*
-      (log-remaining-calls-for headers endpoint))
+    (log-remaining-calls-for headers endpoint)
     (try (when
            (or
               unavailable-rate-limit
