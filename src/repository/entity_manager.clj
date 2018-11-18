@@ -8,32 +8,18 @@
     (:use [korma.db]
           [utils.string]))
 
-(defn connect-to-db
-  "Create a connection and provide with a map of entities"
-  ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
-  ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
-  [config]
-  (defdb database-connection {:classname "com.mysql.jdbc.Driver"
-                              :subprotocol "mysql"
-                              :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
-                              :useUnicode "yes"
-                              :characterEncoding "UTF-8"
-                              :characterSet "utf8mb4"
-                              :collation "utf8mb4_unicode_ci"
-                              :delimiters "`"
-                              :user (:user config)
-                              :password (:password config)})
+(declare tokens
+         aggregate
+         users members
+         subscriptions subscribees
+         member-subscriptions member-subscribees
+         archived-status liked-status status)
 
-  (declare tokens
-           aggregate
-           users members
-           subscriptions subscribees
-           member-subscriptions member-subscribees
-           liked-status status)
-
+(defn get-aggregate-model
+  [connection]
   (db/defentity aggregate
                 (db/table :weaving_aggregate)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :id
                   :name
@@ -43,11 +29,14 @@
                   :unlocked_at
                   :screen_name
                   :list_id))
+  aggregate)
 
+(defn get-status-model
+  [connection]
   (db/defentity status
                 (db/pk :ust_id)
                 (db/table :weaving_status)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :ust_id
                   :ust_hash                                 ; sha1(str ust_text  ust_status_id)
@@ -58,24 +47,30 @@
                   :ust_api_document
                   :ust_created_at
                   :ust_status_id))
+  status)
 
+(defn get-archived-status-model
+  [connection]
   (db/defentity archived-status
-                (db/table :weaving_archived_status)
-                (db/database database-connection)
-                (db/entity-fields
-                  :ust_id
-                  :ust_hash                                 ; sha1(str ust_text  ust_status_id)
-                  :ust_text
-                  :ust_full_name                            ; twitter user screen name
-                  :ust_name                                 ; twitter user full name
-                  :ust_access_token
-                  :ust_api_document
-                  :ust_created_at
-                  :ust_status_id))
+              (db/table :weaving_archived_status)
+              (db/database connection)
+              (db/entity-fields
+                :ust_id
+                :ust_hash                                 ; sha1(str ust_text  ust_status_id)
+                :ust_text
+                :ust_full_name                            ; twitter user screen name
+                :ust_name                                 ; twitter user full name
+                :ust_access_token
+                :ust_api_document
+                :ust_created_at
+                :ust_status_id))
+  archived-status)
 
+(defn get-liked-status-model
+  [connection]
   (db/defentity liked-status
                 (db/table :liked_status)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :id
                   :status_id
@@ -88,23 +83,28 @@
                   :liked_by_member_name
                   :aggregate_id
                   :aggregate_name))
+  liked-status)
 
+(defn get-token-model
+  [connection]
   (db/defentity tokens
-                (db/table :weaving_access_token)
-                (db/database database-connection)
-                (db/entity-fields
-                  :token
-                  :secret
-                  :consumer_key
-                  :consumer_secret
-                  :frozen_until))
+            (db/table :weaving_access_token)
+            (db/database connection)
+            (db/entity-fields
+              :token
+              :secret
+              :consumer_key
+              :consumer_secret
+              :frozen_until)))
 
+(defn get-user-model
+  [connection]
   ; It seems that duplicates are required to express the relationships
   ; @see https://github.com/korma/Korma/issues/281
   (db/defentity users
                 (db/pk :usr_id)
                 (db/table :weaving_user)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :usr_id
                   :usr_twitter_username
@@ -113,11 +113,14 @@
                   :not_found
                   :protected
                   :suspended))
+  users)
 
+(defn get-members-model
+  [connection]
   (db/defentity members
                 (db/pk :usr_id)
                 (db/table :weaving_user)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :usr_id
                   :usr_twitter_username
@@ -130,11 +133,14 @@
                   :url
                   :total_subscribees
                   :total_subscriptions))
+  members)
 
+(defn get-subscriptions-model
+  [connection]
   (db/defentity subscriptions
                 (db/pk :usr_id)
                 (db/table :weaving_user)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :usr_id
                   :usr_twitter_username
@@ -142,11 +148,14 @@
                   :not_found
                   :protected
                   :suspended))
+  subscriptions)
 
+(defn get-subscribees-model
+  [connection]
   (db/defentity subscribees
                 (db/pk :usr_id)
                 (db/table :weaving_user)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields
                   :usr_id
                   :usr_twitter_username
@@ -154,34 +163,62 @@
                   :not_found
                   :protected
                   :suspended))
+  subscribees)
 
+(defn get-member-subscriptions-model
+  [connection]
   (db/defentity member-subscriptions
                 (db/pk :id)
                 (db/table :member_subscription)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields :member_id :subscription_id)
                 (db/has-one members {:fk :usr_id})
                 (db/has-one subscriptions {:fk :usr_id}))
+  member-subscriptions)
 
+(defn get-member-subscribees-model
+  [connection]
   (db/defentity member-subscribees
                 (db/pk :id)
                 (db/table :member_subscribee)
-                (db/database database-connection)
+                (db/database connection)
                 (db/entity-fields :member_id :subscribee_id)
                 (db/has-one members {:fk :usr_id})
                 (db/has-one subscribees {:fk :usr_id}))
+  member-subscribees)
 
-  {:aggregates aggregate
-   :archived-status archived-status
-   :users users
-   :liked-status liked-status
-   :members members
-   :subscribees subscribees
-   :subscriptions subscriptions
-   :member-subscriptions member-subscriptions
-   :member-subscribees member-subscribees
-   :status status
-   :tokens tokens})
+(defn prepare-connection
+  [config]
+  (let [connection (defdb database-connection
+                          {:classname "com.mysql.jdbc.Driver"
+                           :subprotocol "mysql"
+                           :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
+                           :useUnicode "yes"
+                           :characterEncoding "UTF-8"
+                           :characterSet "utf8mb4"
+                           :collation "utf8mb4_unicode_ci"
+                           :delimiters "`"
+                           :user (:user config)
+                           :password (:password config)})]
+  connection))
+
+(defn connect-to-db
+  "Create a connection and provide with a map of entities"
+  ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
+  ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
+  [config]
+  (let [connection (prepare-connection config)]
+    {:aggregates (get-aggregate-model connection)
+     :archived-status (get-archived-status-model connection)
+     :users (get-user-model connection)
+     :liked-status (get-liked-status-model connection)
+     :members (get-members-model connection)
+     :subscribees (get-subscribees-model connection)
+     :subscriptions (get-subscriptions-model connection)
+     :member-subscriptions (get-member-subscriptions-model connection)
+     :member-subscribees (get-member-subscribees-model connection)
+     :status (get-status-model connection)
+     :tokens (get-token-model connection)}))
 
 (defn get-entity-manager
   [config]
@@ -517,6 +554,8 @@
     (db/fields [:usr_id :id]
                [:usr_twitter_id :twitter-id]
                [:usr_twitter_username :screen-name]
+               [:min_status_id :min-status-id]
+               [:max_status_id :max-status-id]
                [:min_like_id :min-favorite-status-id]
                [:max_like_id :max-favorite-status-id])
     (db/where {:usr_twitter_username screen-name})
