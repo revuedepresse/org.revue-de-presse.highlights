@@ -12,7 +12,7 @@
   "Command dispatch application (AMQP message consumption / recommendation)"
   [name & args]
   (cond
-    (= name "consume-amqp-message")
+    (= name "consume-amqp-messages")
       (let [[queue messages consumers] args
             total-messages (if (nil? messages)
                              100

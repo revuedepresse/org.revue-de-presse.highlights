@@ -1,4 +1,4 @@
-(ns amqp.list_handler
+(ns amqp.list-handler
   (:require [clojure.data.json :as json]
             [clojure.tools.logging :as log]
             [langohr.basic :as lb]

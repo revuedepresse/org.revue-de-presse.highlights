@@ -55,12 +55,12 @@
 
 (defn assoc-properties-of-twitter-users
   [twitter-users]
-  (log/info "Build a sequence of twitter users properties")
+  (log/info "Build a sequence of Twitter users properties")
   (doall (pmap assoc-twitter-user-properties twitter-users)))
 
 (defn get-twitter-user
   [member-id tokens members]
-  (log/info (str "About to look up for member having twitter id #" member-id))
+  (log/info (str "About to look up for member having Twitter id #" member-id))
   (let [twitter-user (get-member-by-id member-id tokens members)]
     twitter-user))
 
@@ -87,10 +87,17 @@
                                       "\" has been saved under id \"" (:id %))) new-members)))
         (log/info (str "No need to find some missing member."))))))
 
+(defn process-authors-of-statuses
+  "Remove authors of statuses whose characteristics have already been cached and ensure the other exist"
+  [favorites model token-model]
+  (let [missing-members-ids (get-missing-members-ids favorites model)
+        missing-members (filter #(clojure.set/subset? #{(:id_str (:user %))} missing-members-ids) favorites)
+        _ (ensure-authors-of-status-exist missing-members model token-model)]))
+
 (defn new-member-from-json
   [member-id tokens members]
   (when *twitter-member-enabled-logging*
-    (log/info (str "About to look up for member having twitter id #" member-id)))
+    (log/info (str "About to look up for member having Twitter id #" member-id)))
   (let [twitter-user (get-member-by-id member-id tokens members)
         member (save-member twitter-user members)]
     member))
@@ -98,7 +105,7 @@
 (defn new-member-props-from-json
   [member-id tokens members]
   (when *twitter-member-enabled-logging*
-    (log/info (str "About to look up for member having twitter id #" member-id)))
+    (log/info (str "About to look up for member having Twitter id #" member-id)))
   (let [twitter-user (get-member-by-id member-id tokens members)
         member (save-member twitter-user members :only-props)]
     member))

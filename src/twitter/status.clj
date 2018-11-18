@@ -1,29 +1,12 @@
 (ns twitter.status
-  (:require [clj-time.format :as f]
+  (:require [clojure.data.json :as json]
+            [clj-time.format :as f]
             [clj-time.coerce :as c]
-            [clojure.data.json :as json]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
-        [twitter.api-client])
-  (:import java.util.Locale))
-
-(def date-formatter (f/with-locale (f/formatter "EEE MMM dd HH:mm:ss Z yyyy") Locale/ENGLISH))
-(def mysql-date-formatter (f/formatters :mysql))
-
-(defn get-date-properties
-  [date]
-  (let [parsed-publication-date (c/to-long (f/parse date-formatter date))]
-    {:parsed-publication-date parsed-publication-date
-     :mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))}))
-
-(defn get-status-formatted-dates
-  [favorite]
-  (let [formatted-date (get-date-properties (:created_at favorite))]
-    formatted-date))
-
-(defn get-publication-dates-of-statuses
-  [statuses]
-  (pmap get-status-formatted-dates statuses))
+        [twitter.api-client]
+        [twitter.date]
+        [twitter.member]))
 
 (defn get-ids-of-statuses
   [statuses]
@@ -87,3 +70,50 @@
   (fn [status]
     (let [id-singleton (get-id-as-string status)]
       (clojure.set/subset? id-singleton set))))
+
+(defn process-statuses
+  [favorites model]
+  (let [missing-statuses-ids (get-missing-statuses-ids favorites model)
+        remaining-favorites (filter (in-ids-as-string-set missing-statuses-ids) favorites)]
+    (when
+      (and
+        (pos? (count missing-statuses-ids))
+        (pos? (count remaining-favorites)))
+      (ensure-statuses-exist remaining-favorites model))))
+
+(defn preprocess-statuses
+  [favorites status-model member-model token-model]
+  (when (pos? (count favorites))
+    (process-statuses favorites status-model)
+    (process-authors-of-statuses favorites member-model token-model)))
+
+(defn get-author-by-id
+  "Provide with a map of authors indexed by theirs Twitter ids
+  in order to get a function returning an author matching a Twitter id passed as argument"
+  [indexed-authors]
+  (fn [status-id]
+    ((keyword status-id) indexed-authors)))
+
+(defn get-id-of-status-author
+  "Get the Twitter id of the author of a status"
+  [status]
+  (let [{{author-id :id_str} :user} status]
+    author-id))
+
+(defn get-author-key-value
+  "Get a pair made of a Twitter id and a value"
+  [args]
+  (let [twitter-id (:twitter-id args)
+        key-value [(keyword twitter-id) args]]
+    key-value))
+
+(defn get-statuses-authors
+  "Get authors of statuses"
+  [favorites model]
+  (let [author-ids (pmap get-id-of-status-author favorites)
+        distinct-status-authors (find-members-having-ids author-ids model)
+        indexed-authors (->> (map get-author-key-value distinct-status-authors)
+                             (into {}))
+        favorited-status-authors (map (get-author-by-id indexed-authors) author-ids)]
+    (log/info (str "Found " (count favorited-status-authors) " ids of status authors"))
+    favorited-status-authors))

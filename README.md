@@ -23,7 +23,7 @@ cp lein-env{.dist,}
 ```
 # 1000 ; Maximum number of messages to be consumed
 # 5    ; Parallel consumers
-lein run consume-amqp-message network [1000] [5]
+lein run consume-amqp-messages network [1000] [5]
 ```
 
 ## How to import favorited statuses?
@@ -31,7 +31,15 @@ lein run consume-amqp-message network [1000] [5]
 ```
 # 100 ; Maximum number of messages to be consumed
 # 2   ; Parallel consumers
-lein run likes [100] [2]
+lein run consume-amqp-messages likes [100] [2]
+```
+
+## How to import statuses from lists?
+
+```
+# 1 ; Maximum number of messages to be consumed
+# 3 ; Parallel consumers
+lein run consume-amqp-messages lists [1] [3]
 ```
 
 ## How to recommend new subscriptions based on a history of subscriptions?
