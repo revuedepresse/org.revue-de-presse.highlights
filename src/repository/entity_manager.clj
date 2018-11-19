@@ -327,6 +327,37 @@
         results (db/exec-raw [select-members-query params] :results)]
     results))
 
+(defn count-members
+  "Count the total number of members"
+  []
+  (let [results (db/exec-raw [(str "SELECT count(usr_id) AS total_members "
+                                   "FROM weaving_user m")] :results)]
+    (:total_members (first results))))
+
+(defn find-single-statuses-per-member
+  "Find a single status for each member"
+  [start page-length & [fetch-archives]]
+  (let [table-name (if fetch-archives "weaving_archived_status" "weaving_status")
+        results (db/exec-raw [(str "SELECT "
+                                   "s.ust_full_name AS `screen-name`, "
+                                   "s.ust_api_document AS `api-document`, "
+                                   "usr_id AS id "
+                                   "FROM weaving_user m "
+                                   "INNER JOIN " table-name " s "
+                                   "ON s.ust_full_name = m.usr_twitter_username "
+                                   "WHERE (m.url IS NULL or m.description IS NULL) "
+                                   "LIMIT ?, ?") [start page-length]] :results)]
+    results))
+
+(defn update-member-description-and-url
+  [{url :url
+    description :description
+    id :id} model]
+  (db/update model
+             (db/set-fields {:url url
+                             :description description})
+             (db/where {:usr_id id})))
+
 (defn bulk-insert-new-statuses
   [statuses model]
   (let [snake-cased-values (map snake-case-keys statuses)

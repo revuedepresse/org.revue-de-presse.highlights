@@ -44,6 +44,12 @@ lein run consume-amqp-messages likes [100] [2]
 lein run consume-amqp-messages lists [1] [3]
 ```
 
+### How to update bios of members?
+
+```
+lein run update-members-descriptions-urls
+```
+
 ### How to recommend new subscriptions based on a history of subscriptions?
 
 ```
