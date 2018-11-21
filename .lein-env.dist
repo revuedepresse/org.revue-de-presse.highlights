@@ -17,4 +17,7 @@
     :queue-likes    "update_me"
     :queue-lists    "update_me"
   }
+  :aggregate {
+    :press          "update_me"
+  }
 }

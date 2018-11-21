@@ -5,8 +5,9 @@
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
-        [amqp.membership-handler]
-        [amqp.recommendation_handler])
+        [command.update-members-props]
+        [command.save-today-highlights]
+        [command.recommend-subscriptions])
   (:gen-class))
 
 (defn -main
@@ -29,5 +30,7 @@
           (recommend-subscriptions-from-member-subscription-history screen-name))
     (= name "update-members-descriptions-urls")
         (update-members-descriptions-urls)
+    (= name "save-today-highlights")
+        (save-today-highlights)
     :else
       (log/info "Invalid command")))

@@ -6,6 +6,7 @@
     (:use [korma.db]
           [repository.aggregate]
           [repository.database-schema]
+          [repository.highlight]
           [utils.string]
           [twitter.status-hash]))
 
@@ -194,17 +195,18 @@
   [config]
   (let [connection (prepare-connection config)]
     {:aggregates (get-aggregate-model connection)
-     :status-aggregate (get-status-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
-     :users (get-user-model connection)
+     :highlight (get-highlight-model connection)
      :liked-status (get-liked-status-model connection)
      :members (get-members-model connection)
-     :subscribees (get-subscribees-model connection)
-     :subscriptions (get-subscriptions-model connection)
-     :member-subscriptions (get-member-subscriptions-model connection)
      :member-subscribees (get-member-subscribees-model connection)
+     :member-subscriptions (get-member-subscriptions-model connection)
+     :subscribees (get-subscribees-model connection)
      :status (get-status-model connection)
-     :tokens (get-token-model connection)}))
+     :status-aggregate (get-status-aggregate-model connection)
+     :subscriptions (get-subscriptions-model connection)
+     :tokens (get-token-model connection)}
+     :users (get-user-model connection)))
 
 (defn get-entity-manager
   [config]
@@ -225,7 +227,7 @@
                [:ust_status_id :twitter-id])))
 
 (defn find-statuses-having-ids
-  "Find statuses by theirs Twitter ids"
+  "Find statuses by their Twitter ids"
   [ids model]
   (let [ids (if ids ids '(0))
         matching-statuses (-> (select-statuses model)
@@ -358,6 +360,7 @@
                              :description description})
              (db/where {:usr_id id})))
 
+
 (defn bulk-insert-new-statuses
   [statuses model]
   (let [snake-cased-values (map snake-case-keys statuses)
@@ -480,7 +483,7 @@
     (first matching-members)))
 
 (defn find-members-having-ids
-  "Find members by theirs Twitter ids"
+  "Find members by their Twitter ids"
   [twitter-ids members]
   (let [ids (if twitter-ids twitter-ids '(0))
         matching-members (-> (select-members members)

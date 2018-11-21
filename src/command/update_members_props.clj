@@ -1,4 +1,4 @@
-(ns amqp.membership-handler
+(ns command.update-members-props
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log])
@@ -51,7 +51,7 @@
   []
   (let [{member-model :members} (get-entity-manager (:database env))
         total-members (count-members)
-        page-length 1000
+        page-length 10000
         total-pages (inc (quot total-members page-length))]
     (loop [page total-pages]
       (when (and
