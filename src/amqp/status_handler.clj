@@ -52,23 +52,25 @@
 
 (defn process-lists
   [screen-name aggregate-id entity-manager unavailable-aggregate-message]
-  (let [{member-model :members
-         token-model :tokens
-         aggregate-model :aggregates} entity-manager
-        aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
-        member (first (find-member-by-screen-name screen-name member-model))
-        statuses (get-next-batch-of-statuses-for-member member token-model)
-        processed-relationships (cache-statuses-along-with-authors statuses screen-name aggregate entity-manager)
-        last-relationship (last processed-relationships)
-        twitter-id-of-status-in-last-relationship (:twitter-id last-relationship)]
+  ; do not process aggregate with id #1 (taken care of by another command)
+  (when (not= 1 aggregate-id)
+    (let [{member-model :members
+           token-model :tokens
+           aggregate-model :aggregates} entity-manager
+          aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
+          member (first (find-member-by-screen-name screen-name member-model))
+          statuses (get-next-batch-of-statuses-for-member member token-model)
+          processed-relationships (cache-statuses-along-with-authors statuses screen-name aggregate entity-manager)
+          last-relationship (last processed-relationships)
+          twitter-id-of-status-in-last-relationship (:twitter-id last-relationship)]
 
-    (when
-      (and
-        (not (nil? last-relationship))
-        (not (nil? member)))
-      (update-min-status-id-for-member-having-id twitter-id-of-status-in-last-relationship
-                                                 (:id member)
-                                                 member-model))
-    (if (pos? (count processed-relationships))
-      (process-lists screen-name aggregate-id entity-manager unavailable-aggregate-message)
-      (update-max-status-id-for-member member aggregate entity-manager))))
+      (when
+        (and
+          (not (nil? last-relationship))
+          (not (nil? member)))
+        (update-min-status-id-for-member-having-id twitter-id-of-status-in-last-relationship
+                                                   (:id member)
+                                                   member-model))
+      (if (pos? (count processed-relationships))
+        (process-lists screen-name aggregate-id entity-manager unavailable-aggregate-message)
+        (update-max-status-id-for-member member aggregate entity-manager)))))

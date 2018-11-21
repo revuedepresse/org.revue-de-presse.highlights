@@ -1,4 +1,4 @@
-(ns amqp.recommendation_handler
+(ns command.recommend-subscriptions
   (:require [environ.core :refer [env]])
   (:use [recommendation.distance]
         [repository.entity-manager]))
