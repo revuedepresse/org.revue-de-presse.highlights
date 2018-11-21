@@ -47,8 +47,11 @@
 
 (defn get-aggregate-by-id
   [aggregate-id model error-message]
-  (let [aggregate (first (find-aggregate-by-id aggregate-id model))
-        _ (when (nil? (:name aggregate))
+  (let [matching-aggregates (find-aggregate-by-id aggregate-id model)
+        aggregate (if (pos? (count matching-aggregates)) (first matching-aggregates) nil)
+        _ (when (or
+                  (nil? aggregate)
+                  (nil? (:name aggregate)))
             (throw (Exception. (str error-message))))]
     aggregate))
 

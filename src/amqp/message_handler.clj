@@ -82,7 +82,7 @@
                          aggregate-id " could not be bound to an actual aggregate")
                 (lb/ack channel delivery-tag))
             :else
-              (log/error "An error occurred with message " (.getMessage e))))))))
+              (log/error (str "An error occurred with message " (.getMessage e)))))))))
 
 (defn consume-message
   [entity-manager rabbitmq channel queue & [message-index]]

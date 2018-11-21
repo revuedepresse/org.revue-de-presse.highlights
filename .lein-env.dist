@@ -1,11 +1,11 @@
 {
   :database {
-    :charset  "update_me"
-    :host     "update_me"
-    :name     "update_me"
-    :user     "update_me"
-    :password "update_me"
-    :port     "update_me"
+    :charset        "update_me"
+    :host           "update_me"
+    :name           "update_me"
+    :user           "update_me"
+    :password       "update_me"
+    :port           "update_me"
   }
   :rabbitmq {
     :user           "update_me"
