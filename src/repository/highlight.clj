@@ -1,7 +1,6 @@
 (ns repository.highlight
   (:require [clojure.tools.logging :as log]
-            [korma.core :as db]
-            [clj-uuid :as uuid])
+            [korma.core :as db])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
@@ -23,7 +22,8 @@
   highlight)
 
 (defn find-statuses-for-aggregate
-  "Find a single status for each member"
+  "Find the statuses of a member published on a given day"
+  ; Relies on available timely statuses
   ([aggregate-name]
    (let [results (find-statuses-for-aggregate aggregate-name nil)]
     results))

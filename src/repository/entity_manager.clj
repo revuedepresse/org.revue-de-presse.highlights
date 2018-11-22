@@ -6,11 +6,13 @@
     (:use [korma.db]
           [repository.aggregate]
           [repository.database-schema]
+          [repository.timely-status]
           [repository.highlight]
           [utils.string]
           [twitter.status-hash]))
 
-(declare tokens
+(declare database-connection
+         tokens
          users members
          subscriptions subscribees
          member-subscriptions member-subscribees
