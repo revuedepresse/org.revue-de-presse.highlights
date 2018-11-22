@@ -207,6 +207,7 @@
      :status (get-status-model connection)
      :status-aggregate (get-status-aggregate-model connection)
      :subscriptions (get-subscriptions-model connection)
+     :timely-status (get-timely-status-model connection)
      :tokens (get-token-model connection)
      :users (get-user-model connection)}))
 

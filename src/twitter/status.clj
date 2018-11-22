@@ -11,6 +11,15 @@
 
 (def ^:dynamic *twitter-status-enabled-logging* false)
 
+(defn filter-out-known-statuses
+  [find statuses]
+  (let [statuses-ids (map #(:status-id %) statuses)
+        matching-statuses (find statuses-ids)
+        matching-ids (set (map #(:status-id %) matching-statuses))
+        missing-ids (clojure.set/difference (set statuses-ids) (set matching-ids))
+        filtered-statuses (filter #(clojure.set/subset? #{(:status-id %)} (set missing-ids)) statuses)]
+    filtered-statuses))
+
 (defn get-ids-of-statuses
   [statuses]
   (map (fn [{twitter-id :id_str}] twitter-id) statuses))

@@ -32,7 +32,7 @@
     (= name "update-members-descriptions-urls")
         (update-members-descriptions-urls)
     (= name "generate-timely-statuses")
-        (generate-timely-statuses)
+        (generate-timely-statuses 1 2018)
     (= name "save-highlights")
       (let [[date] args]
         (if (nil? date)

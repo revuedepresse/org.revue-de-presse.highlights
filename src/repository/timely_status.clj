@@ -5,47 +5,46 @@
         [repository.database-schema]
         [utils.string]))
 
-(declare timely_status)
+(declare timely-status)
 
 (defn get-timely-status-model
   [connection]
-  (get-model {:connection connection
-              :model timely_status
-              :table :timely_status
-              :fields [:publication_date_time
-                       :member_id
-                       :status_id
-                       :total_favorites
-                       :total_retweets]}))
+  (db/defentity timely-status
+                (db/pk :id)
+                (db/table :timely_status)
+                (db/database connection)
+                (db/entity-fields
+                  :publication_date_time
+                  :member_name
+                  :aggregate_id
+                  :aggregate_name
+                  :status_id
+                  :time_range))
+  timely-status)
 
 (defn find-raw-statuses-for-aggregate
   "Find the statuses of a member published on a given day"
   ; Relies on original statuses
-  ([aggregate-name]
-   (let [results (find-raw-statuses-for-aggregate aggregate-name nil)]
-    results))
-  ([aggregate-name publication-date]
-   (let [base-query (str
-                      "SELECT                                           "
-                      "s.ust_id as `status-id`,                         "
-                      "m.usr_id as `member-id`,                         "
-                      "s.ust_api_document as `api-document`,            "
-                      "s.ust_created_at as `publication-date-time`      "
-                      "FROM weaving_status s                            "
-                      "INNER JOIN weaving_status_aggregate sa            "
-                      "ON sa.status_id = s.ust_id                       "
-                      "INNER JOIN weaving_aggregate a                    "
-                      "ON a.id = sa.aggregate_id                        "
-                      "AND a.screen_name = ?                            "
-                      "INNER JOIN weaving_user m                        "
-                      "ON s.ust_screen_name = m.usr_twitter_username    "
-                      "WHERE s.name = ?")
-        query (if (nil? publication-date)
-                (str base-query "AND DATE(now()) <= s.ust_created_at")
-                (str base-query "AND ? = DATE(ts.ust_created_at\")"))
-       params (if (nil? publication-date)
-                  [aggregate-name aggregate-name]
-                  [aggregate-name aggregate-name publication-date])
+  ([aggregate-name publication-week publication-year]
+   (let [query (str
+                  "SELECT                                           "
+                  "a.id as `aggregate-id`,                          "
+                  "a.name as `aggregate-name`,                      "
+                  "s.ust_id as `status-id`,                         "
+                  "m.usr_twitter_username as `member-name`,         "
+                  "s.ust_created_at as `publication-date-time`      "
+                  "FROM weaving_status s                            "
+                  "INNER JOIN weaving_status_aggregate sa           "
+                  "ON sa.status_id = s.ust_id                       "
+                  "INNER JOIN weaving_aggregate a                   "
+                  "ON (a.id = sa.aggregate_id                       "
+                  "AND a.screen_name IS NOT NULL                    "
+                  "AND a.name = ?)                                  "
+                  "INNER JOIN weaving_user m                        "
+                  "ON s.ust_full_name = m.usr_twitter_username      "
+                  "AND WEEK(s.ust_created_at) = ?                   "
+                  "AND YEAR(s.ust_created_at) = ?")
+       params [aggregate-name publication-year publication-week]
       results (db/exec-raw [query params] :results)]
     results)))
 
