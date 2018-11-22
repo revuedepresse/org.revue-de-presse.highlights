@@ -1,5 +1,7 @@
 # Daily Press Review
 
+[![CircleCI](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure.svg?style=svg)](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure)
+
 Easing observation of Twitter lists to publish a daily press review
 
 ## Dependencies
