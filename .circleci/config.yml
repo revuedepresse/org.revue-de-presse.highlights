@@ -1,35 +1,41 @@
 version: 2
 
-defaults:
-  docker:
-    - image: circleci/clojure:lein-2.7.1
-
 jobs:
   build:
-    working_directory: ~/press-review-clojure
+    docker:
+    - image:              circleci/clojure:lein-2.7.1
+
+    working_directory:    ~/press-review-clojure
+
     environment:
-      LEIN_ROOT: "true"
-      JVM_OPTS: -Xmx3200m
+      LEIN_ROOT:          "true"
+      JVM_OPTS:           -Xmx3200m
+
     steps:
       - checkout
+
       - restore_cache:
-          key:
-          - v1-dependencies-{{{ checksum "project.clj" }}
+          keys:
+          - v1-dependencies-{{ checksum "project.clj" }}
           - v1-dependencies
+
       - run:
           name: Copy test configuration
           command: |
             cp .lein-env.test.dist lein-env
+
       - run:
           name: Install dependencies
           command: |
             lein deps
+
       - run:
           name: Run test suite
           command: |
             lein test
+
       - save_cache:
           key: v1-dependencies-{{ checksum "project.clj" }}
           paths:
-            - $HOME/.m2
-            - $HOME/.lein
+          - $HOME/.m2
+          - $HOME/.lein
