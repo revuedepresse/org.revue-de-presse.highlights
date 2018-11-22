@@ -34,6 +34,6 @@
       (let [[date] args]
         (if (nil? date)
           (save-today-highlights)
-          (save-highlights-of date)))
+          (save-highlights date)))
     :else
       (log/info "Invalid command")))

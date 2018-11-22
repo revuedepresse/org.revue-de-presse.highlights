@@ -69,8 +69,8 @@
 
 (defn find-highlights-having-ids
  "Find highlights by their ids"
- [ids model member-model status-model]
- (let [ids (if ids ids '(0))
+ [highlights-ids model member-model status-model]
+ (let [ids (if highlights-ids highlights-ids '(0))
        matching-statuses (-> (select-highlights model member-model status-model)
                              (db/where {:status_id [in ids]})
                              (db/select))]

@@ -30,26 +30,20 @@
         filtered-today-statuses (filter #(clojure.set/subset? #{(:status-id %)} (set missing-ids)) statuses)]
     filtered-today-statuses))
 
+(defn save-highlights
+  ([]
+    (save-highlights nil))
+  ([date]
+    (let [{highlight-model :highlight
+           status-model :status
+           member-model :members} (get-entity-manager (:database env))
+          press-aggregate-name (:press (edn/read-string (:aggregate env)))
+          statuses (find-statuses-for-aggregate press-aggregate-name date)
+          filtered-statuses (filter-out-known-statuses statuses highlight-model member-model status-model)
+          highlights-props (doall (map extract-total-props filtered-statuses))
+          new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
+      (log/info (str "There are " (count new-highlights) " new highlights")))))
+
 (defn save-today-highlights
   []
-  (let [{highlight-model :highlight
-         status-model :status
-         member-model :members} (get-entity-manager (:database env))
-        press-aggregate-name (:press (edn/read-string (:aggregate env)))
-        today-statuses (find-statuses-for-aggregate press-aggregate-name)
-        filtered-today-statuses (filter-out-known-statuses today-statuses highlight-model member-model status-model)
-        highlights-props (doall (map extract-total-props filtered-today-statuses))
-        new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
-    (log/info (str "There are " (count new-highlights) " new highlights"))))
-
-(defn save-highlights-of
-  [date]
-  (let [{highlight-model :highlight
-         status-model :status
-         member-model :members} (get-entity-manager (:database env))
-        press-aggregate-name (:press (edn/read-string (:aggregate env)))
-        today-statuses (find-statuses-for-aggregate press-aggregate-name date)
-        filtered-today-statuses (filter-out-known-statuses today-statuses highlight-model member-model status-model)
-        highlights-props (doall (map extract-total-props filtered-today-statuses))
-        new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
-    (log/info (str "There are " (count new-highlights) " new highlights"))))
+  (save-highlights))
