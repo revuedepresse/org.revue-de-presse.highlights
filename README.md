@@ -60,8 +60,8 @@ lein run recommend-subscriptions twitter_handle
 
 ## Tests
 
-There are no tests as intended behaviors heavily depend on Twitter API...  
-OK, this is only wrong (even though I didn't want to use actual tokens 
+There is no 100% (very far from it) code coverage as intended behaviors heavily depend on Twitter API...  
+OK, this is totally wrong (even though I didn't want to use actual tokens 
 in continuous integration to test the API as data may vary, accounts might get suspended, protected or deleted).
 
 However, previous implementations of mosts commands are available at 
@@ -69,5 +69,9 @@ However, previous implementations of mosts commands are available at
 and the commands outcomes being pretty much the same, I feel confident enough to carry changes regularly
 without worring about breaking everything.
 
-Unit tests would become a more urgent matter whenever I would need to take care of external contributions
-without having to worry about breaking the original intents (or breaking them without worrying neither).
+In order to worry less about breaking original intents (or breaking them wholeheartedly without worrying neither),
+more tests will be added with new commands.
+
+```
+lein test
+```
