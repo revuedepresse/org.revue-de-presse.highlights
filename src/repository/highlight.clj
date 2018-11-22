@@ -22,25 +22,31 @@
                   :total_retweets))
   highlight)
 
-(defn find-today-statuses-for-aggregate
+(defn find-statuses-for-aggregate
   "Find a single status for each member"
-  [aggregate-name]
-  (let [query (str
-                "SELECT s.ust_id as `status-id`,                           "
-                "m.usr_id as `member-id`,                                  "
-                "s.ust_api_document as `api-document`,                     "
-                "s.ust_created_at as `publication-date-time`               "
-                "FROM weaving_status s                                     "
-                "INNER JOIN weaving_status_aggregate sa                    "
-                "ON s.ust_id = sa.status_id                                "
-                "INNER JOIN weaving_aggregate a                            "
-                "ON a.name = ?                                             "
-                "AND a.id = sa.aggregate_id                                "
-                "INNER JOIN weaving_user m                                  "
-                "ON m.usr_twitter_username = s.ust_full_name               "
-                "WHERE DATE(now()) <= s.ust_created_at                     ")
-        results (db/exec-raw [query [aggregate-name]] :results)]
+  ([aggregate-name]
+   (let [results (find-statuses-for-aggregate aggregate-name nil)]
     results))
+  ([aggregate-name publication-date]
+   (let [base-query (str
+                      "SELECT s.ust_id as `status-id`,              "
+                      "m.usr_id as `member-id`,                     "
+                      "s.ust_api_document as `api-document`,        "
+                      "s.ust_created_at as `publication-date-time`  "
+                      "FROM timely_status ts                        "
+                      "INNER JOIN weaving_status s                  "
+                      "ON s.ust_id = ts.status_id                   "
+                      "INNER JOIN weaving_user m                    "
+                      "ON ts.member_name = m.usr_twitter_username   "
+                      "WHERE ts.aggregate_name = ?                  ")
+        query (if (nil? publication-date)
+                (str base-query "AND DATE(now()) <= ts.publication_date_time")
+                (str base-query "AND ? = DATE(ts.publication_date_time)"))
+       params (if (nil? publication-date)
+                  [aggregate-name]
+                  [aggregate-name publication-date])
+      results (db/exec-raw [query params] :results)]
+    results)))
 
 (defn select-highlights
  [model member-model status-model]
@@ -66,8 +72,7 @@
  [ids model member-model status-model]
  (let [ids (if ids ids '(0))
        matching-statuses (-> (select-highlights model member-model status-model)
-                             (db/where {:ust_status_id [in ids]})
-                             (db/group :ust_status_id)
+                             (db/where {:status_id [in ids]})
                              (db/select))]
    (if matching-statuses
      matching-statuses
@@ -76,7 +81,7 @@
 (defn bulk-insert-new-highlights
  [highlights model member-model status-model]
  (let [snake-cased-values (map snake-case-keys highlights)
-       ids (map #(:id %) snake-cased-values)]
+       ids (map #(:status_id %) snake-cased-values)]
    (if (pos? (count ids))
      (do
        (try
