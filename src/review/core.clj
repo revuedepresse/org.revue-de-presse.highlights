@@ -5,6 +5,7 @@
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
+        [command.generate-timely-statuses]
         [command.update-members-props]
         [command.save-today-highlights]
         [command.recommend-subscriptions])
@@ -30,6 +31,8 @@
           (recommend-subscriptions-from-member-subscription-history screen-name))
     (= name "update-members-descriptions-urls")
         (update-members-descriptions-urls)
+    (= name "generate-timely-statuses")
+        (generate-timely-statuses)
     (= name "save-highlights")
       (let [[date] args]
         (if (nil? date)
