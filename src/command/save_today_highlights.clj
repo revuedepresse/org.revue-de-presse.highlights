@@ -16,10 +16,19 @@
                          :status-id (:status-id document)
                          :publication-date-time (:publication-date-time document)
                          :total-retweets (get decoded-document "retweet_count")
-                         :total-favoritess (get decoded-document "favorite_count")}]
-    (log/info (str "Prepared highlight for member #" (:member-id highlight)
-                   " and status #" (:status-id highlight)))
+                         :total-favorites (get decoded-document "favorite_count")}]
+    (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
+                   " and status #" (:status-id highlight-props)))
   highlight-props))
+
+(defn filter-out-known-statuses
+  [statuses highlight-model member-model status-model]
+  (let [statuses-ids (map #(:status-id %) statuses)
+        matching-highlights (find-highlights-having-ids statuses-ids highlight-model member-model status-model)
+        matching-ids (set (map #(:status-id %) matching-highlights))
+        missing-ids (clojure.set/difference (set statuses-ids) (set matching-ids))
+        filtered-today-statuses (filter #(clojure.set/subset? #{(:status-id %)} (set missing-ids)) statuses)]
+    filtered-today-statuses))
 
 (defn save-today-highlights
   []
@@ -27,6 +36,20 @@
          status-model :status
          member-model :members} (get-entity-manager (:database env))
         press-aggregate-name (:press (edn/read-string (:aggregate env)))
-        today-statuses (find-today-statuses-for-aggregate press-aggregate-name)
-        documents (doall (map extract-total-props today-statuses))]
-    ))
+        today-statuses (find-statuses-for-aggregate press-aggregate-name)
+        filtered-today-statuses (filter-out-known-statuses today-statuses highlight-model member-model status-model)
+        highlights-props (doall (map extract-total-props filtered-today-statuses))
+        new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
+    (log/info (str "There are " (count new-highlights) " new highlights"))))
+
+(defn save-highlights-of
+  [date]
+  (let [{highlight-model :highlight
+         status-model :status
+         member-model :members} (get-entity-manager (:database env))
+        press-aggregate-name (:press (edn/read-string (:aggregate env)))
+        today-statuses (find-statuses-for-aggregate press-aggregate-name date)
+        filtered-today-statuses (filter-out-known-statuses today-statuses highlight-model member-model status-model)
+        highlights-props (doall (map extract-total-props filtered-today-statuses))
+        new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
+    (log/info (str "There are " (count new-highlights) " new highlights"))))

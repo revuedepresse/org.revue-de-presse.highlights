@@ -30,7 +30,10 @@
           (recommend-subscriptions-from-member-subscription-history screen-name))
     (= name "update-members-descriptions-urls")
         (update-members-descriptions-urls)
-    (= name "save-today-highlights")
-        (save-today-highlights)
+    (= name "save-highlights")
+      (let [[date] args]
+        (if (nil? date)
+          (save-today-highlights)
+          (save-highlights-of date)))
     :else
       (log/info "Invalid command")))
