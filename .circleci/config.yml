@@ -42,8 +42,8 @@ jobs:
       - run:
           name: Create database
           command: |
-            mysql -uroot -e 'CREATE DATABASE test;'
-            mysql -uroot test < ~/press-review-clojure/build/schema.sql
+            mysql -uroot -h127.0.0.1 -e 'CREATE DATABASE test;'
+            mysql -uroot -h127.0.0.1 test < ~/press-review-clojure/build/schema.sql
 
       - run:
           name: Install dependencies
