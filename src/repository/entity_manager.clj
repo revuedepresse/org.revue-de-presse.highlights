@@ -186,6 +186,7 @@
                            :characterSet "utf8mb4"
                            :collation "utf8mb4_unicode_ci"
                            :delimiters "`"
+                           :useSSL false
                            :user (:user config)
                            :password (:password config)})]
   connection))

@@ -1,12 +1,17 @@
-(ns command.save-today-highlights
+(ns command.save-highlights
   (:require [environ.core :refer [env]]
             [clj-uuid :as uuid]
             [clojure.data.json :as json]
             [clojure.edn :as edn]
+            [clj-time.predicates :as pr]
+            [clj-time.core :as t]
+            [clj-time.format :as f]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.highlight]
         [twitter.status]))
+
+(def highlights-date-formatter (f/formatter "yyyy-MM-dd"))
 
 (defn extract-total-props
   [document]
@@ -35,7 +40,19 @@
           filtered-statuses (filter-out-known-statuses find statuses)
           highlights-props (doall (map extract-total-props filtered-statuses))
           new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
-      (log/info (str "There are " (count new-highlights) " new highlights")))))
+      (log/info (str "There are " (count new-highlights) " new highlights"))
+     new-highlights))
+  ([month year]
+    (let [month (Long/parseLong month)
+          year (Long/parseLong year)
+          days (take 31 (iterate inc 1))
+          month-days (map #(t/date-time year month %) days)
+          last-date-time (first (filter #(pr/last-day-of-month? %) month-days))
+          last-day (t/day last-date-time)]
+      (loop [day 1]
+        (when (<= day last-day)
+          (save-highlights (f/unparse highlights-date-formatter (t/date-time year month day)))
+          (recur (inc day)))))))
 
 (defn save-today-highlights
   []

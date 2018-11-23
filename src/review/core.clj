@@ -7,9 +7,11 @@
         [amqp.message-handler]
         [command.generate-timely-statuses]
         [command.update-members-props]
-        [command.save-today-highlights]
+        [command.save-highlights]
         [command.recommend-subscriptions])
   (:gen-class))
+
+(log/log-capture! "review")
 
 (defn execute-command
   [name args]
@@ -35,9 +37,13 @@
      (generate-timely-statuses 1 2018)
      (= name "save-highlights")
      (let [[date] args]
-       (if (nil? date)
-         (save-today-highlights)
-         (save-highlights date)))
+       (cond
+         (nil? date)
+          (save-today-highlights)
+         (= 0 (count args))
+          (save-highlights date)
+         :else
+          (apply save-highlights args)))
      :else
      (log/info "Invalid command")))
 
