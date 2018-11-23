@@ -5,7 +5,8 @@
             [clojure.edn :as edn]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
-        [repository.highlight]))
+        [repository.highlight]
+        [twitter.status]))
 
 (defn extract-total-props
   [document]
@@ -21,15 +22,6 @@
                    " and status #" (:status-id highlight-props)))
   highlight-props))
 
-(defn filter-out-known-statuses
-  [statuses highlight-model member-model status-model]
-  (let [statuses-ids (map #(:status-id %) statuses)
-        matching-highlights (find-highlights-having-ids statuses-ids highlight-model member-model status-model)
-        matching-ids (set (map #(:status-id %) matching-highlights))
-        missing-ids (clojure.set/difference (set statuses-ids) (set matching-ids))
-        filtered-today-statuses (filter #(clojure.set/subset? #{(:status-id %)} (set missing-ids)) statuses)]
-    filtered-today-statuses))
-
 (defn save-highlights
   ([]
     (save-highlights nil))
@@ -39,7 +31,8 @@
            member-model :members} (get-entity-manager (:database env))
           press-aggregate-name (:press (edn/read-string (:aggregate env)))
           statuses (find-statuses-for-aggregate press-aggregate-name date)
-          filtered-statuses (filter-out-known-statuses statuses highlight-model member-model status-model)
+          find #(find-highlights-having-ids % highlight-model member-model status-model)
+          filtered-statuses (filter-out-known-statuses find statuses)
           highlights-props (doall (map extract-total-props filtered-statuses))
           new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
       (log/info (str "There are " (count new-highlights) " new highlights")))))

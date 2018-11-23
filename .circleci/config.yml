@@ -3,7 +3,12 @@ version: 2
 jobs:
   build:
     docker:
-    - image:              circleci/clojure:lein-2.7.1
+    - image: circleci/clojure:lein-2.7.1
+    - image: tkuchiki/delayed-mysql
+      environment:
+        MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        MYSQL_ROOT_PASSWORD: ''
+        MYSQL_DATABASE: circleci
 
     working_directory:    ~/press-review-clojure
 
@@ -14,6 +19,11 @@ jobs:
     steps:
       - checkout
 
+      - run:
+          name: Install MySQL client
+          command: |
+            sudo apt install -y mysql-client
+
       - restore_cache:
           keys:
           - v1-dependencies-{{ checksum "project.clj" }}
@@ -22,7 +32,18 @@ jobs:
       - run:
           name: Copy test configuration
           command: |
-            cp .lein-env.test.dist lein-env
+            cp .lein-env.test.dist .lein-env
+
+      - run:
+          name: Wait for the database to be up and ready
+          command: |
+            dockerize -wait tcp://127.0.0.1:3306 -timeout 120s
+
+      - run:
+          name: Create database
+          command: |
+            mysql -uroot -h127.0.0.1 -e 'CREATE DATABASE test;'
+            mysql -uroot -h127.0.0.1 test < ~/press-review-clojure/build/schema.sql
 
       - run:
           name: Install dependencies

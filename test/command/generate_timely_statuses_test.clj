@@ -2,4 +2,10 @@
   (:require [command.generate-timely-statuses :refer :all]
             [clojure.test :refer :all]))
 
-(deftest it-should-generate-timely-statuses)
+(deftest it-should-generate-timely-statuses
+  (loop [month 0]
+    (when (< month 51)
+      (let [timely-statuses (generate-timely-statuses month 2018)]
+        ; It should generate timely statuses from statuses
+        (is (= (count timely-statuses) 0)))
+      (recur (inc month)))))
