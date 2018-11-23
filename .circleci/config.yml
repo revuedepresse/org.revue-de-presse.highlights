@@ -32,7 +32,7 @@ jobs:
       - run:
           name: Copy test configuration
           command: |
-            cp .lein-env.test.dist lein-env
+            cp .lein-env.test.dist .lein-env
 
       - run:
           name: Wait for the database to be up and ready
