@@ -13,13 +13,14 @@
 
 (def highlights-date-formatter (f/formatter "yyyy-MM-dd"))
 
-(defn extract-total-props
+(defn extract-highlight-props
   [document]
   (let [api-document (:api-document document)
         decoded-document (json/read-str api-document)
         highlight-props {:id (uuid/to-string (uuid/v1))
                          :member-id (:member-id document)
                          :status-id (:status-id document)
+                         :retweeted (get decoded-document "retweeted_status")
                          :publication-date-time (:publication-date-time document)
                          :total-retweets (get decoded-document "retweet_count")
                          :total-favorites (get decoded-document "favorite_count")}]
@@ -38,7 +39,9 @@
           statuses (find-statuses-for-aggregate press-aggregate-name date)
           find #(find-highlights-having-ids % highlight-model member-model status-model)
           filtered-statuses (filter-out-known-statuses find statuses)
-          highlights-props (doall (map extract-total-props filtered-statuses))
+          all-highlights-props (map extract-highlight-props filtered-statuses)
+          highlighted-non-retweets-props (filter #(nil? (:retweeted %)) all-highlights-props)
+          highlights-props (map #(dissoc % :retweeted) highlighted-non-retweets-props)
           new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
       (log/info (str "There are " (count new-highlights) " new highlights"))
      new-highlights))
