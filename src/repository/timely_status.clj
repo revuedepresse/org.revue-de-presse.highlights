@@ -53,14 +53,14 @@
                   "AND a.name = ?)                                  "
                   "AND WEEK(s.ust_created_at) = ?                   "
                   "AND YEAR(s.ust_created_at) = ?")
-       params [aggregate-name publication-week publication-year]
-      results (db/exec-raw [query params] :results)
-      record (first results)]
-     (if record
-       {:statuses-ids (map #(Long/parseLong %) (explode #"," (:statuses-ids record)))
-        :total-timely-statuses (:total-timely-statuses record)}
-       {:statuses-ids '()
-        :total-timely-statuses 0}))))
+         params [aggregate-name publication-week publication-year]
+         results (db/exec-raw [query params] :results)
+         record (first results)
+         ids (explode #"," (:statuses-ids record))
+         total-timely-statuses (:total-timely-statuses record)
+         statuses-ids (if (= (first ids) "") '(0) (map #(Long/parseLong %) ids))]
+     {:statuses-ids statuses-ids
+      :total-timely-statuses total-timely-statuses})))
 
 (defn find-timely-statuses-props-for-aggregate
   "Find the statuses of a member published on a given day"
