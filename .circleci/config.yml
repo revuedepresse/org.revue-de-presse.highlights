@@ -4,6 +4,7 @@ jobs:
   build:
     docker:
     - image: circleci/clojure:lein-2.7.1
+    # @see https://discuss.circleci.com/t/how-to-disable-mysql-strict-mode-in-circleci-2/13503
     - image: mysql:5.7.16
       environment:
         MYSQL_ALLOW_EMPTY_PASSWORD: yes
