@@ -25,11 +25,19 @@
   timely-status)
 
 (defn get-timely-statuses-for-aggregate
-  ; Relies on original statuses
+  "Get total statuses and ids of statuses related to the aggregate,
+  which name is passed as first argument for a given week of the year"
+  ; Relies on raw statuses
   ([aggregate-name publication-week publication-year & [are-archived]]
    (let [table-name (if are-archived
                       "weaving_archived_status"
                       "weaving_status")
+         join-table-name (if are-archived
+                            "weaving_archived_status_aggregate"
+                            "weaving_status_aggregate")
+         join-condition (if are-archived
+                          ""
+                          "AND a.screen_name IS NOT NULL ")
          query (str
                   "SELECT                                           "
                   "COUNT(*) `total-timely-statuses`,                "
@@ -37,19 +45,22 @@
                   "    GROUP_CONCAT(s.ust_id),                      "
                   "    \"\") `statuses-ids`                         "
                   "FROM " table-name " s                            "
-                  "INNER JOIN weaving_status_aggregate sa           "
+                  "INNER JOIN " join-table-name " sa                "
                   "ON sa.status_id = s.ust_id                       "
                   "INNER JOIN weaving_aggregate a                   "
                   "ON (a.id = sa.aggregate_id                       "
-                  "AND a.screen_name IS NOT NULL                    "
+                  join-condition
                   "AND a.name = ?)                                  "
                   "AND WEEK(s.ust_created_at) = ?                   "
                   "AND YEAR(s.ust_created_at) = ?")
-       params [aggregate-name publication-week publication-year]
-      results (db/exec-raw [query params] :results)
-      record (first results)]
-   {:statuses-ids (map #(Long/parseLong %) (explode #"," (:statuses-ids record)))
-    :total-timely-statuses (:total-timely-statuses record)})))
+         params [aggregate-name publication-week publication-year]
+         results (db/exec-raw [query params] :results)
+         record (first results)
+         ids (explode #"," (:statuses-ids record))
+         total-timely-statuses (:total-timely-statuses record)
+         statuses-ids (if (= (first ids) "") '(0) (map #(Long/parseLong %) ids))]
+     {:statuses-ids statuses-ids
+      :total-timely-statuses total-timely-statuses})))
 
 (defn find-timely-statuses-props-for-aggregate
   "Find the statuses of a member published on a given day"

@@ -58,6 +58,13 @@ lein run update-members-descriptions-urls
 lein run recommend-subscriptions twitter_handle
 ```
 
+### How to unarchive statuses from a database to another?
+
+```
+# Say we would like to unarchive a year of archives (by going week by week through the archives)
+/bin/bash -c 'for week in `seq 0 52`; do lein run unarchive-statuses $week 2018; done;'
+```
+
 ## Tests
 
 There is no 100% (very far from it) code coverage as intended behaviors heavily depend on Twitter API...  

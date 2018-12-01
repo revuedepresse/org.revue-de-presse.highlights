@@ -56,7 +56,7 @@
   (when (not= 1 aggregate-id)
     (let [{member-model :members
            token-model :tokens
-           aggregate-model :aggregates} entity-manager
+           aggregate-model :aggregate} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           member (first (find-member-by-screen-name screen-name member-model))
           statuses (get-next-batch-of-statuses-for-member member token-model)
