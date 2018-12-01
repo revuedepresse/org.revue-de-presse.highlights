@@ -4,11 +4,13 @@ jobs:
   build:
     docker:
     - image: circleci/clojure:lein-2.7.1
-    - image: tkuchiki/delayed-mysql
+    - image: mysql:5.7.16
       environment:
         MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        MYSQL_DATABASE: test
         MYSQL_ROOT_PASSWORD: ''
-        MYSQL_DATABASE: circleci
+      command:
+        mysqld --sql-mode=IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 
     working_directory:    ~/press-review-clojure
 
@@ -42,7 +44,6 @@ jobs:
       - run:
           name: Create database
           command: |
-            mysql -uroot -h127.0.0.1 -e 'CREATE DATABASE test;'
             mysql -uroot -h127.0.0.1 test < ~/press-review-clojure/build/schema.sql
 
       - run:

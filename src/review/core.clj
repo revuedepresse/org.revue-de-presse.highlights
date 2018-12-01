@@ -35,10 +35,14 @@
      (= name "update-members-descriptions-urls")
        (update-members-descriptions-urls)
      (= name "unarchive-statuses")
-       (let [[week year] args]
+       (let [[week year] args
+             year (Long/parseLong year)
+             week (Long/parseLong week)]
          (unarchive-statuses week year))
      (= name "generate-timely-statuses")
-       (let [[week year] args]
+       (let [[week year] args
+             year (Long/parseLong year)
+             week (Long/parseLong week)]
          (generate-timely-statuses week year))
      (= name "save-highlights")
        (let [[date] args]
