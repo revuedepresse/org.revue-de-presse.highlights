@@ -12,18 +12,6 @@
   (let [time-range (get-time-range (:publication-date-time status))]
     (assoc status :time-range time-range)))
 
-(defn get-timely-statuses-ids
-  [press-aggregate-name week year]
-  (let [aggregate-timely-statuses (get-timely-statuses-for-aggregate press-aggregate-name week year)
-        {total-timely-statuses :total-timely-statuses
-         statuses-ids :statuses-ids} (if (pos? (:total-timely-statuses aggregate-timely-statuses))
-                                        aggregate-timely-statuses
-                                        (get-timely-statuses-for-aggregate press-aggregate-name week year :are-archived))
-        is-archived (if (zero? total-timely-statuses) true nil)]
-    {:total-timely-statuses total-timely-statuses
-     :statuses-ids statuses-ids
-     :is-archived is-archived}))
-
 (defn generate-timely-statuses-from-statuses-props
   [{ids :ids
     {timely-status-model :timely-status
@@ -43,9 +31,10 @@
   (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
         generation-params {:models (get-entity-manager (:database env))}
         {total-timely-status :total-timely-statuses
-         statuses-ids :statuses-ids
-         is-archived :is-archived} (get-timely-statuses-ids press-aggregate-name week year)
+         statuses-ids :statuses-ids} (get-timely-statuses-for-aggregate {:aggregate-name press-aggregate-name
+                                                                         :publication-week week
+                                                                         :publication-year year
+                                                                         :exclude-member-aggregate true})
         _ (log/info (str total-timely-status " potential timely statuses have be counted."))
-        statuses (when-not is-archived
-                  (generate-timely-statuses-from-statuses-props (assoc generation-params :ids statuses-ids)))]
+        statuses (generate-timely-statuses-from-statuses-props (assoc generation-params :ids statuses-ids))]
     statuses))
