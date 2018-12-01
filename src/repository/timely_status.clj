@@ -28,31 +28,39 @@
   "Get total statuses and ids of statuses related to the aggregate,
   which name is passed as first argument for a given week of the year"
   ; Relies on raw statuses
-  ([aggregate-name publication-week publication-year & [are-archived]]
+  ([{aggregate-name :aggregate-name
+     publication-week :publication-week
+     publication-year :publication-year
+     are-archived :are-archived
+     exclude-member-aggregate :exclude-member-aggregate}]
    (let [table-name (if are-archived
                       "weaving_archived_status"
                       "weaving_status")
          join-table-name (if are-archived
-                            "weaving_archived_status_aggregate"
-                            "weaving_status_aggregate")
-         join-condition (if are-archived
-                          ""
-                          "AND a.screen_name IS NOT NULL ")
+                           "weaving_archived_status_aggregate"
+                           "weaving_status_aggregate")
+         join-condition (cond
+                          (some? exclude-member-aggregate)
+                            "AND a.screen_name IS NULL "
+                          (some? are-archived)
+                            ""
+                          :else
+                            "AND a.screen_name IS NOT NULL ")
          query (str
-                  "SELECT                                           "
-                  "COUNT(*) `total-timely-statuses`,                "
-                  "IF (COUNT(*) > 0,                                "
-                  "    GROUP_CONCAT(s.ust_id),                      "
-                  "    \"\") `statuses-ids`                         "
-                  "FROM " table-name " s                            "
-                  "INNER JOIN " join-table-name " sa                "
-                  "ON sa.status_id = s.ust_id                       "
-                  "INNER JOIN weaving_aggregate a                   "
-                  "ON (a.id = sa.aggregate_id                       "
-                  join-condition
-                  "AND a.name = ?)                                  "
-                  "AND WEEK(s.ust_created_at) = ?                   "
-                  "AND YEAR(s.ust_created_at) = ?")
+                 "SELECT                                           "
+                 "COUNT(*) `total-timely-statuses`,                "
+                 "IF (COUNT(*) > 0,                                "
+                 "    GROUP_CONCAT(s.ust_id),                      "
+                 "    \"\") `statuses-ids`                         "
+                 "FROM " table-name " s                            "
+                 "INNER JOIN " join-table-name " sa                "
+                 "ON sa.status_id = s.ust_id                       "
+                 "INNER JOIN weaving_aggregate a                   "
+                 "ON (a.id = sa.aggregate_id                       "
+                 join-condition
+                 "AND a.name = ?)                                  "
+                 "AND WEEK(s.ust_created_at) = ?                   "
+                 "AND YEAR(s.ust_created_at) = ?")
          params [aggregate-name publication-week publication-year]
          results (db/exec-raw [query params] :results)
          record (first results)
@@ -60,7 +68,12 @@
          total-timely-statuses (:total-timely-statuses record)
          statuses-ids (if (= (first ids) "") '(0) (map #(Long/parseLong %) ids))]
      {:statuses-ids statuses-ids
-      :total-timely-statuses total-timely-statuses})))
+      :total-timely-statuses total-timely-statuses}))
+  ([aggregate-name publication-week publication-year & [are-archived]]
+   (get-timely-statuses-for-aggregate {:aggregate-name aggregate-name
+                                       :publication-week publication-week
+                                       :publication-year publication-year
+                                       :are-archived are-archived})))
 
 (defn find-timely-statuses-props-for-aggregate
   "Find the statuses of a member published on a given day"
