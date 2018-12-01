@@ -5,6 +5,8 @@
               [clj-uuid :as uuid])
     (:use [korma.db]
           [repository.aggregate]
+          [repository.status]
+          [repository.archived-status]
           [repository.database-schema]
           [repository.timely-status]
           [repository.highlight]
@@ -16,42 +18,7 @@
          users members
          subscriptions subscribees
          member-subscriptions member-subscribees
-         archived-status liked-status status)
-
-(defn get-status-model
-  [connection]
-  (db/defentity status
-                (db/pk :ust_id)
-                (db/table :weaving_status)
-                (db/database connection)
-                (db/entity-fields
-                  :ust_id
-                  :ust_hash                                 ; sha1(str ust_text  ust_status_id)
-                  :ust_text
-                  :ust_full_name                            ; twitter user screen name
-                  :ust_name                                 ; twitter user full name
-                  :ust_access_token
-                  :ust_api_document
-                  :ust_created_at
-                  :ust_status_id))
-  status)
-
-(defn get-archived-status-model
-  [connection]
-  (db/defentity archived-status
-              (db/table :weaving_archived_status)
-              (db/database connection)
-              (db/entity-fields
-                :ust_id
-                :ust_hash                                 ; sha1(str ust_text  ust_status_id)
-                :ust_text
-                :ust_full_name                            ; twitter user screen name
-                :ust_name                                 ; twitter user full name
-                :ust_access_token
-                :ust_api_document
-                :ust_created_at
-                :ust_status_id))
-  archived-status)
+         liked-status)
 
 (defn get-liked-status-model
   [connection]
@@ -197,7 +164,7 @@
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
   [config]
   (let [connection (prepare-connection config)]
-    {:aggregates (get-aggregate-model connection)
+    {:aggregate (get-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
      :highlight (get-highlight-model connection)
      :liked-status (get-liked-status-model connection)
@@ -215,32 +182,6 @@
 (defn get-entity-manager
   [config]
   (connect-to-db (edn/read-string config)))
-
-(defn select-statuses
-  [model]
-  (->
-    (db/select* model)
-    (db/fields [:ust_id :id]
-               [:ust_hash :hash]
-               [:ust_text :text]
-               [:ust_full_name :screen-name]
-               [:ust_name :name]
-               [:ust_access_token :access-token]
-               [:ust_api_document :document]
-               [:ust_created_at :created-at]
-               [:ust_status_id :twitter-id])))
-
-(defn find-statuses-having-ids
-  "Find statuses by their Twitter ids"
-  [ids model]
-  (let [ids (if ids ids '(0))
-        matching-statuses (-> (select-statuses model)
-                              (db/where {:ust_status_id [in ids]})
-                              (db/group :ust_status_id)
-                              (db/select))]
-    (if matching-statuses
-      matching-statuses
-      '())))
 
 (defn find-distinct-ids-of-subscriptions
   "Find distinct ids of subscription"
@@ -363,22 +304,6 @@
              (db/set-fields {:url url
                              :description description})
              (db/where {:usr_id id})))
-
-
-(defn bulk-insert-new-statuses
-  [statuses model]
-  (let [snake-cased-values (map snake-case-keys statuses)
-        statuses-values (map assoc-hash snake-cased-values)
-        deduped-statuses (dedupe (sort-by #(:status_id %) statuses-values))
-        prefixed-keys-values (map prefixed-keys deduped-statuses)
-        twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
-    (if (pos? (count twitter-ids))
-      (do
-        (try
-          (db/insert model (db/values prefixed-keys-values))
-          (catch Exception e (log/error (.getMessage e))))
-        (find-statuses-having-ids twitter-ids model))
-      '())))
 
 (defn find-liked-statuses
   [liked-statuses-ids model status-model]

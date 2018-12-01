@@ -5,6 +5,7 @@
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.status]
         [twitter.api-client]
         [twitter.date]
         [twitter.member]))
@@ -27,7 +28,7 @@
 (defn get-missing-statuses-ids
   [statuses model]
   (let [ids (get-ids-of-statuses statuses)
-        found-statuses (find-statuses-having-ids ids model)
+        found-statuses (find-statuses-having-twitter-ids ids model)
         matching-ids (set (map #(:twitter-id %) found-statuses))
         missing-ids (clojure.set/difference (set ids) (set matching-ids))]
     missing-ids))
@@ -137,15 +138,30 @@
   (fn [status-id]
   (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
     relationship)))
+1
+(defn is-subset-of-relationships-set
+  [relationships-set]
+  (fn [relationship]
+    (let [relationship-status-id (:status-id relationship)]
+    (clojure.set/subset? #{relationship-status-id} relationships-set))))
 
 (defn new-relationships
   [aggregate new-statuses model status-model]
   (if (pos? (count new-statuses))
     (let [aggregate-id (:id aggregate)
           new-statuses-ids (map #(:id %) new-statuses)
-          relationship-values (doall (map (new-relationship aggregate-id) new-statuses-ids))
+          existing-relationships (find-relationships-between-aggregate-and-statuses-having-ids
+            aggregate-id
+            new-statuses-ids
+            model
+            status-model)
+          statuses-ids-of-existing-relationships (map #(:status-id %) existing-relationships)
+          relationship-values (map (new-relationship aggregate-id) new-statuses-ids)
+          filtered-relationship-values (doall (remove
+                                         (is-subset-of-relationships-set (set statuses-ids-of-existing-relationships))
+                                         relationship-values))
           new-relationships (bulk-insert-status-aggregate-relationship
-                              relationship-values
+                              filtered-relationship-values
                               aggregate-id
                               model
                               status-model)
@@ -154,6 +170,16 @@
        :total-new-relationships total-new-relationships})
       {:new-relationships '()
        :total-new-relationships 0}))
+
+(defn log-new-relationships-between-aggregate-and-statuses
+  [total-new-relationships total-new-statuses aggregate-name & [[screen-name]]]
+  (let [related-to-member (if screen-name
+                            (str "\" for \"" screen-name "\"")
+                            "")]
+  (if (pos? total-new-relationships)
+    (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
+                   aggregate-name related-to-member " and " total-new-statuses " statuses."))
+    (log/info (str "There are no new relationships for aggregate \"" aggregate-name "\".")))))
 
 (defn cache-statuses-along-with-authors
   "Ensure statuses and their authors are cached"
@@ -168,10 +194,13 @@
                                                    aggregate
                                                    new-statuses
                                                    status-aggregate-model
-                                                   status-model)]
-      (if (pos? total-new-relationships)
-        (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
-                       (:name aggregate) "\" for \"" screen-name "\" and " (count new-statuses) " statuses"))
-        (log/info (str "There are no new relationships for aggregate \"" (:name aggregate) "\"")))
+                                                   status-model)
+          total-new-statuses (count new-statuses)
+          aggregate-name (:name aggregate)]
+      (log-new-relationships-between-aggregate-and-statuses
+        total-new-relationships
+        total-new-statuses
+        aggregate-name
+        screen-name)
     new-relationships)
     '()))

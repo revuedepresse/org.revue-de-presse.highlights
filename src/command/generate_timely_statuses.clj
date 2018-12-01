@@ -19,11 +19,10 @@
          statuses-ids :statuses-ids} (if (pos? (:total-timely-statuses aggregate-timely-statuses))
                                         aggregate-timely-statuses
                                         (get-timely-statuses-for-aggregate press-aggregate-name week year :are-archived))
-        is-archived (if (zero? total-timely-statuses) true nil)
-        total-statuses {:total-timely-statuses total-timely-statuses
-                        :statuses-ids statuses-ids
-                        :is-archived is-archived}]
-    total-statuses))
+        is-archived (if (zero? total-timely-statuses) true nil)]
+    {:total-timely-statuses total-timely-statuses
+     :statuses-ids statuses-ids
+     :is-archived is-archived}))
 
 (defn generate-timely-statuses-from-statuses-props
   [{ids :ids

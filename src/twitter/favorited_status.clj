@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [clj-uuid :as uuid])
   (:use [repository.entity-manager]
+        [repository.status]
         [twitter.date]
         [twitter.status]))
 
@@ -13,7 +14,7 @@
 (defn get-favorites
   [favorites model]
   (let [statuses-ids (pmap get-status-ids favorites)]
-    (find-statuses-having-ids statuses-ids model)))
+    (find-statuses-having-twitter-ids statuses-ids model)))
 
 (defn get-favorite-status-ids
   [total-items]

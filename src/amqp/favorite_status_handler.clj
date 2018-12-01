@@ -53,7 +53,7 @@
   [screen-name aggregate-id entity-manager unavailable-aggregate-message]
   (let [{member-model :members
          token-model :tokens
-         aggregate-model :aggregates} entity-manager
+         aggregate-model :aggregate} entity-manager
         aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
         member (first (find-member-by-screen-name screen-name member-model))
         favorites (get-next-batch-of-favorites-for-member member token-model)

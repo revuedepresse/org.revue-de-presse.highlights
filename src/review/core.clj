@@ -8,7 +8,8 @@
         [command.generate-timely-statuses]
         [command.update-members-props]
         [command.save-highlights]
-        [command.recommend-subscriptions])
+        [command.recommend-subscriptions]
+        [command.unarchive-statuses])
   (:gen-class))
 
 (log/log-capture! "review")
@@ -17,33 +18,35 @@
   [name args]
   (cond
      (= name "consume-amqp-messages")
-     (let [[queue messages consumers] args
-           total-messages (if (nil? messages)
-                            100
-                            (Long/parseLong messages))
-           parallel-consumers (if (nil? consumers)
-                                1
-                                (Long/parseLong consumers))]
-       (try
-         (consume-messages (keyword queue) total-messages parallel-consumers)
-         (catch Exception e (log/error
-                              (str "An error occurred with message: " (.getMessage e))))))
+       (let [[queue messages consumers] args
+             total-messages (if (nil? messages)
+                              100
+                              (Long/parseLong messages))
+             parallel-consumers (if (nil? consumers)
+                                  1
+                                  (Long/parseLong consumers))]
+         (try
+           (consume-messages (keyword queue) total-messages parallel-consumers)
+           (catch Exception e (log/error
+                                (str "An error occurred with message: " (.getMessage e))))))
      (= name "recommend-subscriptions")
-     (let [[screen-name] args]
-       (recommend-subscriptions-from-member-subscription-history screen-name))
+       (let [[screen-name] args]
+         (recommend-subscriptions-from-member-subscription-history screen-name))
      (= name "update-members-descriptions-urls")
-     (update-members-descriptions-urls)
+       (update-members-descriptions-urls)
+     (= name "unarchive-statuses")
+       (unarchive-statuses 1 2018)
      (= name "generate-timely-statuses")
-     (generate-timely-statuses 1 2018)
+       (generate-timely-statuses 1 2018)
      (= name "save-highlights")
-     (let [[date] args]
-       (cond
-         (nil? date)
-          (save-today-highlights)
-         (= 0 (count args))
-          (save-highlights date)
-         :else
-          (apply save-highlights args)))
+       (let [[date] args]
+         (cond
+           (nil? date)
+            (save-today-highlights)
+           (= 0 (count args))
+            (save-highlights date)
+           :else
+            (apply save-highlights args)))
      :else
      (log/info "Invalid command")))
 

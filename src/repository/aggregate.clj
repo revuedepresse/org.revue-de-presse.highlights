@@ -45,6 +45,18 @@
     (db/where {:id id})
     (db/select)))
 
+(defn find-aggregate-by-name
+  "Find an aggregate by name"
+  [name model]
+  (->
+    (db/select* model)
+    (db/fields :id
+               :name
+               [:screen_name :screen-name])
+    (db/where {:name name
+               :screen_name nil})
+    (db/select)))
+
 (defn get-aggregate-by-id
   [aggregate-id model error-message]
   (let [matching-aggregates (find-aggregate-by-id aggregate-id model)
