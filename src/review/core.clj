@@ -35,9 +35,11 @@
      (= name "update-members-descriptions-urls")
        (update-members-descriptions-urls)
      (= name "unarchive-statuses")
-       (unarchive-statuses 1 2018)
+       (let [[week year] args]
+         (unarchive-statuses week year))
      (= name "generate-timely-statuses")
-       (generate-timely-statuses 1 2018)
+       (let [[week year] args]
+         (generate-timely-statuses week year))
      (= name "save-highlights")
        (let [[date] args]
          (cond

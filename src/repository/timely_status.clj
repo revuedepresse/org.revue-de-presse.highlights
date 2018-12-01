@@ -56,8 +56,11 @@
        params [aggregate-name publication-week publication-year]
       results (db/exec-raw [query params] :results)
       record (first results)]
-   {:statuses-ids (map #(Long/parseLong %) (explode #"," (:statuses-ids record)))
-    :total-timely-statuses (:total-timely-statuses record)})))
+     (if record
+       {:statuses-ids (map #(Long/parseLong %) (explode #"," (:statuses-ids record)))
+        :total-timely-statuses (:total-timely-statuses record)})
+       {:statuses-ids '()
+        :total-timely-statuses 0})))
 
 (defn find-timely-statuses-props-for-aggregate
   "Find the statuses of a member published on a given day"
