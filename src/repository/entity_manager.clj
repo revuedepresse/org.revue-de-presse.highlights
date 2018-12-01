@@ -13,7 +13,7 @@
           [utils.string]
           [twitter.status-hash]))
 
-(declare database-connection
+(declare archive-database-connection database-connection
          tokens
          users members
          subscriptions subscribees
@@ -143,27 +143,29 @@
   member-subscribees)
 
 (defn prepare-connection
-  [config]
-  (let [connection (defdb database-connection
-                          {:classname "com.mysql.jdbc.Driver"
-                           :subprotocol "mysql"
-                           :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
-                           :useUnicode "yes"
-                           :characterEncoding "UTF-8"
-                           :characterSet "utf8mb4"
-                           :collation "utf8mb4_unicode_ci"
-                           :delimiters "`"
-                           :useSSL false
-                           :user (:user config)
-                           :password (:password config)})]
+  [config & [is-archive-connection]]
+  (let [db-params {:classname "com.mysql.jdbc.Driver"
+                  :subprotocol "mysql"
+                  :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
+                  :useUnicode "yes"
+                  :characterEncoding "UTF-8"
+                  :characterSet "utf8mb4"
+                  :collation "utf8mb4_unicode_ci"
+                  :delimiters "`"
+                  :useSSL false
+                  :user (:user config)
+                  :password (:password config)}
+        connection (if is-archive-connection
+                    (defdb archive-database-connection db-params)
+                    (defdb database-connection db-params))]
   connection))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
   ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
-  [config]
-  (let [connection (prepare-connection config)]
+  [config & [is-archive-connection]]
+  (let [connection (prepare-connection config is-archive-connection)]
     {:aggregate (get-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
      :highlight (get-highlight-model connection)
@@ -180,8 +182,8 @@
      :users (get-user-model connection)}))
 
 (defn get-entity-manager
-  [config]
-  (connect-to-db (edn/read-string config)))
+  [config & [is-archive-connection]]
+  (connect-to-db (edn/read-string config) is-archive-connection))
 
 (defn find-distinct-ids-of-subscriptions
   "Find distinct ids of subscription"
