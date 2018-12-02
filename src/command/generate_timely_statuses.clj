@@ -33,8 +33,7 @@
         {total-timely-status :total-timely-statuses
          statuses-ids :statuses-ids} (get-timely-statuses-for-aggregate {:aggregate-name press-aggregate-name
                                                                          :publication-week week
-                                                                         :publication-year year
-                                                                         :exclude-member-aggregate true})
+                                                                         :publication-year year})
         _ (log/info (str total-timely-status " potential timely statuses have be counted."))
         statuses (generate-timely-statuses-from-statuses-props (assoc generation-params :ids statuses-ids))]
     statuses))
