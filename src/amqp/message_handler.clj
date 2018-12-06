@@ -89,14 +89,15 @@
   (cond
     (= queue :likes)
       (pull-messages-from-likes-queue {:auto-ack false
-                                     :entity-manager entity-manager
-                                     :queue (:queue-likes rabbitmq)
-                                     :channel channel})
+                                       :entity-manager entity-manager
+                                       :queue (:queue-likes rabbitmq)
+                                       :channel channel})
     (= queue :lists)
       (pull-messages-from-lists-queue {:auto-ack false
-                                     :entity-manager entity-manager
-                                     :queue (:queue-lists rabbitmq)
-                                     :channel channel})
+                                       :consolidate-relationships true
+                                       :entity-manager entity-manager
+                                       :queue (:queue-lists rabbitmq)
+                                       :channel channel})
     (= queue :network)
       (pull-messages-from-network-queue {:auto-ack false
                                          :entity-manager entity-manager

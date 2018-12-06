@@ -81,20 +81,21 @@
   ([ids]
    (let [bindings (take (count ids) (iterate (constantly "?") "?"))
          more-bindings (string/join "," bindings)
+         params ids
          query (str
-                  "SELECT                                           "
-                  "a.id as `aggregate-id`,                          "
-                  "a.name as `aggregate-name`,                      "
-                  "s.ust_id as `status-id`,                         "
-                  "s.ust_full_name as `member-name`,                "
-                  "s.ust_created_at as `publication-date-time`      "
-                  "FROM weaving_status s                            "
-                  "INNER JOIN weaving_status_aggregate sa           "
-                  "ON sa.status_id = s.ust_id                       "
-                  "INNER JOIN weaving_aggregate a                   "
-                  "ON a.id = sa.aggregate_id                       ")
+                  "SELECT DISTINCT                                          "
+                  "a.id as `aggregate-id`,                                  "
+                  "a.name as `aggregate-name`,                              "
+                  "s.ust_id as `status-id`,                                 "
+                  "s.ust_full_name as `member-name`,                        "
+                  "s.ust_created_at as `publication-date-time`              "
+                  "FROM weaving_status s                                    "
+                  "INNER JOIN weaving_status_aggregate sa                   "
+                  "ON sa.status_id = s.ust_id                               "
+                  "INNER JOIN weaving_aggregate a                           "
+                  "ON a.id = sa.aggregate_id                                ")
          query (str query "AND s.ust_id IN (" more-bindings ")")
-      results (db/exec-raw [query ids] :results)]
+      results (db/exec-raw [query params] :results)]
     results)))
 
 (defn select-fields
@@ -125,7 +126,7 @@
 
 (defn find-by-statuses-ids
  "Find timely statuses by their ids"
- [statuses-ids model status-model]
+ ([statuses-ids model status-model]
  (let [ids (if statuses-ids statuses-ids '(0))
        matching-statuses (-> (select-fields model status-model)
                              (db/where {:status_id [in ids]})
@@ -133,16 +134,32 @@
    (if matching-statuses
      matching-statuses
      '())))
+  ([statuses-ids aggregate-name model status-model]
+   (let [ids (if statuses-ids statuses-ids '(0))
+         matching-statuses (-> (select-fields model status-model)
+                               (db/where (and
+                                           (= :aggregate_name aggregate-name)
+                                           (in :status_id ids)))
+                               (db/select))]
+     (if matching-statuses
+       matching-statuses
+       '()))))
 
 (defn bulk-insert
- [timely-statuses model status-model]
+ [timely-statuses aggregate-name model status-model]
  (let [snake-cased-values (map snake-case-keys timely-statuses)
        identified-props (map #(assoc % :id (uuid/to-string (uuid/v1))) snake-cased-values)
-       ids (map #(:id %) identified-props)]
-   (if (pos? (count ids))
+       statuses-ids (map #(:status_id %) identified-props)
+       existing-timely-statuses (find-by-statuses-ids statuses-ids aggregate-name model status-model)
+       existing-statuses-id (map #(:status_id %) existing-timely-statuses)
+       deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
+       filtered-props (remove #(clojure.set/subset? #{(:status_id %)} existing-statuses-id) deduplicated-props)
+       ids (map #(:id %) filtered-props)
+       timely-statuses-to-be-inserted (pos? (count ids))]
+   (if timely-statuses-to-be-inserted
      (do
        (try
-         (db/insert model (db/values identified-props))
+         (db/insert model (db/values filtered-props))
          (catch Exception e (log/error (.getMessage e))))
        (find-by-ids ids model status-model))
      '())))
