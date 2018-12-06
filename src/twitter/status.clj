@@ -172,7 +172,7 @@
        :total-new-relationships 0}))
 
 (defn log-new-relationships-between-aggregate-and-statuses
-  [total-new-relationships total-new-statuses aggregate-name & [[screen-name]]]
+  [total-new-relationships total-new-statuses aggregate-name & [screen-name]]
   (let [related-to-member (if screen-name
                             (str "\" for \"" screen-name "\"")
                             "")]

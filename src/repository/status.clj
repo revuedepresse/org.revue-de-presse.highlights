@@ -63,6 +63,11 @@
   [ids model]
   (find-statuses-having-column-matching-values :ust_id ids model))
 
+(defn find-statuses-authored-by
+  "Find statuses by their author"
+  [authors model]
+  (find-statuses-having-column-matching-values :ust_full_name authors model))
+
 (defn insert-values-before-selecting-from-ids
   [values twitter-ids model]
   (if (pos? (count twitter-ids))
