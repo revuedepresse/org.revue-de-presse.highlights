@@ -1,4 +1,5 @@
 (ns amqp.aggregate-handler
+  (:require [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.aggregate]
         [repository.status]
@@ -28,4 +29,8 @@
         total-new-relationships
         total-new-statuses
         aggregate-name)
-      (generate-timely-statuses-for-aggregate aggregate-name 2018))))
+      (loop [year 2006]
+        (when (<= year 2018)
+          (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
+          (generate-timely-statuses-for-aggregate aggregate-name year)
+          (recur (inc year)))))))
