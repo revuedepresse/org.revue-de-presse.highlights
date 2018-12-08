@@ -24,11 +24,13 @@
                                                                found-statuses
                                                                status-aggregate-model
                                                                status-model)
-          total-new-statuses (count found-statuses)]
-      (log-new-relationships-between-aggregate-and-statuses
-        total-new-relationships
-        total-new-statuses
-        aggregate-name)
+          total-new-statuses (count found-statuses)
+          _ (when (pos? total-new-relationships)
+            (log-new-relationships-between-aggregate-and-statuses
+              total-new-relationships
+              total-new-statuses
+              aggregate-name))]
+
       (loop [year 2006]
         (when (<= year 2018)
           (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
