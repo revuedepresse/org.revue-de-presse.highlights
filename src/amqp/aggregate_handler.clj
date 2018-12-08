@@ -1,5 +1,7 @@
 (ns amqp.aggregate-handler
-  (:require [clojure.tools.logging :as log])
+  (:require [clojure.tools.logging :as log]
+            [clj-time.core :as t]
+            [clj-time.coerce :as c])
   (:use [repository.entity-manager]
         [repository.aggregate]
         [repository.status]
@@ -29,10 +31,14 @@
             (log-new-relationships-between-aggregate-and-statuses
               total-new-relationships
               total-new-statuses
-              aggregate-name))]
-
-      (loop [year 2006]
-        (when (<= year 2018)
+              aggregate-name))
+          statuses-sorted-by-date (sort-by :created-at found-statuses)
+          first-status (first statuses-sorted-by-date)
+          since (t/year (c/from-long (:created-at first-status)))
+          last-status (last statuses-sorted-by-date)
+          until (t/year (c/from-long (:created-at last-status)))]
+      (loop [year since]
+        (when (<= year until)
           (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
           (generate-timely-statuses-for-aggregate aggregate-name year)
           (recur (inc year)))))))
