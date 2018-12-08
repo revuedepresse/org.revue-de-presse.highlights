@@ -44,6 +44,9 @@
              year (Long/parseLong year)
              week (Long/parseLong week)]
          (generate-timely-statuses week year))
+     (= name "record-popularity-of-highlights")
+       (let [[date] args]
+         (record-popularity-of-highlights date))
      (= name "save-highlights")
        (let [[date] args]
          (cond
@@ -54,7 +57,7 @@
            :else
             (apply save-highlights args)))
      :else
-     (log/info "Invalid command")))
+       (log/info "Invalid command")))
 
 (defn -main
   "Command dispatch application (AMQP message consumption / recommendation)"

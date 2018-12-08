@@ -48,6 +48,23 @@
       results (db/exec-raw [query params] :results)]
     results)))
 
+(defn find-highlights-for-aggregate-published-at
+  "Find highlights published on a given date"
+  [date aggregate-name]
+  (let [query (str
+                "SELECT                                           "
+                "s.ust_id as id,                                  "
+                "s.ust_status_id as `status-id`                   "
+                "FROM highlight h                                 "
+                "INNER JOIN timely_status t                       "
+                "ON t.status_id = h.status_id                     "
+                "AND t.aggregate_name = ?                         "
+                "INNER JOIN weaving_status s                      "
+                "ON s.ust_id = h.status_id                        "
+                "AND DATE(h.publication_date_time) = \"" date "\"")
+      results (db/exec-raw [query [aggregate-name]] :results)]
+    results))
+
 (defn select-highlights
  [model member-model status-model]
  (let [status-api-document-col (get-column "ust_api_document" status-model)

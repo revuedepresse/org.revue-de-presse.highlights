@@ -29,6 +29,7 @@
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
 (def error-not-authorized "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
+(def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
 (declare find-next-token)
@@ -191,6 +192,17 @@
       (swap! remaining-calls #(assoc % (keyword endpoint) (:limit (get (:users @rate-limits) (keyword "/users/show/:id")))))))
   (get @remaining-calls (keyword endpoint)))
 
+(defn how-many-remaining-calls-for-statuses
+  [token-model]
+  (when (nil? (@remaining-calls (keyword "statuses/show/:id" )))
+    (do
+      (get-rate-limit-status token-model)
+      (swap! remaining-calls #(assoc
+                                %
+                                (keyword "statuses/show/:id")
+                                (:limit (get (:statuses @rate-limits) (keyword "/statuses/show/:id")))))))
+  (get @remaining-calls (keyword "statuses/show/:id" )))
+
 (defn how-many-remaining-calls-showing-user
   [token-model]
   (how-many-remaining-calls-for "users/show" token-model))
@@ -312,6 +324,26 @@
                                                :total-subscribees 0
                                                :total-subscriptions 0} member-model))))))
 
+(defn get-twitter-status-by-id
+  [status-id]
+  (do
+    (try
+      (let [response (with-open [client (ac/create-client)]
+                       (statuses-show-id
+                         :client client
+                         :oauth-creds (twitter-credentials @next-token)
+                         :params {:id status-id}))]
+        (update-remaining-calls (:headers response) "statuses/show/:id")
+        (log/info (str "Fetched status having id #" status-id))
+        response)
+      (catch Exception e
+        (log/warn (.getMessage e))
+        (cond
+          (string/includes? (.getMessage e) error-no-status)
+            {:error error-no-status}
+          :else
+            (log/error (.getMessage e)))))))
+
 (defn know-all-about-remaining-calls-and-limit
   []
   (and
@@ -340,6 +372,19 @@
             (member-by-prop member token-model member-model context))
           twitter-user))))
 
+(defn status-by-prop
+  [status-id token-model context]
+    (if
+      (and
+        (know-all-about-remaining-calls-and-limit)
+        (is-rate-limit-exceeded))
+      (do
+        (freeze-current-token)
+        (find-next-token token-model "statuses/show/:id" context)
+        (status-by-prop status-id token-model context))
+      (let [twitter-status (get-twitter-status-by-id status-id)]
+        twitter-status)))
+
 (defn get-member-by-screen-name
   [screen-name token-model member-model]
   (let [_ (find-next-token token-model "users/show" "trying to call \"users/show\" with a screen name")
@@ -355,6 +400,17 @@
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show")
     (:body user)))
+
+(defn get-status-by-id
+  [{id :id
+    status-id :status-id} token-model]
+  (let [status (status-by-prop status-id token-model "a call to \"statuses/show\" with an id")
+        headers (:headers status)]
+    (if (nil? (:error status))
+      (do
+        (guard-against-api-rate-limit headers "statuses/show/:id")
+        (assoc (:body status) :id id))
+      nil)))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model]
@@ -421,9 +477,10 @@
             base-params)]
 
   (try-calling-api
-    #(favorites-list :client %
-                    :oauth-creds (twitter-credentials @next-token)
-                    :params params)
+    #(favorites-list
+       :client %
+       :oauth-creds (twitter-credentials @next-token)
+       :params params)
     endpoint
     tokens-model
     (str "a " context))))
