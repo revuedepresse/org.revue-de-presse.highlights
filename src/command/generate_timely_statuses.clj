@@ -20,9 +20,9 @@
   (let [statuses (find-timely-statuses-props-for-aggregate ids)
       find #(find-by-statuses-ids % timely-status-model status-model)
       filtered-statuses (filter-out-known-statuses find statuses)
-      statuses-props (map assoc-time-range filtered-statuses)
+      statuses-props (pmap assoc-time-range filtered-statuses)
       new-timely-statuses (bulk-insert statuses-props aggregate-name timely-status-model status-model)]
-    (doall (map #(log/info (str "A timely status has been added for member \""
+    (doall (pmap #(log/info (str "A timely status has been added for member \""
                                 (:member-name %) "\"")) new-timely-statuses))
     (log/info (str (count new-timely-statuses) " new timely statuses have been added"))
     new-timely-statuses))

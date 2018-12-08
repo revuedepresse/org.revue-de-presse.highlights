@@ -175,7 +175,7 @@
   [total-new-relationships total-new-statuses aggregate-name & [screen-name]]
   (let [related-to-member (if screen-name
                             (str "\" for \"" screen-name "\"")
-                            "")]
+                            "\"")]
   (if (pos? total-new-relationships)
     (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
                    aggregate-name related-to-member " and " total-new-statuses " statuses."))
