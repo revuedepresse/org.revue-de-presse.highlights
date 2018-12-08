@@ -1,0 +1,63 @@
+(ns repository.status-popularity
+  (:require [korma.core :as db]
+            [clojure.tools.logging :as log]
+            [clj-uuid :as uuid])
+  (:use [korma.db]
+        [utils.string]))
+
+(declare status-popularity)
+
+(defn get-status-popularity-model
+  [connection]
+  (db/defentity status-popularity
+                (db/pk :id)
+                (db/table :status_popularity)
+                (db/database connection)
+                (db/entity-fields
+                  :checked_at
+                  :status_id
+                  :total_retweets
+                  :total_favorites))
+  status-popularity)
+
+(defn select-statuses-popularities
+  [model]
+  (->
+    (db/select* model)
+    (db/fields [:id]
+               [:checked_at :checked-at]
+               [:status_id :status-id]
+               [:total_retweets :total-retweets]
+               [:total_favorites :total-favorites])))
+
+(defn find-statuses-popularity-having-column-matching-values
+  "Find popularity of statuses which values of a given column
+  can be found in collection passed as argument"
+  [column values model]
+  (let [values (if values values '(0))
+        matching-records (-> (select-statuses-popularities model)
+                              (db/where {column [in values]})
+                              (db/select))]
+    (if matching-records
+      matching-records
+      '())))
+
+(defn find-status-popularity-by-status-ids
+  [ids model]
+  (find-statuses-popularity-having-column-matching-values :id ids model))
+
+(defn bulk-insert-of-status-popularity-props
+  [status-popularity-props model]
+  (let [identified-props (pmap
+                           #(assoc % :id (uuid/to-string
+                                           (-> (uuid/v1) (uuid/v5 (:status-id %)))))
+                           status-popularity-props)
+        snake-cased-props (map snake-case-keys identified-props)
+        statuses-popularities-ids (pmap #(:id %) snake-cased-props)]
+    (if statuses-popularities-ids
+      (do
+        (try
+          (db/insert model (db/values snake-cased-props))
+          (catch Exception e (log/error (.getMessage e))))
+        (find-status-popularity-by-status-ids statuses-popularities-ids model))
+      '())))

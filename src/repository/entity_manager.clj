@@ -8,6 +8,7 @@
           [repository.status]
           [repository.archived-status]
           [repository.database-schema]
+          [repository.status-popularity]
           [repository.timely-status]
           [repository.highlight]
           [utils.string]
@@ -176,6 +177,7 @@
      :subscribees (get-subscribees-model connection)
      :status (get-status-model connection)
      :status-aggregate (get-status-aggregate-model connection)
+     :status-popularity (get-status-popularity-model connection)
      :subscriptions (get-subscriptions-model connection)
      :timely-status (get-timely-status-model connection)
      :tokens (get-token-model connection)

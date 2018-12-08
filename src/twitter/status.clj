@@ -204,3 +204,20 @@
         screen-name)
     new-relationships)
     '()))
+
+(defn fetch-statuses
+  [statuses tokens]
+  (let [_ (find-next-token tokens "statuses/show/:id" "trying to call \"statuses/show\" with an id")
+        remaining-calls (how-many-remaining-calls-for-statuses tokens)
+        total-statuses (count statuses)]
+
+    (if (pos? total-statuses)
+      (log/info (str "About to fetch " total-statuses " statuse(s)."))
+      (log/info (str "No need to find some status.")))
+
+    (if
+      (and
+        (not (nil? remaining-calls))
+        (< total-statuses remaining-calls))
+      (doall (pmap #(get-status-by-id % tokens) statuses))
+      (doall (map #(get-status-by-id % tokens) statuses)))))

@@ -95,14 +95,6 @@
         missing-members (filter #(clojure.set/subset? #{(:id_str (:user %))} missing-members-ids) favorites)
         _ (ensure-authors-of-status-exist missing-members model token-model)]))
 
-(defn new-member-from-json
-  [member-id tokens members]
-  (when *twitter-member-enabled-logging*
-    (log/info (str "About to look up for member having Twitter id #" member-id)))
-  (let [twitter-user (get-member-by-id member-id tokens members)
-        member (save-member twitter-user members)]
-    member))
-
 (defn new-member-props-from-json
   [member-id tokens members]
   (when *twitter-member-enabled-logging*
@@ -125,13 +117,3 @@
           (< total-members remaining-calls))
       (doall (pmap #(register-member % tokens members) members-ids))
       (doall (map #(register-member % tokens members) members-ids)))))
-
-(defn ensure-member-having-id-exists
-  [twitter-id model token-model]
-  (let [existing-member (find-member-by-twitter-id twitter-id model)
-        member (if (pos? (count existing-member))
-                 (first existing-member)
-                 (do
-                   (ensure-members-exist (list twitter-id) token-model model new-member-from-json)
-                   (first (find-member-by-twitter-id twitter-id model))))]
-    member))

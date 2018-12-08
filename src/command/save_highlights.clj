@@ -5,10 +5,13 @@
             [clojure.edn :as edn]
             [clj-time.predicates :as pr]
             [clj-time.core :as t]
+            [clj-time.local :as l]
             [clj-time.format :as f]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.highlight]
+        [repository.status-popularity]
+        [twitter.date]
         [twitter.status]))
 
 (def highlights-date-formatter (f/formatter "yyyy-MM-dd"))
@@ -27,6 +30,39 @@
     (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
                    " and status #" (:status-id highlight-props)))
   highlight-props))
+
+(defn record-popularity-of-highlights-batch
+  [highlights {status-popularity :status-popularity
+               tokens :tokens}]
+  (let [statuses (fetch-statuses highlights tokens)
+        statuses (remove #(nil? %) statuses)
+        checked-at (f/unparse mysql-date-formatter (l/local-now))
+        status-popularity-props (doall
+                                  (pmap
+                                    #(assoc
+                                       {:status-id (:id %)}
+                                        :total-retweets (:retweet_count %)
+                                        :checked-at checked-at
+                                        :total-favorites (:favorite_count %))
+                                    statuses))
+        status-popularities (bulk-insert-of-status-popularity-props status-popularity-props status-popularity)]
+    (doall
+      (map
+        #(log/info (str "Saved popularity of status #" (:status-id %)))
+        status-popularities))
+    status-popularities))
+
+(defn record-popularity-of-highlights
+  [date]
+  (let [models (get-entity-manager (:database env))
+        press-aggregate-name (:press (edn/read-string (:aggregate env)))
+        highlights (find-highlights-for-aggregate-published-at date press-aggregate-name)
+        highlights-partitions (partition 300 highlights)
+        total-partitions (count highlights-partitions)]
+    (loop [partition-index 0]
+      (when (< partition-index total-partitions)
+        (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) models)
+        (recur (inc partition-index))))))
 
 (defn save-highlights
   ([]
