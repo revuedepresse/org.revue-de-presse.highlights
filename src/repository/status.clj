@@ -1,5 +1,6 @@
 (ns repository.status
   (:require [korma.core :as db]
+            [clojure.string :as string]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log])
   (:use [korma.db]
@@ -63,10 +64,33 @@
   [ids model]
   (find-statuses-having-column-matching-values :ust_id ids model))
 
-(defn find-statuses-authored-by
-  "Find statuses by their author"
-  [authors model]
-  (find-statuses-having-column-matching-values :ust_full_name authors model))
+(defn find-statuses-for-aggregate-authored-by
+  "Find statuses by their author for a given aggregate"
+  [authors aggregate-name]
+  (let [bindings (take (count authors) (iterate (constantly "?") "?"))
+        more-bindings (string/join "," bindings)
+        query (str
+          "SELECT ust_id AS id,                       "
+          "ust_hash AS hash,                          "
+          "ust_text AS text,                          "
+          "ust_full_name AS `screen-name`,            "
+          "ust_name AS `name`,                        "
+          "ust_access_token AS `access-token`,        "
+          "ust_api_document AS `document`,            "
+          "ust_created_at AS `created-at`,            "
+          "ust_status_id AS `twitter-id`              "
+          "FROM weaving_status                        "
+          "WHERE ust_full_name in (" more-bindings ") "
+          "AND (ust_full_name, ust_id) NOT IN (       "
+          "   SELECT member_name, status_id           "
+          "   FROM timely_status                      "
+          "   WHERE aggregate_name = ?                "
+          ")                                          ")
+        params (conj authors aggregate-name)
+        results (db/exec-raw [query params] :results)]
+    (if (some? results)
+      results
+      '())))
 
 (defn insert-values-before-selecting-from-ids
   [values twitter-ids model]

@@ -20,7 +20,7 @@
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           aggregate-name (:name aggregate)
           member (first (find-member-by-screen-name screen-name member-model))
-          found-statuses (find-statuses-authored-by [(:screen-name member)] status-model)
+          found-statuses (find-statuses-for-aggregate-authored-by [(:screen-name member)] aggregate-name)
           {total-new-relationships :total-new-relationships} (new-relationships
                                                                aggregate
                                                                found-statuses

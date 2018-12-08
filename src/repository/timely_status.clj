@@ -147,14 +147,14 @@
 
 (defn bulk-insert
  [timely-statuses aggregate-name model status-model]
- (let [snake-cased-values (map snake-case-keys timely-statuses)
-       identified-props (map #(assoc % :id (uuid/to-string (uuid/v1))) snake-cased-values)
-       statuses-ids (map #(:status_id %) identified-props)
+ (let [snake-cased-values (pmap snake-case-keys timely-statuses)
+       identified-props (pmap #(assoc % :id (uuid/to-string (uuid/v1))) snake-cased-values)
+       statuses-ids (pmap #(:status_id %) identified-props)
        existing-timely-statuses (find-by-statuses-ids statuses-ids aggregate-name model status-model)
-       existing-statuses-id (map #(:status_id %) existing-timely-statuses)
+       existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
        deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
        filtered-props (remove #(clojure.set/subset? #{(:status_id %)} existing-statuses-id) deduplicated-props)
-       ids (map #(:id %) filtered-props)
+       ids (pmap #(:id %) filtered-props)
        timely-statuses-to-be-inserted (pos? (count ids))]
    (if timely-statuses-to-be-inserted
      (do
