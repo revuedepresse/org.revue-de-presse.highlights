@@ -148,7 +148,10 @@
 (defn bulk-insert
  [timely-statuses aggregate-name model status-model]
  (let [snake-cased-values (pmap snake-case-keys timely-statuses)
-       identified-props (pmap #(assoc % :id (uuid/to-string (uuid/v1))) snake-cased-values)
+       identified-props (pmap
+                          #(assoc % :id (uuid/to-string
+                                          (-> (uuid/v1) (uuid/v5 aggregate-name))))
+                          snake-cased-values)
        statuses-ids (pmap #(:status_id %) identified-props)
        existing-timely-statuses (find-by-statuses-ids statuses-ids aggregate-name model status-model)
        existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
