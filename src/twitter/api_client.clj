@@ -253,19 +253,23 @@
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
-  [headers endpoint & [on-reached-api-limit]]
+  [headers endpoint & [on-reached-api-limit tokens]]
   (let [unavailable-rate-limit (nil? headers)
         percentage (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
-    (try (when
-           (or
-              unavailable-rate-limit
-              (and
-                (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
-                (nil? @next-token)))
-           (when (fn? on-reached-api-limit)
-             (on-reached-api-limit))
-           (wait-for-15-minutes endpoint))
+    (try
+      (when
+        (or
+          unavailable-rate-limit
+          (and
+            (< (Long/parseLong (:x-rate-limit-remaining headers)) percentage)
+            (nil? @next-token)))
+        (when
+          (fn? on-reached-api-limit)
+            (on-reached-api-limit))
+        (if (some? tokens)
+          (handle-rate-limit-exceeded-error "statuses/show/:id" tokens)
+          (wait-for-15-minutes endpoint)))
        (catch Exception e (log/error (.getMessage e))))))
 
 (defn guard-against-exceptional-member
@@ -325,7 +329,7 @@
                                                :total-subscriptions 0} member-model))))))
 
 (defn get-twitter-status-by-id
-  [status-id]
+  [status-id model]
   (do
     (try
       (let [response (with-open [client (ac/create-client)]
@@ -339,6 +343,8 @@
       (catch Exception e
         (log/warn (.getMessage e))
         (cond
+          (string/includes? (.getMessage e) error-rate-limit-exceeded)
+            (handle-rate-limit-exceeded-error "statuses/show/:id" model)
           (string/includes? (.getMessage e) error-no-status)
             {:error error-no-status}
           :else
@@ -382,7 +388,7 @@
         (freeze-current-token)
         (find-next-token token-model "statuses/show/:id" context)
         (status-by-prop status-id token-model context))
-      (let [twitter-status (get-twitter-status-by-id status-id)]
+      (let [twitter-status (get-twitter-status-by-id status-id token-model)]
         twitter-status)))
 
 (defn get-member-by-screen-name
@@ -406,9 +412,12 @@
     status-id :status-id} token-model]
   (let [status (status-by-prop status-id token-model "a call to \"statuses/show\" with an id")
         headers (:headers status)]
-    (if (nil? (:error status))
+    (if
+      (and
+        (some? headers)
+        (nil? (:error status)))
       (do
-        (guard-against-api-rate-limit headers "statuses/show/:id")
+        (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model)
         (assoc (:body status) :id id))
       nil)))
 
