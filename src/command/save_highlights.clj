@@ -5,6 +5,7 @@
             [clojure.edn :as edn]
             [clj-time.predicates :as pr]
             [clj-time.core :as t]
+            [clj-time.coerce :as c]
             [clj-time.local :as l]
             [clj-time.format :as f]
             [clojure.tools.logging :as log])
@@ -32,11 +33,10 @@
   highlight-props))
 
 (defn record-popularity-of-highlights-batch
-  [highlights {status-popularity :status-popularity
+  [highlights checked-at {status-popularity :status-popularity
                tokens :tokens}]
   (let [statuses (fetch-statuses highlights tokens)
         statuses (remove #(nil? %) statuses)
-        checked-at (f/unparse mysql-date-formatter (l/local-now))
         status-popularity-props (doall
                                   (pmap
                                     #(assoc
@@ -45,7 +45,7 @@
                                         :checked-at checked-at
                                         :total-favorites (:favorite_count %))
                                     statuses))
-        status-popularities (bulk-insert-of-status-popularity-props status-popularity-props status-popularity)]
+        status-popularities (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)]
     (doall
       (map
         #(log/info (str "Saved popularity of status #" (:status-id %)))
@@ -55,13 +55,17 @@
 (defn record-popularity-of-highlights
   [date]
   (let [models (get-entity-manager (:database env))
+        checked-at (f/unparse mysql-date-formatter
+                              (c/from-long
+                                (c/to-long
+                                  (f/unparse date-hour-formatter (l/local-now)))))
         press-aggregate-name (:press (edn/read-string (:aggregate env)))
         highlights (find-highlights-for-aggregate-published-at date press-aggregate-name)
         highlights-partitions (partition 300 highlights)
         total-partitions (count highlights-partitions)]
     (loop [partition-index 0]
       (when (< partition-index total-partitions)
-        (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) models)
+        (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
         (recur (inc partition-index))))))
 
 (defn save-highlights

@@ -33,26 +33,43 @@
 (defn find-statuses-popularity-having-column-matching-values
   "Find popularity of statuses which values of a given column
   can be found in collection passed as argument"
-  [column values model]
-  (let [values (if values values '(0))
-        matching-records (-> (select-statuses-popularities model)
-                              (db/where {column [in values]})
+  ([column values model]
+    (let [values (if values values '(0))
+          matching-records (-> (select-statuses-popularities model)
+                                (db/where {column [in values]})
+                                (db/select))]
+      (if matching-records
+        matching-records
+        '())))
+  ([column values date model]
+   (let [values (if values values '(0))
+         matching-records (-> (select-statuses-popularities model)
+                              (db/where {:checked_at date
+                                         column [in values]})
                               (db/select))]
-    (if matching-records
-      matching-records
-      '())))
+     (if matching-records
+       matching-records
+       '()))))
 
 (defn find-status-popularity-by-status-ids
   [ids model]
   (find-statuses-popularity-having-column-matching-values :id ids model))
 
+(defn find-status-popularity-by-status-ids-and-date
+  [statuses-ids date model]
+  (find-statuses-popularity-having-column-matching-values :status_id statuses-ids date model))
+
 (defn bulk-insert-of-status-popularity-props
-  [status-popularity-props model]
+  [status-popularity-props checked-at model]
   (let [identified-props (pmap
                            #(assoc % :id (uuid/to-string
                                            (-> (uuid/v1) (uuid/v5 (:status-id %)))))
                            status-popularity-props)
-        snake-cased-props (map snake-case-keys identified-props)
+        statuses-ids (map #(:status-id %) identified-props)
+        existing-statuses (find-status-popularity-by-status-ids-and-date statuses-ids checked-at model)
+        existing-statuses-ids (map #(:status-id %) existing-statuses)
+        new-records (remove #(clojure.set/subset? #{(:status-id %)} existing-statuses-ids) identified-props)
+        snake-cased-props (map snake-case-keys new-records)
         statuses-popularities-ids (pmap #(:id %) snake-cased-props)]
     (if statuses-popularities-ids
       (do
