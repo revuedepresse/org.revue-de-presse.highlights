@@ -14,8 +14,9 @@
                 (db/table :highlight)
                 (db/database connection)
                 (db/entity-fields
-                  :publication_date_time
+                  :is_retweet
                   :member_id
+                  :publication_date_time
                   :status_id
                   :total_favorites
                   :total_retweets))
@@ -79,6 +80,7 @@
                 [member-url-col :member-url]
                 [member-description-col :member-description]
                 [:member_id :member-id]
+                [:is_retweet :is-retweet]
                 [:status_id :status-id]
                 [:publication_date_time :publication-date-time])
      (db/join member-model (= member-id-col :member_id))
