@@ -344,7 +344,9 @@
         (log/warn (.getMessage e))
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
-            (handle-rate-limit-exceeded-error "statuses/show/:id" model)
+            (do
+              (handle-rate-limit-exceeded-error "statuses/show/:id" model)
+              (get-twitter-status-by-id status-id model))
           (string/includes? (.getMessage e) error-no-status)
             {:error error-no-status}
           :else
