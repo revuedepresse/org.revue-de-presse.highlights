@@ -7,6 +7,7 @@
 
 (def date-formatter (f/with-locale (f/formatter "EEE MMM dd HH:mm:ss Z yyyy") Locale/ENGLISH))
 (def mysql-date-formatter (f/formatters :mysql))
+(def date-hour-formatter (f/formatters :date-hour))
 
 (defn get-date-properties
   [date]
