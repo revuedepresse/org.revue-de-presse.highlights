@@ -58,6 +58,12 @@ lein run update-members-descriptions-urls
 lein run recommend-subscriptions twitter_handle
 ```
 
+## How to refresh highlights?
+
+```
+lein run record-popularity-of-highlights `date -I`
+```
+
 ### How to unarchive statuses from a database to another?
 
 ```
