@@ -21,11 +21,21 @@
   [document]
   (let [api-document (:api-document document)
         decoded-document (json/read-str api-document)
+        retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
+                                        (get (get decoded-document "retweeted_status") "created_at")
+                                        nil)
         highlight-props {:id (uuid/to-string (uuid/v1))
                          :member-id (:member-id document)
                          :status-id (:status-id document)
                          :is-retweet (some? (get decoded-document "retweeted_status"))
                          :publication-date-time (:publication-date-time document)
+                         :retweeted-status-publication-date (if (some? retweet-publication-date-time)
+                                                               (f/unparse
+                                                                 mysql-date-formatter
+                                                                 (c/from-long
+                                                                  (c/to-long
+                                                                    (f/parse date-formatter retweet-publication-date-time))))
+                                                               nil)
                          :total-retweets (get decoded-document "retweet_count")
                          :total-favorites (get decoded-document "favorite_count")}]
     (log/info (str "Prepared highlight for member #" (:member-id highlight-props)

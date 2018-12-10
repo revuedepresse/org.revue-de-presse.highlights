@@ -16,6 +16,7 @@
                 (db/entity-fields
                   :is_retweet
                   :member_id
+                  :retweeted_status_publication_date
                   :publication_date_time
                   :status_id
                   :total_favorites
@@ -82,6 +83,7 @@
                 [:member_id :member-id]
                 [:is_retweet :is-retweet]
                 [:status_id :status-id]
+                [:retweeted_status_publication_date :retweeted-status-publication-date]
                 [:publication_date_time :publication-date-time])
      (db/join member-model (= member-id-col :member_id))
      (db/join status-model (= status-id-col :status_id)))))
