@@ -67,7 +67,9 @@
         total-partitions (count highlights-partitions)]
     (loop [partition-index 0]
       (when (< partition-index total-partitions)
-        (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
+        (try
+          (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
+          (catch Exception e (log/info (str "Could not record popularity of highlights because of " (.getMessage e)))))
         (recur (inc partition-index))))))
 
 (defn save-highlights

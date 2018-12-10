@@ -68,7 +68,7 @@
         statuses-ids (map #(:status-id %) identified-props)
         existing-statuses (find-status-popularity-by-status-ids-and-date statuses-ids checked-at model)
         existing-statuses-ids (map #(:status-id %) existing-statuses)
-        new-records (remove #(clojure.set/subset? #{(:status-id %)} existing-statuses-ids) identified-props)
+        new-records (remove #(clojure.set/subset? #{(:status-id %)} (set existing-statuses-ids)) identified-props)
         snake-cased-props (map snake-case-keys new-records)
         statuses-popularities-ids (pmap #(:id %) snake-cased-props)]
     (if statuses-popularities-ids
