@@ -35,7 +35,8 @@
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
                tokens :tokens}]
-  (let [statuses (fetch-statuses highlights tokens)
+  (let [filtered-highlights (remove #(nil? %) highlights)
+        statuses (fetch-statuses filtered-highlights tokens)
         statuses (remove #(nil? %) statuses)
         status-popularity-props (doall
                                   (pmap
@@ -60,12 +61,15 @@
                                 (c/to-long
                                   (f/unparse date-hour-formatter (l/local-now)))))
         press-aggregate-name (:press (edn/read-string (:aggregate env)))
+        pad (take 300 (iterate (constantly nil) nil))
         highlights (find-highlights-for-aggregate-published-at date press-aggregate-name)
-        highlights-partitions (partition 300 highlights)
+        highlights-partitions (partition 300 300 (vector pad) highlights)
         total-partitions (count highlights-partitions)]
     (loop [partition-index 0]
       (when (< partition-index total-partitions)
-        (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
+        (try
+          (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
+          (catch Exception e (log/info (str "Could not record popularity of highlights because of " (.getMessage e)))))
         (recur (inc partition-index))))))
 
 (defn save-highlights
