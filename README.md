@@ -58,6 +58,12 @@ lein run update-members-descriptions-urls
 lein run recommend-subscriptions twitter_handle
 ```
 
+## How to save highlights for all aggregates?
+
+```
+lein run save-highlights-for-all-aggregates `date -I`
+```
+
 ## How to refresh highlights?
 
 ```

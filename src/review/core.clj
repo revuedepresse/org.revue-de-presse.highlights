@@ -56,6 +56,9 @@
             (save-highlights date)
            :else
             (apply save-highlights args)))
+     (= name "save-highlights-for-all-aggregates")
+       (let [[date] args]
+          (save-highlights-for-all-aggregates date))
      :else
        (log/info "Invalid command")))
 

@@ -98,6 +98,21 @@
       results (db/exec-raw [query params] :results)]
     results)))
 
+(defn find-aggregate-having-publication-from-date
+  "Find the distinct aggregates for which publications have been collected for a given date"
+  ([date excluded-aggregate]
+   (let [query (str
+                  "SELECT DISTINCT aggregate_name as `aggregate-name`   "
+                  "FROM (                                               "
+                  "   SELECT aggregate_name FROM timely_status          "
+                  "   WHERE DATE(publication_date_time) = ?             "
+                  "   AND aggregate_name != (?)                         "
+                  "   GROUP BY aggregate_id                             "
+                  ") select_")
+         query (str query )
+      results (db/exec-raw [query [date excluded-aggregate]] :results)]
+    results)))
+
 (defn select-fields
   [model status-model]
   (let [status-api-document-col (get-column "ust_api_document" status-model)

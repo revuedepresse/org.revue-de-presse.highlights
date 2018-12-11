@@ -14,10 +14,12 @@
                 (db/table :highlight)
                 (db/database connection)
                 (db/entity-fields
+                  :aggregate_id
+                  :aggregate_name
                   :is_retweet
                   :member_id
-                  :retweeted_status_publication_date
                   :publication_date_time
+                  :retweeted_status_publication_date
                   :status_id
                   :total_favorites
                   :total_retweets))
@@ -81,6 +83,8 @@
                 [member-url-col :member-url]
                 [member-description-col :member-description]
                 [:member_id :member-id]
+                [:aggregate_id :aggregate-id]
+                [:aggregate_name :aggregate-name]
                 [:is_retweet :is-retweet]
                 [:status_id :status-id]
                 [:retweeted_status_publication_date :retweeted-status-publication-date]
