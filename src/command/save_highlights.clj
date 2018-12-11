@@ -132,4 +132,4 @@
   (let [_ (get-entity-manager (:database env))
         excluded-aggregate (:press (edn/read-string (:aggregate env)))
         aggregates (find-aggregate-having-publication-from-date date excluded-aggregate)]
-    (map #(save-highlights-from-date-for-aggregate date %) aggregates)))
+    (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))
