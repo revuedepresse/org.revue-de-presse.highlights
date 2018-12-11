@@ -97,11 +97,11 @@
         aggregate-name (if aggregate
                          aggregate
                          (:press (edn/read-string (:aggregate env))))
-        aggregate (find-aggregate-by-name aggregate-name aggregate-model)
+        aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
         statuses (find-statuses-for-aggregate aggregate-name date)
         find #(find-highlights-having-ids % highlight-model member-model status-model)
         filtered-statuses (filter-out-known-statuses find statuses)
-        highlights-props (map (extract-highlight-props aggregate) filtered-statuses)
+        highlights-props (map (extract-highlight-props (first aggregate)) filtered-statuses)
         new-highlights (bulk-insert-new-highlights highlights-props highlight-model member-model status-model)]
     (log/info (str "There are " (count new-highlights) " new highlights"))
     new-highlights))
