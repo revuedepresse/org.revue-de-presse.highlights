@@ -53,3 +53,6 @@ ALTER TABLE highlight ADD CONSTRAINT FK_C998D8346BF700BD FOREIGN KEY (status_id)
 ALTER TABLE highlight ADD CONSTRAINT FK_C998D8347597D3FE FOREIGN KEY (member_id) REFERENCES weaving_user (usr_id);
 ALTER TABLE highlight ADD is_retweet TINYINT(1) NOT NULL;
 ALTER TABLE highlight ADD retweeted_status_publication_date DATETIME DEFAULT NULL;
+ALTER TABLE highlight ADD aggregate_id INT DEFAULT NULL, ADD aggregate_name VARCHAR(100) DEFAULT NULL;
+ALTER TABLE highlight ADD CONSTRAINT FK_C998D834D0BBCCBE FOREIGN KEY (aggregate_id) REFERENCES weaving_aggregate (id);
+CREATE INDEX IDX_C998D834D0BBCCBE ON highlight (aggregate_id);
