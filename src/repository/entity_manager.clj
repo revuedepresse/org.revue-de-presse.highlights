@@ -5,6 +5,7 @@
               [clj-uuid :as uuid])
     (:use [korma.db]
           [repository.aggregate]
+          [repository.keyword]
           [repository.status]
           [repository.archived-status]
           [repository.database-schema]
@@ -170,6 +171,7 @@
     {:aggregate (get-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
      :highlight (get-highlight-model connection)
+     :keyword (get-keyword-model connection)
      :liked-status (get-liked-status-model connection)
      :members (get-members-model connection)
      :member-subscribees (get-member-subscribees-model connection)

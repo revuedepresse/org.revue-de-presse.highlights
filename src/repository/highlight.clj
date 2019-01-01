@@ -103,6 +103,60 @@
      matching-statuses
      '())))
 
+(defn find-highlights-having-uuids
+ "Find highlights by their uuids"
+ [highlights-ids model member-model status-model]
+ (let [ids (if highlights-ids highlights-ids '(0))
+       matching-statuses (-> (select-highlights model member-model status-model)
+                             (db/where {:id [in ids]})
+                             (db/select))]
+   (if matching-statuses
+     matching-statuses
+     '())))
+
+(defn find-highlighted-statuses-for-aggregate-published-at
+  "Find highlights published on a given date"
+  [{date :date
+    week :week
+    year :year
+    aggregate-name :aggregate-name
+    not-in :not-in
+    {member-model :members
+     highlight-model :highlight
+     status-model :status} :models}]
+  (let [aggregate-restriction (if not-in
+                                "AND t.aggregate_name <> ? "
+                                "AND t.aggregate_name = ? ")
+        highlight-aggregate-restriction (if not-in
+                                          "h.aggregate_name <> ? "
+                                          "h.aggregate_name = ? ")
+        restricted-by-week (and
+                             (some? week)
+                             (some? year))
+        restriction-by-date (if restricted-by-week
+                                (str
+                                  "AND WEEK(h.publication_date_time) = ? "
+                                  "AND YEAR(h.publication_date_time) = ? ")
+                                (str "AND DATE(h.publication_date_time) = \"" date "\""))
+        query (str
+                "SELECT                                           "
+                "h.id                                             "
+                "FROM highlight h                                 "
+                "INNER JOIN timely_status t                       "
+                "ON t.status_id = h.status_id                     "
+                aggregate-restriction "                           "
+                "INNER JOIN weaving_status s                      "
+                "ON s.ust_id = h.status_id                        "
+                "WHERE " highlight-aggregate-restriction "        "
+                restriction-by-date)
+        params (if restricted-by-week
+                 [aggregate-name aggregate-name week year]
+                 [aggregate-name aggregate-name])
+        results (db/exec-raw [query params] :results)
+        highlights-ids (map :id results)
+        matching-highlights (find-highlights-having-uuids highlights-ids highlight-model member-model status-model)]
+    matching-highlights))
+
 (defn bulk-insert-new-highlights
  [highlights model member-model status-model]
  (let [snake-cased-values (map snake-case-keys highlights)

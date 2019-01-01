@@ -56,3 +56,7 @@ ALTER TABLE highlight ADD retweeted_status_publication_date DATETIME DEFAULT NUL
 ALTER TABLE highlight ADD aggregate_id INT DEFAULT NULL, ADD aggregate_name VARCHAR(100) DEFAULT NULL;
 ALTER TABLE highlight ADD CONSTRAINT FK_C998D834D0BBCCBE FOREIGN KEY (aggregate_id) REFERENCES weaving_aggregate (id);
 CREATE INDEX IDX_C998D834D0BBCCBE ON highlight (aggregate_id);
+CREATE TABLE keyword (id CHAR(36) NOT NULL COMMENT '(DC2Type:uuid)', status_id INT DEFAULT NULL, member_id INT DEFAULT NULL, aggregate_id INT DEFAULT NULL, aggregate_name VARCHAR(100) DEFAULT NULL, keyword VARCHAR(255) NOT NULL, publication_date_time DATETIME NOT NULL, occurrences INT NOT NULL, INDEX IDX_5A93713B6BF700BD (status_id), INDEX IDX_5A93713B7597D3FE (member_id), INDEX IDX_5A93713BD0BBCCBE (aggregate_id), INDEX keyword_idx (keyword, status_id, member_id, publication_date_time), PRIMARY KEY(id)) DEFAULT CHARACTER SET UTF8 COLLATE UTF8_unicode_ci ENGINE = InnoDB;
+ALTER TABLE keyword ADD CONSTRAINT FK_5A93713B6BF700BD FOREIGN KEY (status_id) REFERENCES weaving_status (ust_id);
+ALTER TABLE keyword ADD CONSTRAINT FK_5A93713B7597D3FE FOREIGN KEY (member_id) REFERENCES weaving_user (usr_id);
+ALTER TABLE keyword ADD CONSTRAINT FK_5A93713BD0BBCCBE FOREIGN KEY (aggregate_id) REFERENCES weaving_aggregate (id);
