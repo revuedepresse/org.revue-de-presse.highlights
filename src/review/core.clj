@@ -5,6 +5,7 @@
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
+        [command.generate-keywords]
         [command.generate-timely-statuses]
         [command.update-members-props]
         [command.save-highlights]
@@ -44,6 +45,13 @@
              year (Long/parseLong year)
              week (Long/parseLong week)]
          (generate-timely-statuses week year))
+     (= name "generate-keywords-from-statuses")
+       (let [[date] args]
+         (if (> (count args) 1)
+           (generate-keywords-for-all-aggregates date
+                                                 {:week (Long/parseLong (first args))
+                                                  :year (Long/parseLong (second args))})
+           (generate-keywords-for-all-aggregates date)))
      (= name "record-popularity-of-highlights")
        (let [[date] args]
          (record-popularity-of-highlights date))

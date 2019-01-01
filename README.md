@@ -70,6 +70,12 @@ lein run save-highlights-for-all-aggregates `date -I`
 lein run record-popularity-of-highlights `date -I`
 ```
 
+## How to generate keywords from statuses?
+
+```
+lein run generate-keywords-from-statuses `date -I`
+```
+
 ### How to unarchive statuses from a database to another?
 
 ```
