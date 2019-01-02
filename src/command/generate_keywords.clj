@@ -45,13 +45,13 @@
 
 (defn generate-keywords-for-all-aggregates
   ([date]
-    (generate-keywords-for-all-aggregates date))
+    (generate-keywords-for-all-aggregates date {}))
   ([date & [{week :week year :year}]]
     (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
           models (get-entity-manager (:database env))
           {status-model :status
            member-model :members
-           keyword-model :keyword} models
+           keyword-model :hashtag} models
           highlights (find-highlighted-statuses-for-aggregate-published-at {:date date
                                                                             :week week
                                                                             :year year

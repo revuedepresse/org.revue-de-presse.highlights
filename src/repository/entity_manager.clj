@@ -171,7 +171,7 @@
     {:aggregate (get-aggregate-model connection)
      :archived-status (get-archived-status-model connection)
      :highlight (get-highlight-model connection)
-     :keyword (get-keyword-model connection)
+     :hashtag (get-keyword-model connection)
      :liked-status (get-liked-status-model connection)
      :members (get-members-model connection)
      :member-subscribees (get-member-subscribees-model connection)

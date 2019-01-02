@@ -7,11 +7,11 @@
         [repository.database-schema]
         [twitter.status-hash]))
 
-(declare keyword)
+(declare hashtag)
 
 (defn get-keyword-model
   [connection]
-  (db/defentity keyword
+  (db/defentity hashtag
                 (db/table :keyword)
                 (db/database connection)
                 (db/entity-fields
@@ -23,7 +23,7 @@
                   :status_id
                   :occurrences
                   :keyword))
-  keyword)
+  hashtag)
 
 (defn select-keywords
   [model member-model status-model]
