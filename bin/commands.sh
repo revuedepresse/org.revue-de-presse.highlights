@@ -1,5 +1,7 @@
 #!/bin/bash
 
+lein_bin=/usr/local/bin/lein
+
 function require_project_directory() {
     if [ -z "${CLJ_PROJECT_DIR}" ];
     then
