@@ -7,7 +7,7 @@
   (let [timely-statuses (generate-timely-statuses week 2018)]
     (is (= (count timely-statuses) 0))))
 
-(deftest it-should-generate-timely-statuses-
+(deftest it-should-generate-timely-statuses
   (let [weeks (take 52 (iterate inc 0))]
     (doall
       (pmap
