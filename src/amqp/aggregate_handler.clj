@@ -8,15 +8,26 @@
         [twitter.status]
         [command.generate-timely-statuses]))
 
+(defn generate-timely-statuses-for-year
+  [{aggregate-id   :aggregate-id
+    aggregate-name :aggregate-name
+    year           :year}]
+  (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
+  (generate-timely-statuses-for-aggregate
+    {:aggregate-name aggregate-name
+     :aggregate-id   aggregate-id
+     :year           year}
+    :in-parallel))
+
 (defn build-relationships
   "Build relationships missing between statuses and aggregates"
   [screen-name aggregate-id entity-manager unavailable-aggregate-message]
   ; do not process aggregate with id #1 (taken care of by another command)
   (when (not= 1 aggregate-id)
-    (let [{member-model :members
-           status-model :status
+    (let [{member-model           :members
+           status-model           :status
            status-aggregate-model :status-aggregate
-           aggregate-model :aggregate} entity-manager
+           aggregate-model        :aggregate} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           aggregate-name (:name aggregate)
           member (first (find-member-by-screen-name screen-name member-model))
@@ -28,17 +39,20 @@
                                                                status-model)
           total-new-statuses (count found-statuses)
           _ (when (pos? total-new-relationships)
-            (log-new-relationships-between-aggregate-and-statuses
-              total-new-relationships
-              total-new-statuses
-              aggregate-name))
+              (log-new-relationships-between-aggregate-and-statuses
+                total-new-relationships
+                total-new-statuses
+                aggregate-name))
           statuses-sorted-by-date (sort-by :created-at found-statuses)
           first-status (first statuses-sorted-by-date)
           since (t/year (c/from-long (:created-at first-status)))
           last-status (last statuses-sorted-by-date)
           until (t/year (c/from-long (:created-at last-status)))]
-      (loop [year since]
-        (when (<= year until)
-          (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
-          (generate-timely-statuses-for-aggregate {:aggregate-name aggregate-name :year year :in-parallel true})
-          (recur (inc year)))))))
+      (let [years (take (inc (- until since)) (iterate inc since))]
+        (doall
+          (pmap
+            #(generate-timely-statuses-for-year
+               {:year           %
+                :aggregate-name aggregate-name
+                :aggregate-id   aggregate-id})
+            years))))))

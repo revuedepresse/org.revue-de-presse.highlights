@@ -22,8 +22,7 @@
 (defn pull-messages-from-lists-queue
   "Pull messages from a queue dedicated to status collection from lists"
   [options]
-  (let [{consolidate-relationships :consolidate-relationships
-         auto-ack :auto-ack
+  (let [{auto-ack :auto-ack
          channel :channel
          queue :queue
          entity-manager :entity-manager} options
@@ -36,9 +35,8 @@
     (when payload
       (try
         (do
-          (if consolidate-relationships
-            (build-relationships screen-name aggregate-id entity-manager error-unavailable-aggregate)
-            (process-lists screen-name aggregate-id entity-manager error-unavailable-aggregate))
+          (process-lists screen-name aggregate-id entity-manager error-unavailable-aggregate)
+          (build-relationships screen-name aggregate-id entity-manager error-unavailable-aggregate)
           (lb/ack channel delivery-tag))
         (catch Exception e
           (log/error "An error occurred with message " (.getMessage e)))))))
