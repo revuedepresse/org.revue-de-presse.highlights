@@ -110,3 +110,22 @@
           model
           status-model))
       '())))
+
+(defn get-member-aggregates-by-screen-name
+  [screen-name]
+  (let [query (str
+                "SELECT                                                                      "
+                "aggregate.id `aggregate-id`,                                                "
+                "aggregate.name `aggregate-name`                                             "
+                "FROM member_subscription member_subscription,                               "
+                "weaving_user member,                                                        "
+                "weaving_user subscription,                                                  "
+                "weaving_aggregate aggregate                                                 "
+                "WHERE aggregate.screen_name = subscription.usr_twitter_username             "
+                "AND aggregate.id IN (SELECT aggregate_id FROM weaving_status_aggregate)     "
+                "AND member_subscription.member_id = member.usr_id                           "
+                "AND member_subscription.subscription_id = subscription.usr_id               "
+                "AND member_subscription.has_been_cancelled = 0                              "
+                "AND member.usr_twitter_username = ?                                         ")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))

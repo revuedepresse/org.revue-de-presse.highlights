@@ -40,5 +40,5 @@
       (loop [year since]
         (when (<= year until)
           (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
-          (generate-timely-statuses-for-aggregate aggregate-name year :in-parallel)
+          (generate-timely-statuses-for-aggregate {:aggregate-name aggregate-name :year year :in-parallel true})
           (recur (inc year)))))))
