@@ -45,10 +45,12 @@
              year (Long/parseLong year)
              week (Long/parseLong week)]
          (generate-timely-statuses week year))
+     (= name "generate-timely-statuses-for-member-subscriptions")
+       (let [[member] args]
+         (generate-timely-statuses-for-member-subscriptions member))
      (= name "generate-timely-statuses-for-member")
-       (let [[member year] args
-             year (Long/parseLong year)]
-         (generate-timely-statuses-for-member member year))
+       (let [[member] args]
+         (generate-timely-statuses-for-member member))
      (= name "generate-keywords-from-statuses")
        (let [[date] args]
          (if (> (count args) 1)

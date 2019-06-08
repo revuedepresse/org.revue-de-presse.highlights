@@ -129,3 +129,20 @@
                 "AND member.usr_twitter_username = ?                                         ")
         results (db/exec-raw [query [screen-name]] :results)]
     results))
+
+(defn get-member-aggregate
+  [screen-name]
+  (let [query (str
+                "SELECT                                                                 "
+                "aggregate.id `aggregate-id`,                                           "
+                "aggregate.name `aggregate-name`                                        "
+                "FROM                                                                   "
+                "weaving_user member,                                                   "
+                "weaving_aggregate aggregate                                            "
+                "WHERE                                                                  "
+                "member.usr_twitter_username = aggregate.screen_name                    "
+                "AND aggregate.screen_name IS NOT NULL                                  "
+                "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)   "
+                "AND member.usr_twitter_username = ?                                    ")
+        results (db/exec-raw [query [screen-name]] :results)]
+    (first results)))

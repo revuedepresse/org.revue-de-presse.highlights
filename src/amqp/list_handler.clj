@@ -5,7 +5,7 @@
             [php_clj.core :refer [php->clj clj->php]])
   (:use [amqp.handling-errors]
         [amqp.status-handler]
-        [amqp.aggregate-handler]))
+        [command.generate-timely-statuses]))
 
 (defn wait-for-new-messages
   [channel queue auto-ack]
@@ -35,8 +35,11 @@
     (when payload
       (try
         (do
-          (process-lists screen-name aggregate-id entity-manager error-unavailable-aggregate)
-          (build-relationships screen-name aggregate-id entity-manager error-unavailable-aggregate)
+          (handle-list
+            {:screen-name                   screen-name
+             :aggregate-id                  aggregate-id
+             :entity-manager                entity-manager
+             :unavailable-aggregate-message error-unavailable-aggregate})
           (lb/ack channel delivery-tag))
         (catch Exception e
           (log/error "An error occurred with message " (.getMessage e)))))))

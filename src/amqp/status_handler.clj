@@ -16,25 +16,25 @@
             (log/info (str "About to fetch statuses since status #" max-id))
             (log/info (str "About to fetch statuses until reaching status #" min-id)))
         statuses (if max-id
-                    (get-statuses-of-member
-                      {:screen-name screen-name
-                       :since-id (inc (Long/parseLong max-id))}
-                      token-model)
-                    (get-statuses-of-member
-                      {:screen-name screen-name
-                       :max-id (if (nil? min-id)
-                                 nil
-                                 (dec (Long/parseLong min-id)))}
-                      token-model))
+                   (get-statuses-of-member
+                     {:screen-name screen-name
+                      :since-id    (inc (Long/parseLong max-id))}
+                     token-model)
+                   (get-statuses-of-member
+                     {:screen-name screen-name
+                      :max-id      (if (nil? min-id)
+                                     nil
+                                     (dec (Long/parseLong min-id)))}
+                     token-model))
         next-batch-of-statuses (when (and
-                                        max-id
-                                        (= (count statuses) 0))
-                                  (get-statuses-of-member
-                                    {:screen-name screen-name
-                                     :max-id (if (nil? min-id)
-                                               nil
-                                               (dec (Long/parseLong min-id)))}
-                                    token-model))]
+                                       max-id
+                                       (= (count statuses) 0))
+                                 (get-statuses-of-member
+                                   {:screen-name screen-name
+                                    :max-id      (if (nil? min-id)
+                                                   nil
+                                                   (dec (Long/parseLong min-id)))}
+                                   token-model))]
     (if (pos? (count statuses))
       statuses
       next-batch-of-statuses)))
@@ -51,11 +51,14 @@
     (update-max-status-id-for-member-having-id latest-status-id member-id member-model)))
 
 (defn process-lists
-  [screen-name aggregate-id entity-manager unavailable-aggregate-message]
+  [{screen-name                   :screen-name
+    aggregate-id                  :aggregate-id
+    entity-manager                :entity-manager
+    unavailable-aggregate-message :unavailable-aggregate-message}]
   ; do not process aggregate with id #1 (taken care of by another command)
   (when (not= 1 aggregate-id)
-    (let [{member-model :members
-           token-model :tokens
+    (let [{member-model    :members
+           token-model     :tokens
            aggregate-model :aggregate} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           member (first (find-member-by-screen-name screen-name member-model))
@@ -72,5 +75,8 @@
                                                    (:id member)
                                                    member-model))
       (if (pos? (count processed-relationships))
-        (process-lists screen-name aggregate-id entity-manager unavailable-aggregate-message)
+        (process-lists {:screen-name                   screen-name
+                        :aggregate-id                  aggregate-id
+                        :entity-manager                entity-manager
+                        :unavailable-aggregate-message unavailable-aggregate-message})
         (update-max-status-id-for-member member aggregate entity-manager)))))
