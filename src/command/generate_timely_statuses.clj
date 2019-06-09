@@ -16,7 +16,7 @@
     [twitter.date]
     [twitter.status]))
 
-(def ^:dynamic *generate-timely-statuses-enabled-logging* true)
+(def ^:dynamic *generate-timely-statuses-enabled-logging* false)
 
 (defn assoc-time-range
   [status]

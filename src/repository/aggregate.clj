@@ -128,6 +128,9 @@
                 "AND aggregate.screen_name IS NOT NULL                                       "
                 "AND member_subscription.member_id = member.usr_id                           "
                 "AND member_subscription.subscription_id = subscription.usr_id               "
+                "AND subscription.suspended = 0                                              "
+                "AND subscription.not_found = 0                                              "
+                "AND subscription.protected = 0                                              "
                 "AND member_subscription.has_been_cancelled = 0                              "
                 "AND member.usr_twitter_username = ?                                         "
                 "ORDER BY aggregate.name ASC                                                 ")
