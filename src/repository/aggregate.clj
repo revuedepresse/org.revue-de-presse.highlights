@@ -48,19 +48,19 @@
 (defn find-aggregate-by-name
   "Find an aggregate by name"
   ([name model]
-    (find-aggregate-by-name name false model))
+   (find-aggregate-by-name name false model))
   ([name include-member-aggregates model]
-    (let [where {:name name}
-          where (if include-member-aggregates
-                  where
-                  (assoc where :screen_name nil))]
-      (->
-        (db/select* model)
-        (db/fields :id
-                   :name
-                   [:screen_name :screen-name])
-        (db/where where)
-        (db/select)))))
+   (let [where {:name name}
+         where (if include-member-aggregates
+                 where
+                 (assoc where :screen_name nil))]
+     (->
+       (db/select* model)
+       (db/fields :id
+                  :name
+                  [:screen_name :screen-name])
+       (db/where where)
+       (db/select)))))
 
 (defn get-aggregate-by-id
   [aggregate-id model error-message]
@@ -87,10 +87,10 @@
   [aggregate-id ids model status-model]
   (let [ids (if ids ids '(0))
         matching-relationships (-> (select-relationship-between-aggregate-and-status model status-model)
-                              (db/where (and
-                                          (= :aggregate_id aggregate-id)
-                                          (in :status_id ids)))
-                              (db/select))]
+                                   (db/where (and
+                                               (= :aggregate_id aggregate-id)
+                                               (in :status_id ids)))
+                                   (db/select))]
     (if (pos? (count matching-relationships))
       matching-relationships
       '())))
@@ -116,7 +116,8 @@
   (let [query (str
                 "SELECT                                                                      "
                 "aggregate.id `aggregate-id`,                                                "
-                "aggregate.name `aggregate-name`                                             "
+                "aggregate.name `aggregate-name`,                                            "
+                "aggregate.screen_name as `member-name`                                      "
                 "FROM member_subscription member_subscription,                               "
                 "weaving_user member,                                                        "
                 "weaving_user subscription,                                                  "

@@ -57,9 +57,13 @@
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
                                    (:member-name %) "\" (" (:id %) ")")) new-timely-statuses)))
-    (if (pos? total-timely-statuses)
-      (log/info (str total-timely-statuses " new timely statuses have been added for aggregate #" aggregate-id))
-      (log/info (str "No new timely status has been added for aggregate #" aggregate-id)))
+    (cond
+      (> total-timely-statuses 1)
+        (log/info (str total-timely-statuses " new timely statuses have been added for aggregate #" aggregate-id))
+      (= 1 total-timely-statuses)
+        (log/info (str total-timely-statuses " new timely status has been added for aggregate #" aggregate-id))
+      :else
+        (log/info (str "No new timely status has been added for aggregate #" aggregate-id)))
     new-timely-statuses))
 
 (defn generate-timely-statuses
@@ -114,7 +118,7 @@
         statuses (doall
                    (pmap
                      #(handle-list
-                        {:screen-name                   member
+                        {:screen-name                   (:member-name %)
                          :aggregate-id                  (:aggregate-id %)
                          :entity-manager                entity-manager
                          :unavailable-aggregate-message error-unavailable-aggregate})
@@ -180,4 +184,4 @@
                 :aggregate-name aggregate-name
                 :aggregate-id   aggregate-id})
             years))
-        (log/info (str "No timely statuses are to be generated for aggregate \"" aggregate-name "\""))))))
+        (log/info (str "No timely status is to be generated for aggregate \"" aggregate-name "\""))))))
