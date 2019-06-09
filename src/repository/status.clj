@@ -66,7 +66,7 @@
 
 (defn find-statuses-for-aggregate-authored-by
   "Find statuses by their author for a given aggregate"
-  [authors aggregate-name]
+  [authors aggregate-id]
   (let [bindings (take (count authors) (iterate (constantly "?") "?"))
         more-bindings (string/join "," bindings)
         query (str
@@ -84,9 +84,9 @@
           "AND (ust_full_name, ust_id) NOT IN (       "
           "   SELECT member_name, status_id           "
           "   FROM timely_status                      "
-          "   WHERE aggregate_name = ?                "
+          "   WHERE aggregate_id = ?                  "
           ")                                          ")
-        params (conj authors aggregate-name)
+        params (conj authors aggregate-id)
         results (db/exec-raw [query params] :results)]
     (if (some? results)
       results

@@ -24,9 +24,14 @@
   [statuses]
   (pmap get-status-formatted-dates statuses))
 
+
+(defn get-timestamp
+  []
+  (c/to-long (l/local-now)))
+
 (defn get-time-range
   [timestamp]
-  (let [now (c/to-long (l/local-now))
+  (let [now (get-timestamp)
         date (c/from-long timestamp)
         five-minutes-ago (c/from-long (- now (* 60 5 1000)))
         ten-minutes-ago (c/from-long (- now (* 60 10 1000)))

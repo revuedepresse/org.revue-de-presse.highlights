@@ -34,26 +34,26 @@
     missing-ids))
 
 (defn get-status-json
-      [{twitter-id :id_str
-        text :full_text
-        created-at :created_at
-        {screen-name :screen_name
-         avatar :profile_image_url
-         name :name} :user
-        :as status}]
-      (let [document (json/write-str status)
-            token (:token @next-token)
-            parsed-publication-date (c/to-long (f/parse date-formatter created-at))
-            mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
-            twitter-status {:text text
-                            :full-name screen-name
-                            :avatar avatar
-                            :name name
-                            :access-token token
-                            :api-document document
-                            :created-at mysql-formatted-publication-date
-                            :status-id twitter-id}]
-        twitter-status))
+  [{twitter-id          :id_str
+    text                :full_text
+    created-at          :created_at
+    {screen-name :screen_name
+     avatar      :profile_image_url
+     name        :name} :user
+    :as                 status}]
+  (let [document (json/write-str status)
+        token (:token @next-token)
+        parsed-publication-date (c/to-long (f/parse date-formatter created-at))
+        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
+        twitter-status {:text         text
+                        :full-name    screen-name
+                        :avatar       avatar
+                        :name         name
+                        :access-token token
+                        :api-document document
+                        :created-at   mysql-formatted-publication-date
+                        :status-id    twitter-id}]
+    twitter-status))
 
 (defn ensure-statuses-exist
   [statuses model]
@@ -68,7 +68,7 @@
                          '()))]
     (when (and
             *twitter-status-enabled-logging*
-           (pos? total-statuses))
+            (pos? total-statuses))
       (doall (map #(log/info (str "Status #" (:twitter-id %)
                                   " authored by \"" (:screen-name %)
                                   "\" has been saved under id \"" (:id %))) new-statuses)))
@@ -136,14 +136,14 @@
 (defn new-relationship
   [aggregate-id]
   (fn [status-id]
-  (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
-    relationship)))
+    (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
+      relationship)))
 1
 (defn is-subset-of-relationships-set
   [relationships-set]
   (fn [relationship]
     (let [relationship-status-id (:status-id relationship)]
-    (clojure.set/subset? #{relationship-status-id} relationships-set))))
+      (clojure.set/subset? #{relationship-status-id} relationships-set))))
 
 (defn new-relationships
   [aggregate new-statuses model status-model]
@@ -151,50 +151,50 @@
     (let [aggregate-id (:id aggregate)
           new-statuses-ids (map #(:id %) new-statuses)
           existing-relationships (find-relationships-between-aggregate-and-statuses-having-ids
-            aggregate-id
-            new-statuses-ids
-            model
-            status-model)
+                                   aggregate-id
+                                   new-statuses-ids
+                                   model
+                                   status-model)
           statuses-ids-of-existing-relationships (map #(:status-id %) existing-relationships)
           relationship-values (map (new-relationship aggregate-id) new-statuses-ids)
           filtered-relationship-values (doall (remove
-                                         (is-subset-of-relationships-set (set statuses-ids-of-existing-relationships))
-                                         relationship-values))
+                                                (is-subset-of-relationships-set (set statuses-ids-of-existing-relationships))
+                                                relationship-values))
           new-relationships (bulk-insert-status-aggregate-relationship
                               filtered-relationship-values
                               aggregate-id
                               model
                               status-model)
           total-new-relationships (count new-relationships)]
-      {:new-relationships new-relationships
+      {:new-relationships       new-relationships
        :total-new-relationships total-new-relationships})
-      {:new-relationships '()
-       :total-new-relationships 0}))
+    {:new-relationships       '()
+     :total-new-relationships 0}))
 
 (defn log-new-relationships-between-aggregate-and-statuses
   [total-new-relationships total-new-statuses aggregate-name & [screen-name]]
   (let [related-to-member (if screen-name
                             (str "\" for \"" screen-name "\"")
                             "\"")]
-  (if (pos? total-new-relationships)
-    (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
-                   aggregate-name related-to-member " and " total-new-statuses " statuses."))
-    (log/info (str "There are no new relationships for aggregate \"" aggregate-name "\".")))))
+    (if (pos? total-new-relationships)
+      (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
+                     aggregate-name related-to-member " and " total-new-statuses " statuses."))
+      (log/info (str "There are no new relationships for aggregate \"" aggregate-name "\".")))))
 
 (defn cache-statuses-along-with-authors
   "Ensure statuses and their authors are cached"
-  [statuses screen-name aggregate {member-model :members
-                       status-model :status
-                       token-model :tokens
-                       status-aggregate-model :status-aggregate}]
+  [statuses screen-name aggregate {member-model           :members
+                                   status-model           :status
+                                   token-model            :tokens
+                                   status-aggregate-model :status-aggregate}]
   (if (pos? (count statuses))
     (let [new-statuses (preprocess-statuses statuses status-model member-model token-model)
           {total-new-relationships :total-new-relationships
-           new-relationships :new-relationships} (new-relationships
-                                                   aggregate
-                                                   new-statuses
-                                                   status-aggregate-model
-                                                   status-model)
+           new-relationships       :new-relationships} (new-relationships
+                                                         aggregate
+                                                         new-statuses
+                                                         status-aggregate-model
+                                                         status-model)
           total-new-statuses (count new-statuses)
           aggregate-name (:name aggregate)]
       (log-new-relationships-between-aggregate-and-statuses
@@ -202,7 +202,7 @@
         total-new-statuses
         aggregate-name
         screen-name)
-    new-relationships)
+      new-relationships)
     '()))
 
 (defn fetch-statuses

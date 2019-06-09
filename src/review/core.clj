@@ -48,6 +48,9 @@
      (= name "generate-timely-statuses-for-member-subscriptions")
        (let [[member] args]
          (generate-timely-statuses-for-member-subscriptions member))
+     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
+       (let [[member] args]
+         (consolidate-timely-statuses-from-subscriptions-for-member member))
      (= name "generate-timely-statuses-for-member")
        (let [[member] args]
          (generate-timely-statuses-for-member member))

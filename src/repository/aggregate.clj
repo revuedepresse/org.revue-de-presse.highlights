@@ -123,10 +123,13 @@
                 "weaving_aggregate aggregate                                                 "
                 "WHERE aggregate.screen_name = subscription.usr_twitter_username             "
                 "AND aggregate.id IN (SELECT aggregate_id FROM weaving_status_aggregate)     "
+                "AND aggregate.name like 'user :: %'                                         "
+                "AND aggregate.screen_name IS NOT NULL                                       "
                 "AND member_subscription.member_id = member.usr_id                           "
                 "AND member_subscription.subscription_id = subscription.usr_id               "
                 "AND member_subscription.has_been_cancelled = 0                              "
-                "AND member.usr_twitter_username = ?                                         ")
+                "AND member.usr_twitter_username = ?                                         "
+                "ORDER BY aggregate.name ASC                                                 ")
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 

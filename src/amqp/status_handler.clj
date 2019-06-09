@@ -69,11 +69,12 @@
 
       (when
         (and
-          (not (nil? last-relationship))
-          (not (nil? member)))
+          (some? last-relationship)
+          (some? member))
         (update-min-status-id-for-member-having-id twitter-id-of-status-in-last-relationship
                                                    (:id member)
                                                    member-model))
+
       (if (pos? (count processed-relationships))
         (process-lists {:screen-name                   screen-name
                         :aggregate-id                  aggregate-id
