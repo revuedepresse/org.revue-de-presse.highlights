@@ -33,28 +33,33 @@
         filtered-statuses (filter-out-known-statuses find statuses)
         statuses-props (pmap assoc-time-range filtered-statuses)
         _ (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)]
+        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
                                    (:member-name %) "\" (" (:id %) ")")) new-timely-statuses)))
-    (log/info (str (count new-timely-statuses) " new timely statuses have been added for \""
-                   aggregate-name
-                   (if week
-                     (str "\" from week #" week " and year " year)
-                     (str "\" from year " year))))
+    (when (pos? total-timely-statuses)
+      (log/info (str total-timely-statuses " new timely statuses have been added for \""
+                     aggregate-name
+                     (if week
+                       (str "\" from week #" week " and year " year)
+                       (str "\" from year " year)))))
     new-timely-statuses))
 
 (defn generate-timely-statuses-from-subscriptions-of-member
-  [{screen-name                   :screen-name
+  [{aggregate-id                  :aggregate-id
     {timely-status-model :timely-status
      status-model        :status} :models}]
-  (let [timely-statuses (find-missing-timely-statuses-from-subscriptions-of-member screen-name)
+  (let [timely-statuses (find-missing-timely-statuses-from-aggregate aggregate-id)
         statuses-props (pmap assoc-time-range timely-statuses)
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)]
+        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
                                    (:member-name %) "\" (" (:id %) ")")) new-timely-statuses)))
-    (log/info (str (count new-timely-statuses) " new timely statuses have been added"))
+    (if (pos? total-timely-statuses)
+      (log/info (str total-timely-statuses " new timely statuses have been added for aggregate #" aggregate-id))
+      (log/info (str "No new timely status has been added for aggregate #" aggregate-id)))
     new-timely-statuses))
 
 (defn generate-timely-statuses
@@ -93,9 +98,13 @@
 (defn consolidate-timely-statuses-from-subscriptions-for-member
   [member]
   (let [entity-manager (get-entity-manager (:database env))
-        statuses (generate-timely-statuses-from-subscriptions-of-member
-                   {:screen-name member
-                    :models      entity-manager})]
+        aggregates (get-member-aggregates-by-screen-name member)
+        statuses (doall
+                   (pmap
+                     #(generate-timely-statuses-from-subscriptions-of-member
+                        {:aggregate-id (:aggregate-id %)
+                         :models       entity-manager})
+                     aggregates))]
     statuses))
 
 (defn generate-timely-statuses-for-member-subscriptions

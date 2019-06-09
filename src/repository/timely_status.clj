@@ -120,9 +120,9 @@
          results (db/exec-raw [query params] :results)]
      results)))
 
-(defn find-missing-timely-statuses-from-subscriptions-of-member
+(defn find-missing-timely-statuses-from-aggregate
   "Find the statuses of a member published on a given day"
-  ([screen-name]
+  ([aggregate-id]
    (let [query (str
                  "SELECT                                                            "
                  "sa.aggregate_id as `aggregate-id`,                                "
@@ -130,32 +130,22 @@
                  "sa.status_id as `status-id`,                                      "
                  "s.ust_full_name as `member-name`,                                 "
                  "s.ust_created_at as `publication-date-time`                       "
-                 "FROM (                                                            "
-                 "    member_subscription ms,                                       "
-                 "    weaving_user member,                                          "
-                 "    weaving_status_aggregate sa                                   "
-                 ")                                                                 "
-                 "INNER JOIN weaving_user subscription                              "
-                 "ON subscription.usr_id = ms.subscription_id                       "
+                 "FROM weaving_status_aggregate sa                                  "
                  "INNER JOIN weaving_aggregate a                                    "
                  "ON (                                                              "
-                 "    a.name = CONCAT('user :: ', subscription.usr_twitter_username)"
-                 "    AND a.screen_name = subscription.usr_twitter_username         "
-                 "    AND a.screen_name IS NOT NULL                                 "
-                 "    AND sa.aggregate_id = a.id                                    "
+                 "  sa.aggregate_id = a.id                                          "
+                 "  AND a.id = ?                                                    "
                  ")                                                                 "
                  "INNER JOIN weaving_status s                                       "
                  "ON (                                                              "
                  "    s.ust_id = sa.status_id                                       "
                  "    AND s.ust_full_name = a.screen_name                           "
                  ")                                                                 "
-                 "WHERE                                                             "
-                 "member.usr_id = ms.member_id                                      "
-                 "AND member.usr_twitter_username = ?                               "
-                 "AND (sa.status_id, sa.aggregate_id) NOT IN (                      "
-                 "    SELECT status_id, aggregate_id FROM timely_status             "
+                 "WHERE (sa.status_id, sa.aggregate_id) NOT IN (                    "
+                 "    SELECT COALESCE(status_id, 0), COALESCE(aggregate_id, 0)      "
+                 "     FROM timely_status                                           "
                  ")                                                                 ")
-         results (db/exec-raw [query [screen-name]] :results)]
+         results (db/exec-raw [query [aggregate-id]] :results)]
      results)))
 
 (defn find-aggregate-having-publication-from-date
@@ -203,10 +193,11 @@
   "Find timely statuses by their ids"
   ([constraints model status-model]
    (let [{columns :columns
-          values  :values} constraints
-         constraining-values (if values values '(0, 0))
+          values  :values
+          default-values :default-values} constraints
+         constraining-values (if (pos? (count values)) values default-values)
          matching-statuses (-> (select-fields model status-model)
-                               (db/where {columns [in constraining-values]})
+                               (db/where (in columns constraining-values))
                                (db/select))]
      (if matching-statuses
        matching-statuses
@@ -241,6 +232,7 @@
         constraints (pmap #(apply list [(:status_id %) (:aggregate_name %)]) identified-props)
         existing-timely-statuses (find-by-statuses-ids
                                    {:columns [:status_id :aggregate_name]
+                                    :default-values '((0 ""))
                                     :values constraints} model status-model)
         existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
         deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
