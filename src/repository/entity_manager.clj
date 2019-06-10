@@ -5,13 +5,14 @@
             [clj-uuid :as uuid])
   (:use [korma.db]
         [repository.aggregate]
-        [repository.keyword]
-        [repository.status]
         [repository.archived-status]
+        [repository.keyword]
         [repository.database-schema]
+        [repository.highlight]
+        [repository.publication-frequency]
+        [repository.status]
         [repository.status-popularity]
         [repository.timely-status]
-        [repository.highlight]
         [utils.string]
         [twitter.status-hash]))
 
@@ -171,22 +172,23 @@
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
   [config & [is-archive-connection]]
   (let [connection (prepare-connection config is-archive-connection)]
-    {:aggregate            (get-aggregate-model connection)
-     :archived-status      (get-archived-status-model connection)
-     :highlight            (get-highlight-model connection)
-     :hashtag              (get-keyword-model connection)
-     :liked-status         (get-liked-status-model connection)
-     :members              (get-members-model connection)
-     :member-subscribees   (get-member-subscribees-model connection)
-     :member-subscriptions (get-member-subscriptions-model connection)
-     :subscribees          (get-subscribees-model connection)
-     :status               (get-status-model connection)
-     :status-aggregate     (get-status-aggregate-model connection)
-     :status-popularity    (get-status-popularity-model connection)
-     :subscriptions        (get-subscriptions-model connection)
-     :timely-status        (get-timely-status-model connection)
-     :tokens               (get-token-model connection)
-     :users                (get-user-model connection)}))
+    {:aggregate             (get-aggregate-model connection)
+     :archived-status       (get-archived-status-model connection)
+     :highlight             (get-highlight-model connection)
+     :hashtag               (get-keyword-model connection)
+     :liked-status          (get-liked-status-model connection)
+     :members               (get-members-model connection)
+     :member-subscribees    (get-member-subscribees-model connection)
+     :member-subscriptions  (get-member-subscriptions-model connection)
+     :publication-frequency (get-publication-frequency-model connection)
+     :subscribees           (get-subscribees-model connection)
+     :status                (get-status-model connection)
+     :status-aggregate      (get-status-aggregate-model connection)
+     :status-popularity     (get-status-popularity-model connection)
+     :subscriptions         (get-subscriptions-model connection)
+     :timely-status         (get-timely-status-model connection)
+     :tokens                (get-token-model connection)
+     :users                 (get-user-model connection)}))
 
 (defn get-entity-manager
   [config & [is-archive-connection]]

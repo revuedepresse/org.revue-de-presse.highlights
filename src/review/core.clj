@@ -31,16 +31,10 @@
         (consume-messages (keyword queue) total-messages parallel-consumers)
         (catch Exception e (log/error
                              (str "An error occurred with message: " (.getMessage e))))))
-    (= name "analyze-frequency-of-status-publication-by-day-of-week")
+    (= name "update-frequencies-of-publication-for-member-subscriptions")
     (let [[screen-name] args]
       (try
-        (analyze-frequency-of-status-publication-by-day-of-week screen-name)
-        (catch Exception e
-          (log/error (.getMessage e)))))
-    (= name "analyze-frequency-of-status-publication-by-hour-of-day")
-    (let [[screen-name] args]
-      (try
-        (analyze-frequency-of-status-publication-by-hour-of-day screen-name)
+        (update-frequencies-of-publication-for-member-subscriptions screen-name)
         (catch Exception e
           (log/error (.getMessage e)))))
     (= name "recommend-subscriptions")
