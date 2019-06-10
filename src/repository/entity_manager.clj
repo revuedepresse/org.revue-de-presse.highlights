@@ -186,8 +186,7 @@
      :subscriptions        (get-subscriptions-model connection)
      :timely-status        (get-timely-status-model connection)
      :tokens               (get-token-model connection)
-     :users                (get-user-model connection)
-     :connection           connection}))
+     :users                (get-user-model connection)}))
 
 (defn get-entity-manager
   [config & [is-archive-connection]]

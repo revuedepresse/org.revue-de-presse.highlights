@@ -64,6 +64,11 @@
   [ids model]
   (find-statuses-having-column-matching-values :ust_id ids model))
 
+(defn find-statuses-by-screen-name
+  "Find statuses by a screen name"
+  [screen-name model]
+  (find-statuses-having-column-matching-values :ust_full_name (apply list [screen-name]) model))
+
 (defn find-statuses-for-aggregate-authored-by
   "Find statuses by their author for a given aggregate"
   [authors aggregate-id]
