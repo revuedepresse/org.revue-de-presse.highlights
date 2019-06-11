@@ -11,4 +11,4 @@
     ; There are 13 models so far
     ; some being duplicates of the same table
     ; representing the same data in distinct contexts
-    (is (= 16 (count (keys models))))))
+    (is (= 17 (count (keys models))))))
