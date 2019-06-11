@@ -94,7 +94,6 @@
                                        :channel channel})
     (= queue :lists)
       (pull-messages-from-lists-queue {:auto-ack false
-                                       :consolidate-relationships true
                                        :entity-manager entity-manager
                                        :queue (:queue-lists rabbitmq)
                                        :channel channel})

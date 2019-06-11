@@ -2,9 +2,14 @@
   (:require [command.generate-keywords :refer :all]
             [clojure.test :refer :all]))
 
+(defn ensure-keywords-are-generated-for-week
+  [week]
+  (let [keywords (generate-keywords-for-all-aggregates week 2018)]
+    (is (= (count keywords) 0))))
+
 (deftest it-should-generate-keywords
-  (loop [week 0]
-    (when (< week 52)
-      (let [timely-statuses (generate-keywords-for-all-aggregates week 2018)]
-        (is (= (count timely-statuses) 0)))
-      (recur (inc week)))))
+  (let [weeks (take 52 (iterate inc 0))]
+    (doall
+      (pmap
+        #(ensure-keywords-are-generated-for-week %)
+        weeks))))

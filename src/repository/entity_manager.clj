@@ -1,19 +1,20 @@
 (ns repository.entity-manager
-    (:require [korma.core :as db]
-              [clojure.edn :as edn]
-              [clojure.tools.logging :as log]
-              [clj-uuid :as uuid])
-    (:use [korma.db]
-          [repository.aggregate]
-          [repository.keyword]
-          [repository.status]
-          [repository.archived-status]
-          [repository.database-schema]
-          [repository.status-popularity]
-          [repository.timely-status]
-          [repository.highlight]
-          [utils.string]
-          [twitter.status-hash]))
+  (:require [korma.core :as db]
+            [clojure.edn :as edn]
+            [clojure.tools.logging :as log]
+            [clj-uuid :as uuid])
+  (:use [korma.db]
+        [repository.aggregate]
+        [repository.archived-status]
+        [repository.keyword]
+        [repository.database-schema]
+        [repository.highlight]
+        [repository.publication-frequency]
+        [repository.status]
+        [repository.status-popularity]
+        [repository.timely-status]
+        [utils.string]
+        [twitter.status-hash]))
 
 (declare archive-database-connection database-connection
          tokens
@@ -44,14 +45,14 @@
 (defn get-token-model
   [connection]
   (db/defentity tokens
-            (db/table :weaving_access_token)
-            (db/database connection)
-            (db/entity-fields
-              :token
-              :secret
-              :consumer_key
-              :consumer_secret
-              :frozen_until))
+                (db/table :weaving_access_token)
+                (db/database connection)
+                (db/entity-fields
+                  :token
+                  :secret
+                  :consumer_key
+                  :consumer_secret
+                  :frozen_until))
   tokens)
 
 (defn get-user-model
@@ -146,21 +147,24 @@
 
 (defn prepare-connection
   [config & [is-archive-connection]]
-  (let [db-params {:classname "com.mysql.jdbc.Driver"
-                  :subprotocol "mysql"
-                  :subname (str "//" (:host config) ":" (:port config) "/" (:name config))
-                  :useUnicode "yes"
-                  :characterEncoding "UTF-8"
-                  :characterSet "utf8mb4"
-                  :collation "utf8mb4_unicode_ci"
-                  :delimiters "`"
-                  :useSSL false
-                  :user (:user config)
-                  :password (:password config)}
+  (let [db-params {:classname         "com.mysql.jdbc.Driver"
+                   :subprotocol       "mysql"
+                   :subname           (str "//" (:host config) ":" (:port config) "/" (:name config))
+                   :useUnicode        "yes"
+                   :characterEncoding "UTF-8"
+                   :characterSet      "utf8mb4"
+                   :collation         "utf8mb4_unicode_ci"
+                   :delimiters        "`"
+                   :useSSL            false
+                   :user              (:user config)
+                   :password          (:password config)
+                   ; @see 'https://github.com/korma/Korma/issues/382#issue-236722546
+                   :make-pool         true
+                   :maximum-pool-size 5}
         connection (if is-archive-connection
-                    (defdb archive-database-connection db-params)
-                    (defdb database-connection db-params))]
-  connection))
+                     (defdb archive-database-connection db-params)
+                     (defdb database-connection db-params))]
+    connection))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
@@ -168,22 +172,23 @@
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
   [config & [is-archive-connection]]
   (let [connection (prepare-connection config is-archive-connection)]
-    {:aggregate (get-aggregate-model connection)
-     :archived-status (get-archived-status-model connection)
-     :highlight (get-highlight-model connection)
-     :hashtag (get-keyword-model connection)
-     :liked-status (get-liked-status-model connection)
-     :members (get-members-model connection)
-     :member-subscribees (get-member-subscribees-model connection)
-     :member-subscriptions (get-member-subscriptions-model connection)
-     :subscribees (get-subscribees-model connection)
-     :status (get-status-model connection)
-     :status-aggregate (get-status-aggregate-model connection)
-     :status-popularity (get-status-popularity-model connection)
-     :subscriptions (get-subscriptions-model connection)
-     :timely-status (get-timely-status-model connection)
-     :tokens (get-token-model connection)
-     :users (get-user-model connection)}))
+    {:aggregate             (get-aggregate-model connection)
+     :archived-status       (get-archived-status-model connection)
+     :highlight             (get-highlight-model connection)
+     :hashtag               (get-keyword-model connection)
+     :liked-status          (get-liked-status-model connection)
+     :members               (get-members-model connection)
+     :member-subscribees    (get-member-subscribees-model connection)
+     :member-subscriptions  (get-member-subscriptions-model connection)
+     :publication-frequency (get-publication-frequency-model connection)
+     :subscribees           (get-subscribees-model connection)
+     :status                (get-status-model connection)
+     :status-aggregate      (get-status-aggregate-model connection)
+     :status-popularity     (get-status-popularity-model connection)
+     :subscriptions         (get-subscriptions-model connection)
+     :timely-status         (get-timely-status-model connection)
+     :tokens                (get-token-model connection)
+     :users                 (get-user-model connection)}))
 
 (defn get-entity-manager
   [config & [is-archive-connection]]
@@ -229,7 +234,7 @@
                                    " GROUP BY member_id") [screen-name]] :results)
         raw-subscriptions-ids (:subscription_ids (first results))
         subscriptions-ids (explode #"," raw-subscriptions-ids)]
-    {:member-subscriptions subscriptions-ids
+    {:member-subscriptions  subscriptions-ids
      :raw-subscriptions-ids raw-subscriptions-ids}))
 
 ;; Create table containing total subscriptions per member
@@ -257,26 +262,26 @@
         max-subscriptions (* 1 total-subscriptions)
         params [min-subscriptions max-subscriptions]
         select-members-query (str
-                  "SELECT SQL_CACHE                                     "
-                  "u.usr_twitter_username identifier,                   "
-                  "GROUP_CONCAT(                                        "
-                  "  FIND_IN_SET(                                       "
-                  "    subscription_id,                                 "
-                  "    (SELECT group_concat(DISTINCT subscription_id)   "
-                  "     FROM member_subscription)                       "
-                  "    )                                                "
-                  "  ) subscription_ids,                                "
-                  "u.total_subscriptions                                "
-                  "FROM member_subscription s, weaving_user u           "
-                  "WHERE u.usr_id = s.member_id                         "
-                  "AND total_subscriptions BETWEEN ? AND ?              "
-                  "AND s.member_id in (                                 "
-                  "   SELECT usr_id                                     "
-                  "   FROM weaving_user                                 "
-                  "   WHERE total_subscriptions > 0)                    "
-                  "AND total_subscriptions > 0                          "
-                  "GROUP BY member_id                                   "
-                  "LIMIT 50                                             ")
+                               "SELECT SQL_CACHE                                     "
+                               "u.usr_twitter_username identifier,                   "
+                               "GROUP_CONCAT(                                        "
+                               "  FIND_IN_SET(                                       "
+                               "    subscription_id,                                 "
+                               "    (SELECT group_concat(DISTINCT subscription_id)   "
+                               "     FROM member_subscription)                       "
+                               "    )                                                "
+                               "  ) subscription_ids,                                "
+                               "u.total_subscriptions                                "
+                               "FROM member_subscription s, weaving_user u           "
+                               "WHERE u.usr_id = s.member_id                         "
+                               "AND total_subscriptions BETWEEN ? AND ?              "
+                               "AND s.member_id in (                                 "
+                               "   SELECT usr_id                                     "
+                               "   FROM weaving_user                                 "
+                               "   WHERE total_subscriptions > 0)                    "
+                               "AND total_subscriptions > 0                          "
+                               "GROUP BY member_id                                   "
+                               "LIMIT 50                                             ")
         results (db/exec-raw [select-members-query params] :results)]
     results))
 
@@ -303,11 +308,11 @@
     results))
 
 (defn update-member-description-and-url
-  [{url :url
+  [{url         :url
     description :description
-    id :id} model]
+    id          :id} model]
   (db/update model
-             (db/set-fields {:url url
+             (db/set-fields {:url         url
                              :description description})
              (db/where {:usr_id id})))
 
@@ -342,7 +347,7 @@
                                        liked-statuses)
         liked-status-values (map snake-case-keys identified-liked-statuses)
         ids (map #(:id %) identified-liked-statuses)]
-    (if (pos? ( count ids))
+    (if (pos? (count ids))
       (do
         (try
           (db/insert model
@@ -354,26 +359,26 @@
 (defn update-min-favorite-id-for-member-having-id
   [min-favorite-id member-id model]
   (db/update model
-    (db/set-fields {:min_like_id min-favorite-id})
-    (db/where {:usr_id member-id})))
+             (db/set-fields {:min_like_id min-favorite-id})
+             (db/where {:usr_id member-id})))
 
 (defn update-max-favorite-id-for-member-having-id
   [max-favorite-id member-id model]
   (db/update model
-    (db/set-fields {:max_like_id max-favorite-id})
-    (db/where {:usr_id member-id})))
+             (db/set-fields {:max_like_id max-favorite-id})
+             (db/where {:usr_id member-id})))
 
 (defn update-min-status-id-for-member-having-id
   [min-status-id member-id model]
   (db/update model
-    (db/set-fields {:min_status_id min-status-id})
-    (db/where {:usr_id member-id})))
+             (db/set-fields {:min_status_id min-status-id})
+             (db/where {:usr_id member-id})))
 
 (defn update-max-status-id-for-member-having-id
   [max-status-id member-id model]
   (db/update model
-    (db/set-fields {:max_status_id max-status-id})
-    (db/where {:usr_id member-id})))
+             (db/set-fields {:max_status_id max-status-id})
+             (db/where {:usr_id member-id})))
 
 (defn find-member-by-twitter-id
   "Find a member by her / his twitter id"
@@ -448,21 +453,21 @@
   "Find a token which has not been frozen"
   [model]
   (first (-> (select-tokens model)
-    (db/where (and (= :type 1)
-                    (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                    (<= :frozen_until (db/sqlfn now))))
-    (db/select))))
+             (db/where (and (= :type 1)
+                            (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                            (<= :frozen_until (db/sqlfn now))))
+             (db/select))))
 
 (defn find-first-available-tokens-other-than
   "Find a token which has not been frozen"
   [consumer-keys model]
   (let [excluded-consumer-keys (if consumer-keys consumer-keys '("_"))
         first-available-token (first (-> (select-tokens model)
-                                (db/where (and
-                                            (= :type 1)
-                                            (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                                            (not-in :consumer_key excluded-consumer-keys)
-                                            (<= :frozen_until (db/sqlfn now))))
+                                         (db/where (and
+                                                     (= :type 1)
+                                                     (not= (db/sqlfn coalesce :consumer_key -1) -1)
+                                                     (not-in :consumer_key excluded-consumer-keys)
+                                                     (<= :frozen_until (db/sqlfn now))))
                                          (db/order :frozen_until :ASC)
                                          (db/select)))]
     first-available-token))
@@ -480,9 +485,9 @@
   [{:keys [member-id subscriptions-ids]} model]
   (let [ids (if subscriptions-ids subscriptions-ids '(0))]
     (-> (select-member-subscriptions model)
-                                   (db/where (and (= :member_id member-id)
-                                                  (in :subscription_id ids)))
-                                   (db/select))))
+        (db/where (and (= :member_id member-id)
+                       (in :subscription_id ids)))
+        (db/select))))
 
 (defn select-member-subscribees
   [model]
@@ -496,9 +501,9 @@
   [{:keys [member-id subscribees-ids]} model]
   (let [ids (if subscribees-ids subscribees-ids '(0))]
     (-> (select-member-subscribees model)
-                                   (db/where (and (= :member_id member-id)
-                                                  (in :subscribee_id ids)))
-                                   (db/select))))
+        (db/where (and (= :member_id member-id)
+                       (in :subscribee_id ids)))
+        (db/select))))
 
 (defn map-get-in
   "Return a map of values matching the provided key coerced to integers"
@@ -507,8 +512,8 @@
   (let [coerce #(if (number? %) % (Long/parseLong %))
         get-val #(get-in % [k])
         get-coerced #(try (-> % get-val coerce)
-         (catch Exception e (log/error (.getMessage e))))]
-     (map get-coerced coll)))
+                          (catch Exception e (log/error (.getMessage e))))]
+    (map get-coerced coll)))
 
 (defn deduce-ids-of-missing-members
   [matching-members ids]
@@ -527,59 +532,59 @@
   [{is-protected :is-protected
     is-suspended :is-suspended
     is-not-found :is-not-found
-    screen-name :screen-name
-    twitter-id :twitter-id}]
+    screen-name  :screen-name
+    twitter-id   :twitter-id}]
   (if (and
         (or is-not-found is-protected is-suspended)
         (not screen-name))
-      twitter-id
-      screen-name))
+    twitter-id
+    screen-name))
 
 (defn new-member
   [member members]
-  (let [{id :id
-         twitter-id :twitter-id
-         description :description
-         url :url
-         total-subscribees :total-subscribees
+  (let [{id                  :id
+         twitter-id          :twitter-id
+         description         :description
+         url                 :url
+         total-subscribees   :total-subscribees
          total-subscriptions :total-subscriptions
-         is-protected :is-protected
-         is-suspended :is-suspended
-         is-not-found :is-not-found} member
-         member-screen-name (screen-name-otherwise-twitter-id member)]
+         is-protected        :is-protected
+         is-suspended        :is-suspended
+         is-not-found        :is-not-found} member
+        member-screen-name (screen-name-otherwise-twitter-id member)]
 
     (cond
       (= 1 is-protected)
-        (log/info (str "About to cache protected member with twitter id #" twitter-id))
+      (log/info (str "About to cache protected member with twitter id #" twitter-id))
       (= 1 is-not-found)
-        (log/info (str "About to cache not found member with twitter id #" twitter-id))
+      (log/info (str "About to cache not found member with twitter id #" twitter-id))
       (= 1 is-suspended)
-        (log/info (str "About to cache suspended member with twitter id #" twitter-id))
+      (log/info (str "About to cache suspended member with twitter id #" twitter-id))
       :else
-        (log/info (str "About to cache member with twitter id #" twitter-id
-                    " and twitter screen mame \"" member-screen-name "\"")))
+      (log/info (str "About to cache member with twitter id #" twitter-id
+                     " and twitter screen mame \"" member-screen-name "\"")))
 
-      (try
-        (if id
-          (db/update members
-                     (db/set-fields {:not_found is-not-found
-                                     :suspended is-suspended
-                                     :protected is-protected})
-                     (db/where {:usr_id id}))
-          (db/insert members
-                     (db/values [{:usr_position_in_hierarchy 1    ; to discriminate test user from actual users
-                                  :usr_twitter_id twitter-id
-                                  :usr_twitter_username member-screen-name
-                                  :usr_status false
-                                  :usr_email (str "@" member-screen-name)
-                                  :description description
-                                  :url url
-                                  :not_found is-not-found
-                                  :suspended is-suspended
-                                  :protected is-protected
-                                  :total_subscribees total-subscribees
-                                  :total_subscriptions total-subscriptions}])))
-         (catch Exception e (log/error (.getMessage e))))
+    (try
+      (if id
+        (db/update members
+                   (db/set-fields {:not_found is-not-found
+                                   :suspended is-suspended
+                                   :protected is-protected})
+                   (db/where {:usr_id id}))
+        (db/insert members
+                   (db/values [{:usr_position_in_hierarchy 1 ; to discriminate test user from actual users
+                                :usr_twitter_id            twitter-id
+                                :usr_twitter_username      member-screen-name
+                                :usr_status                false
+                                :usr_email                 (str "@" member-screen-name)
+                                :description               description
+                                :url                       url
+                                :not_found                 is-not-found
+                                :suspended                 is-suspended
+                                :protected                 is-protected
+                                :total_subscribees         total-subscribees
+                                :total_subscriptions       total-subscriptions}])))
+      (catch Exception e (log/error (.getMessage e))))
 
     (find-member-by-id twitter-id members)))
 
@@ -608,21 +613,21 @@
         twitter-ids (map #(:usr_twitter_id %) deduped-values)]
     {:deduped-values deduped-values
      :members-values members-values
-     :twitter-ids twitter-ids}))
+     :twitter-ids    twitter-ids}))
 
 (defn find-members-from-props
   [members model]
-    (let [{members-values :members-values
-           twitter-ids :twitter-ids} (normalize-columns members)]
+  (let [{members-values :members-values
+         twitter-ids    :twitter-ids} (normalize-columns members)]
     (if (pos? (count members-values))
       (find-members-having-ids twitter-ids model))
-      '()))
+    '()))
 
 (defn bulk-insert-new-members
   [members model]
-    (let [{deduped-values :deduped-values
-           members-values :members-values
-           twitter-ids :twitter-ids} (normalize-columns members)]
+  (let [{deduped-values :deduped-values
+         members-values :members-values
+         twitter-ids    :twitter-ids} (normalize-columns members)]
     (if (pos? (count members-values))
       (do
         (try
@@ -641,13 +646,13 @@
 (defn create-member-subscribee-values
   [member-id]
   (fn [subscribee-id]
-    {:id              (uuid/to-string (uuid/v1))
-     :member_id       member-id
+    {:id            (uuid/to-string (uuid/v1))
+     :member_id     member-id
      :subscribee_id subscribee-id}))
 
 (defn ensure-subscriptions-exist-for-member-having-id
-  [{member-id :member-id
-    model     :model
+  [{member-id                          :member-id
+    model                              :model
     matching-subscriptions-members-ids :matching-members-ids}]
   (let [existing-member-subscriptions (find-member-subscriptions-by {:member-id         member-id
                                                                      :subscriptions-ids matching-subscriptions-members-ids}
@@ -661,13 +666,13 @@
                      " subscriptions for member having id #" member-id " are recorded."))
       (new-member-subscriptions missing-member-subscriptions model)
       (log/info (str (count missing-member-subscriptions)
-                   " subscriptions have been recorded successfully")))))
+                     " subscriptions have been recorded successfully")))))
 
 (defn ensure-subscribees-exist-for-member-having-id
-  [{member-id :member-id
-    model     :model
+  [{member-id                        :member-id
+    model                            :model
     matching-subscribees-members-ids :matching-members-ids}]
-  (let [existing-member-subscribees (find-member-subscribees-by {:member-id member-id
+  (let [existing-member-subscribees (find-member-subscribees-by {:member-id       member-id
                                                                  :subscribees-ids matching-subscribees-members-ids}
                                                                 model)
         existing-member-subscribees-ids (map #(:subscribee_id %) existing-member-subscribees)
@@ -679,6 +684,6 @@
                      " subscribees for member having id #" member-id " are recorded."))
       (new-member-subscribees missing-member-subscribees model)
       (log/info (str (count missing-member-subscribees)
-                 " subscribees have been recorded successfully")))))
+                     " subscribees have been recorded successfully")))))
 
 

@@ -2,10 +2,14 @@
   (:require [command.generate-timely-statuses :refer :all]
             [clojure.test :refer :all]))
 
+(defn ensure-timely-statuses-are-generated-for-week
+  [week]
+  (let [timely-statuses (generate-timely-statuses week 2018)]
+    (is (= (count timely-statuses) 0))))
+
 (deftest it-should-generate-timely-statuses
-  (loop [week 0]
-    (when (< week 52)
-      (let [timely-statuses (generate-timely-statuses week 2018)]
-        ; It should generate timely statuses from statuses
-        (is (= (count timely-statuses) 0)))
-      (recur (inc week)))))
+  (let [weeks (take 52 (iterate inc 0))]
+    (doall
+      (pmap
+        #(ensure-timely-statuses-are-generated-for-week %)
+        weeks))))
