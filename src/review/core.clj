@@ -31,6 +31,8 @@
         (consume-messages (keyword queue) total-messages parallel-consumers)
         (catch Exception e (log/error
                              (str "An error occurred with message: " (.getMessage e))))))
+    (= name "who-publish-the-most-for-each-day-of-week")
+    (who-publish-the-most-for-each-day-of-week)
     (= name "update-frequencies-of-publication-for-member-subscriptions")
     (let [[screen-name] args]
       (try

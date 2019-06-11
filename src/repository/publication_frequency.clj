@@ -22,21 +22,52 @@
   publication-frequency)
 
 (defn select-publication-frequencies
-  [model]
-  (->
-    (db/select* model)
-    (db/fields [:id]
-               [:member_id :member-id]
-               [:per_hour_of_day :per-hour-of-day]
-               [:per_day_of_week :per-day-of-week]
-               [:updated_at :updated-at])))
+  [model member-model]
+  (let [screen-name-col (get-column "usr_twitter_username" member-model)
+        total-subscribees-col (get-column "total_subscribees" member-model)
+        total-subscriptions-col (get-column "total_subscriptions" member-model)
+        max-status-id-col (get-column "max_status_id" member-model)
+        min-status-id-col (get-column "min_status_id" member-model)
+        not-found-col (get-column "not_found" member-model)
+        protected-col (get-column "protected" member-model)
+        suspended-col (get-column "suspended" member-model)
+        twitter-id-col (get-column "usr_twitter_id" member-model)
+        member-id-col (get-column "usr_id" member-model)]
+    (->
+      (db/select* model)
+      (db/fields [:id]
+                 [screen-name-col :screen-name]
+                 [twitter-id-col :twitter-id]
+                 [member-id-col :member-id]
+                 [total-subscribees-col :total-subscribees]
+                 [total-subscriptions-col :total-subscriptions]
+                 [max-status-id-col :max-status-id]
+                 [min-status-id-col :min-status-id]
+                 [not-found-col :not-found]
+                 [protected-col :protected]
+                 [suspended-col :suspended]
+                 [:per_hour_of_day :per-hour-of-day]
+                 [:per_day_of_week :per-day-of-week]
+                 [:updated_at :updated-at])
+      (db/join member-model (= member-id-col :member_id)))))
+
+(defn find-all-publication-frequencies
+  ([model member-model]
+   (try
+     (let [matching-records (-> (select-publication-frequencies model member-model)
+                                (db/select))]
+       (if matching-records
+         matching-records
+         '()))
+     (catch Exception e
+       (log/error (.getMessage e))))))
 
 (defn find-publication-frequencies-having-column-matching-values
   "Find frequencies of publication per day of week and hour or day which values of a given column
   can be found in collection passed as argument"
-  ([column values model]
+  ([column values model member-model]
    (let [values (if values values '(0))
-         matching-records (-> (select-publication-frequencies model)
+         matching-records (-> (select-publication-frequencies model member-model)
                               (db/where {column [in values]})
                               (db/select))]
      (if matching-records
@@ -44,11 +75,11 @@
        '()))))
 
 (defn find-publication-frequencies-by-ids
-  [ids model]
-  (find-publication-frequencies-having-column-matching-values :id ids model))
+  [ids model member-model]
+  (find-publication-frequencies-having-column-matching-values :id ids model member-model))
 
 (defn bulk-insert-from-props
-  [props model]
+  [props model member-model]
   (let [identified-props (pmap
                            #(assoc % :id (uuid/to-string
                                            (-> (uuid/v1) (uuid/v5 (:member-id %)))))
@@ -60,5 +91,5 @@
         (try
           (db/insert model (db/values snake-cased-props))
           (catch Exception e (log/error (.getMessage e))))
-        (find-publication-frequencies-by-ids publication-frequencies-ids model))
+        (find-publication-frequencies-by-ids publication-frequencies-ids model member-model))
       '())))
