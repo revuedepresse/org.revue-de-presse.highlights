@@ -49,24 +49,41 @@
       (catch Exception e
         (log/error (.getMessage e))))))
 
+(defn analyze-frequency-of-status-publication
+  ([{screen-name               :screen-name
+     week                      :week
+     model                     :publication-frequency-model
+     frequency-analysis-getter :frequency-analysis-getter}]
+   (let [finder (if (nil? week)
+                  #(find-statuses-by-screen-name screen-name model)
+                  #(find-statuses-by-week-and-author week screen-name))
+         frequency-analysis-getter (if (some? frequency-analysis-getter)
+                                     frequency-analysis-getter
+                                     get-publication-hour-frequency-analysis)
+         statuses (finder)
+         publication-frequency (frequency-analysis-getter statuses)
+         divider (apply max publication-frequency)
+         frequencies (map #(float (/ % divider)) publication-frequency)]
+     (println frequencies)
+     frequencies))
+  ([screen-name model]
+   (analyze-frequency-of-status-publication
+     {:screen-name                 screen-name
+      :publication-frequency-model model})))
+
 (defn analyze-frequency-of-status-publication-by-day-of-week
-  [screen-name model]
-  (let [statuses (find-statuses-by-screen-name screen-name model)
-        publication-frequency (get-publication-day-frequency-analysis statuses)
-        divider (apply max publication-frequency)
-        frequencies (map #(float (/ % divider)) publication-frequency)]
-    (println frequencies)
-    frequencies))
+  ([screen-name model]
+   (analyze-frequency-of-status-publication
+     {:screen-name                 screen-name
+      :publication-frequency-model model
+      :frequency-analysis-getter   get-publication-hour-frequency-analysis})))
 
 (defn analyze-frequency-of-status-publication-by-hour-of-day
-  [screen-name model]
-  (let [
-        statuses (find-statuses-by-screen-name screen-name model)
-        publication-frequency (get-publication-hour-frequency-analysis statuses)
-        divider (apply max publication-frequency)
-        frequencies (map #(float (/ % divider)) publication-frequency)]
-    (println frequencies)
-    frequencies))
+  ([screen-name model]
+   (analyze-frequency-of-status-publication
+     {:screen-name                 screen-name
+      :publication-frequency-model model
+      :frequency-analysis-getter   get-publication-day-frequency-analysis})))
 
 (defn update-member-publication-frequencies
   [screen-name models]
@@ -159,7 +176,7 @@
                                  (= 5 day-of-week) "saturday"
                                  (= 6 day-of-week) "sunday")]
                        (println (str
-                                  "@"  (:screen-name frequency-props)
+                                  "@" (:screen-name frequency-props)
                                   " published the most on " day))))
                    sorted-per-day-of-week-frequencies))
         _ (doall (map-indexed
@@ -168,7 +185,8 @@
                      (let [frequency-props (last sorted-frequencies)
                            hour (str "at " (mod (+ 2 hour-of-day) 24) " o'clock")]
                        (println (str
-                                  "@"  (:screen-name frequency-props)
+                                  "@
+                                  " (:screen-name frequency-props)
                                   " published the most " hour))))
                    sorted-per-hour-of-day-frequencies))]
     {:per-day-of-week-frequencies sorted-per-hour-of-day-frequencies
