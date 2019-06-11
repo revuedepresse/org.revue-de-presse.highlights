@@ -8,7 +8,7 @@
     ; Does the entity manager manager return
     ; a map of all the models?
     (is (map? models))
-    ; There are 13 models so far
+    ; There are 17 models so far
     ; some being duplicates of the same table
     ; representing the same data in distinct contexts
     (is (= 17 (count (keys models))))))
