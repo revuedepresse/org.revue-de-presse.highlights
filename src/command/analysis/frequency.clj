@@ -146,21 +146,30 @@
         sorted-per-hour-of-day-frequencies (map
                                              #(sort-by :per-hour-of-day %)
                                              per-hour-of-day-frequencies)
-        _ (doall (map
+        _ (doall (map-indexed
                    (fn
-                     [sorted-frequencies]
-                     (let [frequency-props (last sorted-frequencies)]
+                     [day-of-week sorted-frequencies]
+                     (let [frequency-props (last sorted-frequencies)
+                           day (cond
+                                 (= 0 day-of-week) "monday"
+                                 (= 1 day-of-week) "tuesday"
+                                 (= 2 day-of-week) "wednesday"
+                                 (= 3 day-of-week) "thursday"
+                                 (= 4 day-of-week) "friday"
+                                 (= 5 day-of-week) "saturday"
+                                 (= 6 day-of-week) "sunday")]
                        (println (str
-                                  "member \""  (:screen-name frequency-props)
-                                  "\" published the most on this day"))))
+                                  "@"  (:screen-name frequency-props)
+                                  " published the most on " day))))
                    sorted-per-day-of-week-frequencies))
-        _ (doall (map
+        _ (doall (map-indexed
                    (fn
-                     [sorted-frequencies]
-                     (let [frequency-props (last sorted-frequencies)]
+                     [hour-of-day sorted-frequencies]
+                     (let [frequency-props (last sorted-frequencies)
+                           hour (str "at " (mod (+ 2 hour-of-day) 24) " o'clock")]
                        (println (str
-                                  "member \""  (:screen-name frequency-props)
-                                  "\" published the most on this hour"))))
+                                  "@"  (:screen-name frequency-props)
+                                  " published the most " hour))))
                    sorted-per-hour-of-day-frequencies))]
     {:per-day-of-week-frequencies sorted-per-hour-of-day-frequencies
      :per-hour-of-day-frequencies sorted-per-day-of-week-frequencies}))
