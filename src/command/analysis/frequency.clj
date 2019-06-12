@@ -54,16 +54,17 @@
   [{frequency-analysis-getter :frequency-analysis-getter
     screen-name               :screen-name
     status-model              :status-model
+    year                      :year
     week                      :week}]
   (let [finder (if (nil? week)
                  #(find-statuses-by-screen-name screen-name status-model)
-                 #(find-statuses-by-week-and-author week screen-name))
+                 #(find-statuses-by-week-and-author week year screen-name))
         statuses (finder)
         publication-frequency (frequency-analysis-getter statuses)
         divider (apply + publication-frequency)
         publication-frequencies-percentage (if (zero? divider)
-                                           (map (constantly 0) publication-frequency)
-                                           (map #(float (/ % divider)) publication-frequency))
+                                             (map (constantly 0) publication-frequency)
+                                             (map #(float (/ % divider)) publication-frequency))
         frequencies {:publication-frequencies            publication-frequency
                      :publication-frequencies-percentage publication-frequencies-percentage}]
     (println frequencies)
@@ -73,6 +74,7 @@
   [{models      :models
     sample      :sample
     screen-name :screen-name
+    year        :year
     week        :week}]
   (let [{member-model                :members
          publication-frequency-model :publication-frequency
@@ -82,11 +84,13 @@
                                       {:frequency-analysis-getter get-publication-hour-frequency-analysis
                                        :screen-name               screen-name
                                        :status-model              status-model
+                                       :year                      year
                                        :week                      week})
         per-day-of-week-frequencies (analyze-frequency-of-status-publication
                                       {:frequency-analysis-getter get-publication-day-frequency-analysis
                                        :screen-name               screen-name
                                        :status-model              status-model
+                                       :year                      year
                                        :week                      week})
         props [{:per-hour-of-day            (json/write-str (:publication-frequencies per-hour-of-day-frequencies))
                 :per-day-of-week            (json/write-str (:publication-frequencies per-day-of-week-frequencies))
@@ -103,6 +107,7 @@
 
 (defn add-frequencies-of-publication-for-member-subscriptions
   [screen-name & [{sample-label :sample-label
+                   year         :year
                    week         :week}]]
   (let [{publication-frequency :publication-frequency
          member                :members
@@ -115,6 +120,7 @@
                  (add-member-publication-frequencies {:models      models
                                                       :sample      (first sample)
                                                       :screen-name (:screen-name %)
+                                                      :year        year
                                                       :week        week})
                  (catch Exception e
                    (log/error (.getMessage e))))

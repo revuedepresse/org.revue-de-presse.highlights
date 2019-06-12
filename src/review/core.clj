@@ -34,12 +34,14 @@
     (= name "who-publish-the-most-for-each-day-of-week")
     (who-publish-the-most-for-each-day-of-week)
     (= name "add-frequencies-of-publication-for-member-subscriptions")
-    (let [[screen-name sample-label week] args
-          week (Long/parseLong week)]
+    (let [[screen-name sample-label week year] args
+          week (Long/parseLong week)
+          year (Long/parseLong year)]
       (try
         (add-frequencies-of-publication-for-member-subscriptions
           screen-name
           {:sample-label sample-label
+           :year         year
            :week         week})
         (catch Exception e
           (log/error (.getMessage e)))))
