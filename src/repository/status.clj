@@ -111,8 +111,8 @@
           "ust_status_id AS `twitter-id`              "
           "FROM weaving_status                        "
           "WHERE ust_full_name = ?                    "
-          "AND WEEK(ust_created) = ?                  ")
-        params [week screen-name]
+          "AND WEEK(ust_created_at) = ?               ")
+        params [screen-name week]
         results (db/exec-raw [query params] :results)]
     (if (some? results)
       results

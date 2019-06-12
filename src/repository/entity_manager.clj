@@ -5,11 +5,12 @@
             [clj-uuid :as uuid])
   (:use [korma.db]
         [repository.aggregate]
+        [repository.analysis.sample]
+        [repository.analysis.publication-frequency]
         [repository.archived-status]
         [repository.keyword]
         [repository.database-schema]
         [repository.highlight]
-        [repository.publication-frequency]
         [repository.status]
         [repository.status-popularity]
         [repository.timely-status]
@@ -181,6 +182,7 @@
      :member-subscribees    (get-member-subscribees-model connection)
      :member-subscriptions  (get-member-subscriptions-model connection)
      :publication-frequency (get-publication-frequency-model connection)
+     :sample                (get-sample-model connection)
      :subscribees           (get-subscribees-model connection)
      :status                (get-status-model connection)
      :status-aggregate      (get-status-aggregate-model connection)

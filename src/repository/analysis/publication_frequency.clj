@@ -1,4 +1,4 @@
-(ns repository.publication-frequency
+(ns repository.analysis.publication-frequency
   (:require [korma.core :as db]
             [clj-uuid :as uuid]
             [clojure.tools.logging :as log])
@@ -16,6 +16,9 @@
                 (db/database connection)
                 (db/entity-fields
                   :member_id
+                  :sample_id
+                  :per_hour_of_day_percentage
+                  :per_day_of_week_percentage
                   :per_hour_of_day
                   :per_day_of_week
                   :updated_at))
@@ -48,6 +51,8 @@
                  [suspended-col :suspended]
                  [:per_hour_of_day :per-hour-of-day]
                  [:per_day_of_week :per-day-of-week]
+                 [:per_hour_of_day_percentage :per-hour-of-day-percentage]
+                 [:per_day_of_week_percentage :per-day-of-week-percentage]
                  [:updated_at :updated-at])
       (db/join member-model (= member-id-col :member_id)))))
 
