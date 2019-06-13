@@ -32,7 +32,8 @@
         (catch Exception e (log/error
                              (str "An error occurred with message: " (.getMessage e))))))
     (= name "who-publish-the-most-for-each-day-of-week")
-    (who-publish-the-most-for-each-day-of-week)
+    (let [[label] args]
+      (who-publish-the-most-for-each-day-of-week label))
     (= name "add-frequencies-of-publication-for-member-subscriptions")
     (let [[screen-name sample-label week year] args
           week (Long/parseLong week)

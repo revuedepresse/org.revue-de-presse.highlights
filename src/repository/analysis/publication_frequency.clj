@@ -25,7 +25,7 @@
   publication-frequency)
 
 (defn select-publication-frequencies
-  [model member-model]
+  [model member-model sample-model]
   (let [screen-name-col (get-column "usr_twitter_username" member-model)
         total-subscribees-col (get-column "total_subscribees" member-model)
         total-subscriptions-col (get-column "total_subscriptions" member-model)
@@ -35,10 +35,14 @@
         protected-col (get-column "protected" member-model)
         suspended-col (get-column "suspended" member-model)
         twitter-id-col (get-column "usr_twitter_id" member-model)
-        member-id-col (get-column "usr_id" member-model)]
+        member-id-col (get-column "usr_id" member-model)
+        sample-label-col (get-column "label" sample-model)
+        sample-id-col (get-column "id" sample-model)]
     (->
       (db/select* model)
       (db/fields [:id]
+                 [sample-label-col :sample-label]
+                 [sample-id-col :sample-id]
                  [screen-name-col :screen-name]
                  [twitter-id-col :twitter-id]
                  [member-id-col :member-id]
@@ -54,37 +58,45 @@
                  [:per_hour_of_day_percentage :per-hour-of-day-percentage]
                  [:per_day_of_week_percentage :per-day-of-week-percentage]
                  [:updated_at :updated-at])
-      (db/join member-model (= member-id-col :member_id)))))
-
-(defn find-all-publication-frequencies
-  ([model member-model]
-   (try
-     (let [matching-records (-> (select-publication-frequencies model member-model)
-                                (db/select))]
-       (if matching-records
-         matching-records
-         '()))
-     (catch Exception e
-       (log/error (.getMessage e))))))
+      (db/join member-model (= member-id-col :member_id))
+      (db/join sample-model (= sample-id-col :sample_id)))))
 
 (defn find-publication-frequencies-having-column-matching-values
   "Find frequencies of publication per day of week and hour or day which values of a given column
   can be found in collection passed as argument"
-  ([column values model member-model]
+  ([column values model member-model sample-model]
    (let [values (if values values '(0))
-         matching-records (-> (select-publication-frequencies model member-model)
+         matching-records (-> (select-publication-frequencies model member-model sample-model)
                               (db/where {column [in values]})
                               (db/select))]
      (if matching-records
        matching-records
        '()))))
 
+(defn find-publication-frequencies-by-label
+  ([label model member-model sample-model]
+   (let [sample-label-col (get-column "label" sample-model)]
+     (try
+       (find-publication-frequencies-having-column-matching-values
+         sample-label-col
+         [label]
+         model
+         member-model
+         sample-model)
+       (catch Exception e
+         (log/error (.getMessage e)))))))
+
 (defn find-publication-frequencies-by-ids
-  [ids model member-model]
-  (find-publication-frequencies-having-column-matching-values :id ids model member-model))
+  [ids model member-model sample-model]
+  (find-publication-frequencies-having-column-matching-values
+    :id
+    ids
+    model
+    member-model
+    sample-model))
 
 (defn bulk-insert-from-props
-  [props model member-model]
+  [props model member-model sample-model]
   (let [identified-props (pmap
                            #(assoc % :id (uuid/to-string
                                            (-> (uuid/v1) (uuid/v5 (:member-id %)))))
@@ -96,5 +108,5 @@
         (try
           (db/insert model (db/values snake-cased-props))
           (catch Exception e (log/error (.getMessage e))))
-        (find-publication-frequencies-by-ids publication-frequencies-ids model member-model))
+        (find-publication-frequencies-by-ids publication-frequencies-ids model member-model sample-model))
       '())))

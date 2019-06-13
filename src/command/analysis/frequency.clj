@@ -78,6 +78,7 @@
     week        :week}]
   (let [{member-model                :members
          publication-frequency-model :publication-frequency
+         sample-model                :sample
          status-model                :status} models
         member (first (find-member-by-screen-name screen-name member-model))
         per-hour-of-day-frequencies (analyze-frequency-of-status-publication
@@ -102,7 +103,8 @@
         frequencies (bulk-insert-from-props
                       props
                       publication-frequency-model
-                      member-model)]
+                      member-model
+                      sample-model)]
     frequencies))
 
 (defn add-frequencies-of-publication-for-member-subscriptions
@@ -152,12 +154,15 @@
   (map #(get-frequency-of-unit-for-member hour-of-day :per-hour-of-day %) decoded-publication-frequencies))
 
 (defn who-publish-the-most-for-each-day-of-week
-  []
+  [label]
   (let [{publication-frequency-model :publication-frequency
-         member-model                :members} (get-entity-manager (:database env))
-        publication-frequencies (find-all-publication-frequencies
+         member-model                :members
+         sample-model                :sample} (get-entity-manager (:database env))
+        publication-frequencies (find-publication-frequencies-by-label
+                                  label
                                   publication-frequency-model
-                                  member-model)
+                                  member-model
+                                  sample-model)
         decoded-publication-frequencies (map decode-publication-frequencies publication-frequencies)
         days-of-week (take 7 (iterate inc 0))
         hours-of-day (take 24 (iterate inc 0))
