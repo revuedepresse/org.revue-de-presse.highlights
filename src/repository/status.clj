@@ -97,6 +97,28 @@
       results
       '())))
 
+(defn find-statuses-by-week-and-author
+  [week year screen-name]
+  (let [query (str
+          "SELECT ust_id AS id,                       "
+          "ust_hash AS hash,                          "
+          "ust_text AS text,                          "
+          "ust_full_name AS `screen-name`,            "
+          "ust_name AS `name`,                        "
+          "ust_access_token AS `access-token`,        "
+          "ust_api_document AS `document`,            "
+          "ust_created_at AS `created-at`,            "
+          "ust_status_id AS `twitter-id`              "
+          "FROM weaving_status                        "
+          "WHERE ust_full_name = ?                    "
+          "AND WEEK(ust_created_at) = ?               "
+          "AND YEAR(ust_created_at) = ?               ")
+        params [screen-name week year]
+        results (db/exec-raw [query params] :results)]
+    (if (some? results)
+      results
+      '())))
+
 (defn insert-values-before-selecting-from-ids
   [values twitter-ids model]
   (if (pos? (count twitter-ids))

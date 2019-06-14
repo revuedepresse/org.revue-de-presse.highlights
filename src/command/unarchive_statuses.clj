@@ -7,7 +7,7 @@
         [repository.status]
         [repository.timely-status]
         [twitter.status]
-        [command.generate-timely-statuses]))
+        [command.collect-timely-statuses]))
 
 (defn unarchive-statuses
   [week year]

@@ -5,7 +5,7 @@
             [php_clj.core :refer [php->clj clj->php]])
   (:use [amqp.handling-errors]
         [amqp.status-handler]
-        [command.generate-timely-statuses]))
+        [command.collect-timely-statuses]))
 
 (defn wait-for-new-messages
   [channel queue auto-ack]

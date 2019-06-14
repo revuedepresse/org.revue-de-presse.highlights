@@ -9,7 +9,8 @@
   (:use [twitter.date]
         [repository.entity-manager]
         [repository.aggregate]
-        [repository.publication-frequency]
+        [repository.analysis.publication-frequency]
+        [repository.analysis.sample]
         [repository.status]))
 
 (defn inc-frequency-of-publication-for-day-of-week
@@ -49,54 +50,82 @@
       (catch Exception e
         (log/error (.getMessage e))))))
 
-(defn analyze-frequency-of-status-publication-by-day-of-week
-  [screen-name model]
-  (let [statuses (find-statuses-by-screen-name screen-name model)
-        publication-frequency (get-publication-day-frequency-analysis statuses)
-        divider (apply max publication-frequency)
-        frequencies (map #(float (/ % divider)) publication-frequency)]
+(defn analyze-frequency-of-status-publication
+  [{frequency-analysis-getter :frequency-analysis-getter
+    screen-name               :screen-name
+    status-model              :status-model
+    year                      :year
+    week                      :week}]
+  (let [finder (if (nil? week)
+                 #(find-statuses-by-screen-name screen-name status-model)
+                 #(find-statuses-by-week-and-author week year screen-name))
+        statuses (finder)
+        publication-frequency (frequency-analysis-getter statuses)
+        divider (apply + publication-frequency)
+        publication-frequencies-percentage (if (zero? divider)
+                                             (map (constantly 0) publication-frequency)
+                                             (map #(float (/ % divider)) publication-frequency))
+        frequencies {:publication-frequencies            publication-frequency
+                     :publication-frequencies-percentage publication-frequencies-percentage}]
     (println frequencies)
     frequencies))
 
-(defn analyze-frequency-of-status-publication-by-hour-of-day
-  [screen-name model]
-  (let [
-        statuses (find-statuses-by-screen-name screen-name model)
-        publication-frequency (get-publication-hour-frequency-analysis statuses)
-        divider (apply max publication-frequency)
-        frequencies (map #(float (/ % divider)) publication-frequency)]
-    (println frequencies)
-    frequencies))
-
-(defn update-member-publication-frequencies
-  [screen-name models]
+(defn add-member-publication-frequencies
+  [{models      :models
+    sample      :sample
+    screen-name :screen-name
+    year        :year
+    week        :week}]
   (let [{member-model                :members
          publication-frequency-model :publication-frequency
+         sample-model                :sample
          status-model                :status} models
         member (first (find-member-by-screen-name screen-name member-model))
-        per-hour-of-day-frequencies (analyze-frequency-of-status-publication-by-hour-of-day
-                                      screen-name
-                                      status-model)
-        per-day-of-week-frequencies (analyze-frequency-of-status-publication-by-day-of-week
-                                      screen-name
-                                      status-model)
-        props [{:per-hour-of-day (json/write-str per-hour-of-day-frequencies)
-                :per-day-of-week (json/write-str per-day-of-week-frequencies)
-                :updated-at      (f/unparse mysql-date-formatter (l/local-now))
-                :member-id       (:id member)}]
+        per-hour-of-day-frequencies (analyze-frequency-of-status-publication
+                                      {:frequency-analysis-getter get-publication-hour-frequency-analysis
+                                       :screen-name               screen-name
+                                       :status-model              status-model
+                                       :year                      year
+                                       :week                      week})
+        per-day-of-week-frequencies (analyze-frequency-of-status-publication
+                                      {:frequency-analysis-getter get-publication-day-frequency-analysis
+                                       :screen-name               screen-name
+                                       :status-model              status-model
+                                       :year                      year
+                                       :week                      week})
+        props [{:per-hour-of-day            (json/write-str (:publication-frequencies per-hour-of-day-frequencies))
+                :per-day-of-week            (json/write-str (:publication-frequencies per-day-of-week-frequencies))
+                :per-hour-of-day-percentage (json/write-str (:publication-frequencies-percentage per-hour-of-day-frequencies))
+                :per-day-of-week-percentage (json/write-str (:publication-frequencies-percentage per-day-of-week-frequencies))
+                :updated-at                 (f/unparse mysql-date-formatter (l/local-now))
+                :sample-id                  (:id sample)
+                :member-id                  (:id member)}]
         frequencies (bulk-insert-from-props
                       props
                       publication-frequency-model
-                      member-model)]
+                      member-model
+                      sample-model)]
     frequencies))
 
-(defn update-frequencies-of-publication-for-member-subscriptions
-  [screen-name]
-  (let [models (get-entity-manager (:database env))
+(defn add-frequencies-of-publication-for-member-subscriptions
+  [screen-name & [{sample-label :sample-label
+                   year         :year
+                   week         :week}]]
+  (let [{publication-frequency :publication-frequency
+         member                :members
+         sample                :sample :as models} (get-entity-manager (:database env))
+        sample (bulk-insert-sample [{:label sample-label}] sample member publication-frequency)
         aggregates (get-member-aggregates-by-screen-name screen-name)
         _ (doall
             (pmap
-              #(update-member-publication-frequencies (:screen-name %) models)
+              #(try
+                 (add-member-publication-frequencies {:models      models
+                                                      :sample      (first sample)
+                                                      :screen-name (:screen-name %)
+                                                      :year        year
+                                                      :week        week})
+                 (catch Exception e
+                   (log/error (.getMessage e))))
               aggregates))]))
 
 (defn decode-publication-frequencies
@@ -125,12 +154,15 @@
   (map #(get-frequency-of-unit-for-member hour-of-day :per-hour-of-day %) decoded-publication-frequencies))
 
 (defn who-publish-the-most-for-each-day-of-week
-  []
+  [label]
   (let [{publication-frequency-model :publication-frequency
-         member-model                :members} (get-entity-manager (:database env))
-        publication-frequencies (find-all-publication-frequencies
+         member-model                :members
+         sample-model                :sample} (get-entity-manager (:database env))
+        publication-frequencies (find-publication-frequencies-by-label
+                                  label
                                   publication-frequency-model
-                                  member-model)
+                                  member-model
+                                  sample-model)
         decoded-publication-frequencies (map decode-publication-frequencies publication-frequencies)
         days-of-week (take 7 (iterate inc 0))
         hours-of-day (take 24 (iterate inc 0))
@@ -146,21 +178,30 @@
         sorted-per-hour-of-day-frequencies (map
                                              #(sort-by :per-hour-of-day %)
                                              per-hour-of-day-frequencies)
-        _ (doall (map
+        _ (doall (map-indexed
                    (fn
-                     [sorted-frequencies]
-                     (let [frequency-props (last sorted-frequencies)]
+                     [day-of-week sorted-frequencies]
+                     (let [frequency-props (last sorted-frequencies)
+                           day (cond
+                                 (= 0 day-of-week) "monday"
+                                 (= 1 day-of-week) "tuesday"
+                                 (= 2 day-of-week) "wednesday"
+                                 (= 3 day-of-week) "thursday"
+                                 (= 4 day-of-week) "friday"
+                                 (= 5 day-of-week) "saturday"
+                                 (= 6 day-of-week) "sunday")]
                        (println (str
-                                  "member \""  (:screen-name frequency-props)
-                                  "\" published the most on this day"))))
+                                  "@" (:screen-name frequency-props)
+                                  " published the most on " day))))
                    sorted-per-day-of-week-frequencies))
-        _ (doall (map
+        _ (doall (map-indexed
                    (fn
-                     [sorted-frequencies]
-                     (let [frequency-props (last sorted-frequencies)]
+                     [hour-of-day sorted-frequencies]
+                     (let [frequency-props (last sorted-frequencies)
+                           hour (str "at " (mod (+ 2 hour-of-day) 24) " o'clock")]
                        (println (str
-                                  "member \""  (:screen-name frequency-props)
-                                  "\" published the most on this hour"))))
+                                  "@" (:screen-name frequency-props)
+                                  " published the most " hour))))
                    sorted-per-hour-of-day-frequencies))]
     {:per-day-of-week-frequencies sorted-per-hour-of-day-frequencies
      :per-hour-of-day-frequencies sorted-per-day-of-week-frequencies}))

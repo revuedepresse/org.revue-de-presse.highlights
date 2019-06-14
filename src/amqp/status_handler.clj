@@ -1,9 +1,11 @@
 (ns amqp.status-handler
-  (:require [clojure.tools.logging :as log])
+  (:require [clojure.tools.logging :as log]
+            [clj-time.format :as f])
   (:use [repository.entity-manager]
         [repository.aggregate]
         [amqp.handling-errors]
         [twitter.api-client]
+        [twitter.date]
         [twitter.status]))
 
 (defn get-next-batch-of-statuses-for-member
@@ -39,7 +41,7 @@
       statuses
       next-batch-of-statuses)))
 
-(defn update-max-status-id-for-member
+(defn update-status-related-props-for-member
   [member aggregate entity-manager]
   (let [screen-name (:screen-name member)
         member-model (:members entity-manager)
@@ -47,8 +49,11 @@
         member-id (:id member)
         latest-statuses (get-statuses-of-member {:screen-name screen-name} token-model)
         _ (cache-statuses-along-with-authors latest-statuses screen-name aggregate entity-manager)
-        latest-status-id (:id_str (first latest-statuses))]
-    (update-max-status-id-for-member-having-id latest-status-id member-id member-model)))
+        last-status (first latest-statuses)
+        latest-status-id (:id_str last-status)
+        latest-status-publication-date (:created_at last-status)
+        mysql-formatted-publication-date (f/unparse mysql-date-formatter (f/parse date-formatter latest-status-publication-date))]
+    (update-status-related-props-for-member-having-id latest-status-id mysql-formatted-publication-date member-id member-model)))
 
 (defn process-lists
   [{screen-name                   :screen-name
@@ -80,4 +85,4 @@
                         :aggregate-id                  aggregate-id
                         :entity-manager                entity-manager
                         :unavailable-aggregate-message unavailable-aggregate-message})
-        (update-max-status-id-for-member member aggregate entity-manager)))))
+        (update-status-related-props-for-member member aggregate entity-manager)))))

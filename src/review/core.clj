@@ -7,7 +7,7 @@
         [amqp.message-handler]
         [command.analysis.frequency]
         [command.generate-keywords]
-        [command.generate-timely-statuses]
+        [command.collect-timely-statuses]
         [command.update-members-props]
         [command.save-highlights]
         [command.recommend-subscriptions]
@@ -32,11 +32,18 @@
         (catch Exception e (log/error
                              (str "An error occurred with message: " (.getMessage e))))))
     (= name "who-publish-the-most-for-each-day-of-week")
-    (who-publish-the-most-for-each-day-of-week)
-    (= name "update-frequencies-of-publication-for-member-subscriptions")
-    (let [[screen-name] args]
+    (let [[label] args]
+      (who-publish-the-most-for-each-day-of-week label))
+    (= name "add-frequencies-of-publication-for-member-subscriptions")
+    (let [[screen-name sample-label week year] args
+          week (Long/parseLong week)
+          year (Long/parseLong year)]
       (try
-        (update-frequencies-of-publication-for-member-subscriptions screen-name)
+        (add-frequencies-of-publication-for-member-subscriptions
+          screen-name
+          {:sample-label sample-label
+           :year         year
+           :week         week})
         (catch Exception e
           (log/error (.getMessage e)))))
     (= name "recommend-subscriptions")
@@ -49,14 +56,14 @@
           year (Long/parseLong year)
           week (Long/parseLong week)]
       (unarchive-statuses week year))
-    (= name "generate-timely-statuses")
+    (= name "collect-timely-statuses")
     (let [[week year] args
           year (Long/parseLong year)
           week (Long/parseLong week)]
-      (generate-timely-statuses week year))
-    (= name "generate-timely-statuses-for-member-subscriptions")
+      (collect-timely-statuses week year))
+    (= name "collect-timely-statuses-for-member-subscriptions")
     (let [[member] args]
-      (generate-timely-statuses-for-member-subscriptions member))
+      (collect-timely-statuses-for-member-subscriptions member))
     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
     (let [[member] args]
       (consolidate-timely-statuses-from-subscriptions-for-member member))
