@@ -60,7 +60,7 @@ CREATE TABLE keyword (id CHAR(36) NOT NULL COMMENT '(DC2Type:uuid)', status_id I
 ALTER TABLE keyword ADD CONSTRAINT FK_5A93713B6BF700BD FOREIGN KEY (status_id) REFERENCES weaving_status (ust_id);
 ALTER TABLE keyword ADD CONSTRAINT FK_5A93713B7597D3FE FOREIGN KEY (member_id) REFERENCES weaving_user (usr_id);
 ALTER TABLE keyword ADD CONSTRAINT FK_5A93713BD0BBCCBE FOREIGN KEY (aggregate_id) REFERENCES weaving_aggregate (id);
-CREATE TABLE sample (id CHAR(36) NOT NULL COMMENT (DC2Type:uuid), `label` LONGTEXT NOT NULL, created_at DATETIME NOT NULL, INDEX sample_idx (id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE = InnoDB;
+CREATE TABLE sample (id CHAR(36) NOT NULL COMMENT '(DC2Type:uuid)', `label` LONGTEXT NOT NULL, created_at DATETIME NOT NULL, INDEX sample_idx (id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE = InnoDB;
 CREATE TABLE publication_frequency (id CHAR(36) NOT NULL COMMENT (DC2Type:uuid), member_id INT DEFAULT NULL, sample_id CHAR(36) DEFAULT NULL COMMENT (DC2Type:uuid), per_day_of_week LONGTEXT NOT NULL, per_hour_of_day LONGTEXT NOT NULL, per_day_of_week_percentage LONGTEXT NOT NULL, per_hour_of_day_percentage LONGTEXT NOT NULL, updated_at DATETIME NOT NULL, UNIQUE INDEX UNIQ_3A3CBE847597D3FE (member_id), INDEX IDX_3A3CBE841B1FEA20 (sample_id), INDEX frequency_index (member_id, sample_id, updated_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci ENGINE = InnoDB;
 ALTER TABLE publication_frequency ADD CONSTRAINT FK_3A3CBE847597D3FE FOREIGN KEY (member_id) REFERENCES weaving_user (usr_id);
 ALTER TABLE publication_frequency ADD CONSTRAINT FK_3A3CBE841B1FEA20 FOREIGN KEY (sample_id) REFERENCES sample (id);
