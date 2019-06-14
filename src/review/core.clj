@@ -7,7 +7,7 @@
         [amqp.message-handler]
         [command.analysis.frequency]
         [command.generate-keywords]
-        [command.generate-timely-statuses]
+        [command.collect-timely-statuses]
         [command.update-members-props]
         [command.save-highlights]
         [command.recommend-subscriptions]
@@ -56,14 +56,14 @@
           year (Long/parseLong year)
           week (Long/parseLong week)]
       (unarchive-statuses week year))
-    (= name "generate-timely-statuses")
+    (= name "collect-timely-statuses")
     (let [[week year] args
           year (Long/parseLong year)
           week (Long/parseLong week)]
-      (generate-timely-statuses week year))
-    (= name "generate-timely-statuses-for-member-subscriptions")
+      (collect-timely-statuses week year))
+    (= name "collect-timely-statuses-for-member-subscriptions")
     (let [[member] args]
-      (generate-timely-statuses-for-member-subscriptions member))
+      (collect-timely-statuses-for-member-subscriptions member))
     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
     (let [[member] args]
       (consolidate-timely-statuses-from-subscriptions-for-member member))

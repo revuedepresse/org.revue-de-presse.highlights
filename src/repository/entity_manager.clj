@@ -90,6 +90,9 @@
                   :usr_status
                   :description
                   :url
+                  :last_status_publication_date
+                  :max_like_id
+                  :min_like_id
                   :total_subscribees
                   :total_subscriptions))
   members)
@@ -376,10 +379,11 @@
              (db/set-fields {:min_status_id min-status-id})
              (db/where {:usr_id member-id})))
 
-(defn update-max-status-id-for-member-having-id
-  [max-status-id member-id model]
+(defn update-status-related-props-for-member-having-id
+  [max-status-id max-status-publication-date member-id model]
   (db/update model
-             (db/set-fields {:max_status_id max-status-id})
+             (db/set-fields {:max_status_id max-status-id
+                             :last_status_publication_date max-status-publication-date})
              (db/where {:usr_id member-id})))
 
 (defn find-member-by-twitter-id

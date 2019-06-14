@@ -1,4 +1,4 @@
-(ns command.generate-timely-statuses
+(ns command.collect-timely-statuses
   (:require
     [clj-time.core :as t]
     [clj-time.coerce :as c]
@@ -59,19 +59,19 @@
                                    (:member-name %) "\" (" (:id %) ")")) new-timely-statuses)))
     (cond
       (> total-timely-statuses 1)
-        (log/info (str total-timely-statuses " new timely statuses have been added for aggregate #" aggregate-id))
+      (log/info (str total-timely-statuses " new timely statuses have been added for aggregate #" aggregate-id))
       (= 1 total-timely-statuses)
-        (log/info (str total-timely-statuses " new timely status has been added for aggregate #" aggregate-id))
+      (log/info (str total-timely-statuses " new timely status has been added for aggregate #" aggregate-id))
       :else
-        (log/info (str "No new timely status has been added for aggregate #" aggregate-id)))
+      (log/info (str "No new timely status has been added for aggregate #" aggregate-id)))
     new-timely-statuses))
 
-(defn generate-timely-statuses
+(defn collect-timely-statuses
   ([week year]
    (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))]
-     (generate-timely-statuses {:week           week
-                                :year           year
-                                :aggregate-name press-aggregate-name})))
+     (collect-timely-statuses {:week           week
+                               :year           year
+                               :aggregate-name press-aggregate-name})))
   ([{year           :year
      week           :week
      aggregate-id   :aggregate-id
@@ -111,10 +111,25 @@
                      aggregates))]
     statuses))
 
-(defn generate-timely-statuses-for-member-subscriptions
+(defn parse-status-publication-date
+  [aggregate]
+  (let [prop :last-status-publication-date
+        publication-date (c/from-long (get aggregate prop))
+        aggregate (assoc (dissoc aggregate prop) prop publication-date)]
+    aggregate))
+
+(defn sort-by-status-publication-date
+  [aggregates]
+  (let [aggregates-having-parsed-publication-dates (pmap
+                                                     parse-status-publication-date
+                                                     aggregates)]
+    (sort-by :last-status-publication-date aggregates-having-parsed-publication-dates)))
+
+(defn collect-timely-statuses-for-member-subscriptions
   [member]
   (let [entity-manager (get-entity-manager (:database env))
         aggregates (get-member-aggregates-by-screen-name member)
+        sorted-aggregates (sort-by-status-publication-date aggregates)
         statuses (doall
                    (pmap
                      #(handle-list
@@ -122,7 +137,7 @@
                          :aggregate-id                  (:aggregate-id %)
                          :entity-manager                entity-manager
                          :unavailable-aggregate-message error-unavailable-aggregate})
-                     aggregates))]
+                     sorted-aggregates))]
     statuses))
 
 (defn generate-timely-statuses-for-member
@@ -179,7 +194,7 @@
         (< 0 total-new-statuses)
         (doall
           (pmap
-            #(generate-timely-statuses
+            #(collect-timely-statuses
                {:year           %
                 :aggregate-name aggregate-name
                 :aggregate-id   aggregate-id})
