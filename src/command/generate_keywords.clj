@@ -4,6 +4,7 @@
             [clojure.tools.logging :as log]
             [clojure.edn :as edn])
   (:use [repository.entity-manager]
+        [repository.aggregate]
         [repository.highlight]
         [repository.timely-status]
         [repository.keyword]
@@ -89,10 +90,28 @@
      new-keywords)))
 
 (defn generate-keywords-for-aggregate
-  [aggregate-name]
-  (let [models (get-entity-manager (:database env))
-        {status-model        :status
-         timely-status-model :timely-status} models
-        timely-statuses (find-timely-statuses-by-aggregate aggregate-name timely-status-model status-model)
+  [param & [models timely-status-finder]]
+  (let [models (if (some? models)
+                 models
+                 (get-entity-manager (:database env)))
+        timely-status-finder (if (some? timely-status-finder)
+                               timely-status-finder
+                               find-timely-statuses-by-aggregate-name)
+        timely-statuses (timely-status-finder param models)
         new-keywords (new-keywords-from-props timely-statuses models)]
     new-keywords))
+
+(defn generate-keywords-from-aggregate
+  [aggregate timely-status-finder models]
+  (let [aggregate-id (:aggregate-id aggregate)
+        aggregate-name (:aggregate-name aggregate)]
+    (println (str "About to generate keywords for \"" aggregate-name "\" aggregate"))
+    (generate-keywords-for-aggregate aggregate-id models timely-status-finder)))
+
+(defn generate-keywords-for-aggregates-sharing-name
+  [aggregate-name]
+  (let [models (get-entity-manager (:database env))
+        aggregates (get-aggregates-sharing-name aggregate-name)
+        _ (doall (map
+                   #(generate-keywords-from-aggregate % find-timely-statuses-by-aggregate-id models)
+                   aggregates))]))

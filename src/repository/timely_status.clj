@@ -164,26 +164,31 @@
      results)))
 
 (defn select-fields
-  [model status-model]
+  [model status-model member-model]
   (let [status-api-document-col (get-column "ust_api_document" status-model)
-        status-id-col (get-column "ust_id" status-model)]
+        status-id-col (get-column "ust_id" status-model)
+        member-id-col (get-column "usr_id" member-model)
+        member-name-col (get-column "usr_twitter_username" member-model)]
     (->
       (db/select* model)
       (db/fields :id
                  [status-api-document-col :status-api-document]
+                 [member-id-col :member-id]
                  [:aggregate_id :aggregate-id]
                  [:aggregate_name :aggregate-name]
                  [:member_name :member-name]
-                 [:member_id :member-id]
                  [:status_id :status-id]
                  [:publication_date_time :publication-date-time])
-      (db/join status-model (= status-id-col :status_id)))))
+      (db/join status-model (= status-id-col :status_id))
+      (db/join member-model (= member-name-col :member_name)))))
 
 (defn find-by-ids
   "Find timely statuses by their ids"
-  [timely-statuses-ids model status-model]
+  [timely-statuses-ids {model        :timely-status
+                        status-model :status
+                        member-model :members}]
   (let [ids (if timely-statuses-ids timely-statuses-ids '(0))
-        matching-statuses (-> (select-fields model status-model)
+        matching-statuses (-> (select-fields model status-model member-model)
                               (db/where {:id [in ids]})
                               (db/select))]
     (if matching-statuses
@@ -192,20 +197,24 @@
 
 (defn find-timely-statuses-by-constraints
   "Find timely statuses by ids of statuses or constraints"
-  ([constraints model status-model]
-   (let [{columns :columns
-          values  :values
+  ([constraints {model        :timely-status
+                 member-model :members
+                 status-model :status}]
+   (let [{columns        :columns
+          values         :values
           default-values :default-values} constraints
          constraining-values (if (pos? (count values)) values default-values)
-         matching-statuses (-> (select-fields model status-model)
+         matching-statuses (-> (select-fields model status-model member-model)
                                (db/where (in columns constraining-values))
                                (db/select))]
      (if matching-statuses
        matching-statuses
        '())))
-  ([statuses-ids aggregate-name model status-model]
+  ([statuses-ids aggregate-name {model        :timely-status
+                                 member-model :members
+                                 status-model :status}]
    (let [ids (if statuses-ids statuses-ids '(0))
-         matching-statuses (-> (select-fields model status-model)
+         matching-statuses (-> (select-fields model status-model member-model)
                                (db/where (and
                                            (= :aggregate_name aggregate-name)
                                            (in :status_id ids)))
@@ -214,16 +223,25 @@
        matching-statuses
        '()))))
 
-(defn find-timely-statuses-by-aggregate
-  [aggregate-name model status-model]
+(defn find-timely-statuses-by-aggregate-name
+  [aggregate-name models]
   (find-timely-statuses-by-constraints
-    {:columns [:aggregate_name]
+    {:columns        [:aggregate_name]
      :default-values '("")
-     :values [aggregate-name]} model status-model))
+     :values         [aggregate-name]} models))
+
+(defn find-timely-statuses-by-aggregate-id
+  [aggregate-id models]
+  (find-timely-statuses-by-constraints
+    {:columns        [:aggregate_id]
+     :default-values '("")
+     :values         [aggregate-id]} models))
 
 (defn find-last-timely-status-by-aggregate
-  [aggregate-id model status-model]
-  (let [matching-statuses (-> (select-fields model status-model)
+  [aggregate-id {model :timely-status
+                 status-model :status
+                 member-model :members}]
+  (let [matching-statuses (-> (select-fields model status-model member-model)
                               (db/where (= :aggregate_id aggregate-id))
                               (db/order :publication_date_time :DESC)
                               (db/limit 1)
@@ -231,7 +249,7 @@
     (first matching-statuses)))
 
 (defn bulk-insert
-  [timely-statuses model status-model]
+  [timely-statuses {model :timely-status :as models}]
   (let [snake-cased-values (pmap snake-case-keys timely-statuses)
         identified-props (pmap
                            #(assoc % :id (uuid/to-string
@@ -239,9 +257,9 @@
                            snake-cased-values)
         constraints (pmap #(apply list [(:status_id %) (:aggregate_name %)]) identified-props)
         existing-timely-statuses (find-timely-statuses-by-constraints
-                                   {:columns [:status_id :aggregate_name]
+                                   {:columns        [:status_id :aggregate_name]
                                     :default-values '((0 ""))
-                                    :values constraints} model status-model)
+                                    :values         constraints} models)
         existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
         deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
         filtered-props (remove #(clojure.set/subset? #{(:status_id %)} existing-statuses-id) deduplicated-props)
@@ -252,5 +270,5 @@
         (try
           (db/insert model (db/values filtered-props))
           (catch Exception e (log/error (.getMessage e))))
-        (find-by-ids ids model status-model))
+        (find-by-ids ids models))
       '())))

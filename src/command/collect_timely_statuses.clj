@@ -24,16 +24,15 @@
     (assoc status :time-range time-range)))
 
 (defn generate-timely-statuses-from-statuses-props
-  [{aggregate-name                :aggregate-name
-    ids                           :ids
-    {timely-status-model :timely-status
-     status-model        :status} :models} week year]
+  [{aggregate-name :aggregate-name
+    ids            :ids
+    models         :models} week year]
   (let [statuses (find-timely-statuses-props-for-aggregate ids)
-        find #(find-timely-statuses-by-constraints % aggregate-name timely-status-model status-model)
+        find #(find-timely-statuses-by-constraints % aggregate-name models)
         filtered-statuses (filter-out-known-statuses find statuses)
         statuses-props (pmap assoc-time-range filtered-statuses)
         _ (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        new-timely-statuses (bulk-insert statuses-props models)
         total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
@@ -47,12 +46,11 @@
     new-timely-statuses))
 
 (defn generate-timely-statuses-from-subscriptions-of-member
-  [{aggregate-id                  :aggregate-id
-    {timely-status-model :timely-status
-     status-model        :status} :models}]
+  [{aggregate-id :aggregate-id
+    models       :models}]
   (let [timely-statuses (find-missing-timely-statuses-from-aggregate aggregate-id)
         statuses-props (pmap assoc-time-range timely-statuses)
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        new-timely-statuses (bulk-insert statuses-props models)
         total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
@@ -198,9 +196,8 @@
   (when (not= 1 aggregate-id)
     (let [{member-model           :members
            status-model           :status
-           timely-status-model    :timely-status
            status-aggregate-model :status-aggregate
-           aggregate-model        :aggregate} entity-manager
+           aggregate-model        :aggregate :as models} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           aggregate-name (:name aggregate)
           member (first (find-member-by-screen-name screen-name member-model))
@@ -221,7 +218,7 @@
           since (t/year (c/from-long (:created-at first-status)))
           last-status (last statuses-sorted-by-date)
           until (t/year (c/from-long (:created-at last-status)))
-          last-timely-status (find-last-timely-status-by-aggregate aggregate-id timely-status-model status-model)
+          last-timely-status (find-last-timely-status-by-aggregate aggregate-id models)
           last-time-status-publication-year (t/year (c/from-long (:publication-date-time last-timely-status)))
           last-publication-year (if (< since last-time-status-publication-year)
                                   since

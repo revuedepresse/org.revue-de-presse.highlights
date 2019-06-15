@@ -75,11 +75,9 @@
       '())))
 
 (defn bulk-insert-new-keywords
-  [keywords
-   {member-model :members
-    model        :hashtag
-    status-model :status}
-   & [find-keywords]]
+  [keywords {member-model :members
+             model        :hashtag
+             status-model :status} & [find-keywords]]
   (let [snake-cased-values (map snake-case-keys keywords)
         identified-props (pmap
                            #(assoc % :id (uuid/to-string

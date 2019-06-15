@@ -85,6 +85,9 @@
     (= name "generate-keywords-for-aggregate")
     (let [[aggregate-name] args]
       (generate-keywords-for-aggregate aggregate-name))
+    (= name "generate-keywords-for-aggregates-sharing-name")
+    (let [[aggregate-name] args]
+      (generate-keywords-for-aggregates-sharing-name aggregate-name))
     (= name "record-popularity-of-highlights")
     (let [[date] args]
       (record-popularity-of-highlights date))

@@ -82,6 +82,12 @@ lein run generate-keywords-from-statuses `date -I`
 lein run generate-keywords-for-aggregate aggregate_name
 ```
 
+## How to generate keywords for aggregates sharing a name
+
+```
+lein run generate-keywords-for-aggregates-sharing-name aggregate_name
+```
+
 ### How to unarchive statuses from a database to another?
 
 ```
