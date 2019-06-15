@@ -140,11 +140,12 @@
                      sorted-aggregates))]
     statuses))
 
-(defn collect-timely-statuses-from-aggregates
-  []
-  (let [entity-manager (get-entity-manager (:database env))
-        aggregates (get-all-member-aggregates)
-        sorted-aggregates (sort-by-status-publication-date aggregates)
+(defn collect-timely-statuses-for-aggregate-having-prefix
+  [prefix entity-manager]
+  (let [aggregates (get-aggregates-having-name-prefix prefix)
+        aggregates-grouped-by-screen-name (group-by #(:member-name %) aggregates)
+        sortable-aggregates (pmap #(first (last %)) aggregates-grouped-by-screen-name)
+        sorted-aggregates (sort-by-status-publication-date sortable-aggregates)
         statuses (doall
                    (pmap
                      #(handle-list
@@ -154,6 +155,15 @@
                          :unavailable-aggregate-message error-unavailable-aggregate})
                      sorted-aggregates))]
     statuses))
+
+(defn collect-timely-statuses-from-aggregates
+  []
+  (let [alphabet (map char (range 97 123))
+        entity-manager (get-entity-manager (:database env))
+        _ (doall
+            (map
+              #(collect-timely-statuses-for-aggregate-having-prefix % entity-manager)
+              alphabet))]))
 
 (defn collect-timely-statuses-for-member
   [member]

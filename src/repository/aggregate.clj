@@ -139,8 +139,8 @@
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
-(defn get-all-member-aggregates
-  []
+(defn get-aggregates-having-name-prefix
+  [prefix]
   (let [query (str "
                 SELECT
                 member.usr_id as `member-id`,
@@ -162,15 +162,19 @@
                       FROM weaving_aggregate a
                       WHERE screen_name IS NULL
                       AND a.name NOT LIKE 'user ::%'
+                      AND a.name LIKE ?
                   )
                   GROUP BY aggregate_id
                 ) selection
                 INNER JOIN weaving_user member
                 ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
+                AND member.protected = 0
+                AND member.suspended = 0
+                AND member.not_found = 0
                 INNER JOIN weaving_aggregate a
                 ON a.id = selection.aggregate_id
                 ")
-        results (db/exec-raw [query []] :results)]
+        results (db/exec-raw [query [(str prefix "%")]] :results)]
     results))
 
 (defn get-member-aggregate
