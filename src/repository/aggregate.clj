@@ -4,6 +4,7 @@
   (:use [korma.db]
         [utils.string]
         [repository.database-schema]
+        [repository.query-executor]
         [twitter.status-hash]))
 
 (declare aggregate status-aggregate)
@@ -139,6 +140,39 @@
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
+(defn get-duplicated-aggregates
+  []
+  (let [query (str "
+                SELECT
+                a.id,
+                a.name,
+                a.screen_name
+                FROM weaving_aggregate a
+                WHERE (a.name, a.screen_name) IN (
+                  SELECT
+                  selection.name,
+                  selection.screen_name
+                  FROM (
+                    SELECT
+                    COUNT(*) count_,
+                    aggregate.name,
+                    aggregate.screen_name
+                    FROM weaving_aggregate aggregate
+                    WHERE screen_name IS NOT NULL
+                    GROUP BY name, screen_name
+                    HAVING count_ > 1
+                  ) selection
+                ) AND a.screen_name IS NOT NULL
+                AND a.id IN (
+                  SELECT aggregate_id FROM weaving_status_aggregate
+                )
+                AND (a.id, a.screen_name) NOT IN (
+                  SELECT aggregate_id, member_name FROM liked_status
+                )
+                ")
+        results (db/exec-raw [query []] :results)]
+    results))
+
 (defn get-member-aggregate
   [screen-name]
   (let [query (str
@@ -153,5 +187,5 @@
                 "AND aggregate.screen_name IS NOT NULL                                  "
                 "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)   "
                 "AND member.usr_twitter_username = ?                                    ")
-        results (db/exec-raw [query [screen-name]] :results)]
+        results (exec-query [query [screen-name]] :results)]
     (first results)))
