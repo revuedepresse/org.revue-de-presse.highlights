@@ -52,21 +52,21 @@
   (let [{status-model  :status
          member-model  :members
          keyword-model :hashtag} models
-        statuses-ids (map :status-id props)
+        statuses-ids (pmap :status-id props)
         matching-keywords (find-keywords-for-statuses-ids
                             statuses-ids
                             keyword-model
                             member-model
                             status-model)
-        matching-statuses-ids (map #(:status-id %) matching-keywords)
+        matching-statuses-ids (pmap #(:status-id %) matching-keywords)
         remaining-props (remove
                           #(clojure.set/subset?
                              #{(:status-id %)}
                              (set matching-statuses-ids))
                           props)
-        keyword-collection (flatten (doall (map (from-highlight) remaining-props)))
+        keyword-collection (flatten (pmap (from-highlight) remaining-props))
         grouped-keywords (group-by #(str (:status-id %) "-" (:keyword %)) keyword-collection)
-        counted-keywords (doall (map assoc-occurrences grouped-keywords))
+        counted-keywords (pmap assoc-occurrences grouped-keywords)
         new-keywords (bulk-insert-new-keywords
                        counted-keywords
                        models
@@ -104,14 +104,15 @@
 (defn generate-keywords-from-aggregate
   [aggregate timely-status-finder models]
   (let [aggregate-id (:aggregate-id aggregate)
-        aggregate-name (:aggregate-name aggregate)]
-    (println (str "About to generate keywords for \"" aggregate-name "\" aggregate"))
+        aggregate-name (:aggregate-name aggregate)
+        screen-name (:screen-name aggregate)]
+    (println (str "About to generate keywords for \"" aggregate-name "\" (" screen-name ") aggregate"))
     (generate-keywords-for-aggregate aggregate-id models timely-status-finder)))
 
 (defn generate-keywords-for-aggregates-sharing-name
   [aggregate-name]
   (let [models (get-entity-manager (:database env))
         aggregates (get-aggregates-sharing-name aggregate-name)
-        _ (doall (map
+        _ (doall (pmap
                    #(generate-keywords-from-aggregate % find-timely-statuses-by-aggregate-id models)
                    aggregates))]))

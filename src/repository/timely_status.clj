@@ -234,7 +234,7 @@
   [aggregate-id models]
   (find-timely-statuses-by-constraints
     {:columns        [:aggregate_id]
-     :default-values '("")
+     :default-values '(0)
      :values         [aggregate-id]} models))
 
 (defn find-last-timely-status-by-aggregate

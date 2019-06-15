@@ -140,7 +140,7 @@
     results))
 
 (defn select-aggregates-where
-  [pattern]
+  [pattern & [additional-constraints]]
   (str "
       SELECT
       member.usr_id as `member-id`,
@@ -160,7 +160,8 @@
             SELECT
             a.id as `aggregate-id`
             FROM weaving_aggregate a
-            WHERE screen_name IS NULL
+            WHERE 1
+            " additional-constraints "
             AND a.name NOT LIKE 'user ::%'
             AND a.name " pattern "
         )
@@ -176,13 +177,17 @@
 
 (defn get-aggregates-having-name-prefix
   [prefix]
-  (let [query (select-aggregates-where "LIKE ?")
+  (let [query (select-aggregates-where "LIKE ?" "AND a.screen_name IS NULL")
         results (db/exec-raw [query [(str prefix "%")]] :results)]
     results))
 
 (defn get-aggregates-sharing-name
   [name]
-  (let [query (select-aggregates-where "= ?")
+  (let [query (select-aggregates-where
+                "= ?"
+                (str "
+                  AND a.screen_name = s.ust_full_name
+                  AND a.screen_name IS NOT NULL"))
         results (db/exec-raw [query [name]] :results)]
     results))
 
