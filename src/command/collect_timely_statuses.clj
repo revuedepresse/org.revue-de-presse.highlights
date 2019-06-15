@@ -140,7 +140,7 @@
                      sorted-aggregates))]
     statuses))
 
-(defn generate-timely-statuses-for-member
+(defn collect-timely-statuses-for-member
   [member]
   (let [entity-manager (get-entity-manager (:database env))
         aggregate (get-member-aggregate member)

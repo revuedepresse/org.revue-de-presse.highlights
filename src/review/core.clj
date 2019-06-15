@@ -67,9 +67,9 @@
     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
     (let [[member] args]
       (consolidate-timely-statuses-from-subscriptions-for-member member))
-    (= name "generate-timely-statuses-for-member")
+    (= name "collect-timely-statuses-for-member")
     (let [[member] args]
-      (generate-timely-statuses-for-member member))
+      (collect-timely-statuses-for-member member))
     (= name "generate-keywords-from-statuses")
     (let [[date] args]
       (if (> (count args) 1)

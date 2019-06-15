@@ -83,6 +83,12 @@ lein run generate-keywords-from-statuses `date -I`
 /bin/bash -c 'for week in `seq 0 52`; do lein run unarchive-statuses $week 2018; done;'
 ```
 
+### How to collect statuses of a member?
+
+```
+lein run collect-timely-statuses-for-member twitter_handle
+```
+
 ### How to collect statuses from subscriptions of a member?
 
 ```
