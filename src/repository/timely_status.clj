@@ -174,6 +174,7 @@
                  [:aggregate_id :aggregate-id]
                  [:aggregate_name :aggregate-name]
                  [:member_name :member-name]
+                 [:member_id :member-id]
                  [:status_id :status-id]
                  [:publication_date_time :publication-date-time])
       (db/join status-model (= status-id-col :status_id)))))
@@ -189,8 +190,8 @@
       matching-statuses
       '())))
 
-(defn find-by-statuses-ids
-  "Find timely statuses by their ids"
+(defn find-timely-statuses-by-constraints
+  "Find timely statuses by ids of statuses or constraints"
   ([constraints model status-model]
    (let [{columns :columns
           values  :values
@@ -213,6 +214,13 @@
        matching-statuses
        '()))))
 
+(defn find-timely-statuses-by-aggregate
+  [aggregate-name model status-model]
+  (find-timely-statuses-by-constraints
+    {:columns [:aggregate_name]
+     :default-values '("")
+     :values [aggregate-name]} model status-model))
+
 (defn find-last-timely-status-by-aggregate
   [aggregate-id model status-model]
   (let [matching-statuses (-> (select-fields model status-model)
@@ -230,7 +238,7 @@
                                            (-> (uuid/v1) (uuid/v5 (:aggregate_name %)))))
                            snake-cased-values)
         constraints (pmap #(apply list [(:status_id %) (:aggregate_name %)]) identified-props)
-        existing-timely-statuses (find-by-statuses-ids
+        existing-timely-statuses (find-timely-statuses-by-constraints
                                    {:columns [:status_id :aggregate_name]
                                     :default-values '((0 ""))
                                     :values constraints} model status-model)

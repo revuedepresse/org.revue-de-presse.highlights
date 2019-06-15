@@ -29,7 +29,7 @@
     {timely-status-model :timely-status
      status-model        :status} :models} week year]
   (let [statuses (find-timely-statuses-props-for-aggregate ids)
-        find #(find-by-statuses-ids % aggregate-name timely-status-model status-model)
+        find #(find-timely-statuses-by-constraints % aggregate-name timely-status-model status-model)
         filtered-statuses (filter-out-known-statuses find statuses)
         statuses-props (pmap assoc-time-range filtered-statuses)
         _ (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
@@ -140,9 +140,13 @@
                      sorted-aggregates))]
     statuses))
 
-(defn collect-timely-statuses-for-aggregate-having-prefix
-  [prefix entity-manager]
-  (let [aggregates (get-aggregates-having-name-prefix prefix)
+(defn collect-timely-statuses-for-aggregates-matching-pattern
+  [param entity-manager & [aggregate-getter]]
+  (let [getter (if
+                 (some? aggregate-getter)
+                 aggregate-getter
+                 get-aggregates-having-name-prefix)
+        aggregates (getter param)
         aggregates-grouped-by-screen-name (group-by #(:member-name %) aggregates)
         sortable-aggregates (pmap #(first (last %)) aggregates-grouped-by-screen-name)
         sorted-aggregates (sort-by-status-publication-date sortable-aggregates)
@@ -162,8 +166,16 @@
         entity-manager (get-entity-manager (:database env))
         _ (doall
             (map
-              #(collect-timely-statuses-for-aggregate-having-prefix % entity-manager)
+              #(collect-timely-statuses-for-aggregates-matching-pattern % entity-manager)
               alphabet))]))
+
+(defn collect-timely-statuses-from-aggregate
+  [aggregate-name]
+  (let [entity-manager (get-entity-manager (:database env))
+        _ (collect-timely-statuses-for-aggregates-matching-pattern
+            aggregate-name
+            entity-manager
+            get-aggregates-sharing-name)]))
 
 (defn collect-timely-statuses-for-member
   [member]

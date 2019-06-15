@@ -139,42 +139,51 @@
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
+(defn select-aggregates-where
+  [pattern]
+  (str "
+      SELECT
+      member.usr_id as `member-id`,
+      member.usr_twitter_username as `screen-name`,
+      member.usr_twitter_username as `member-name`,
+      a.id as `aggregate-id`,
+      a.name as `aggregate-name`,
+      member.last_status_publication_date as `last-status-publication-date`
+      FROM (
+        SELECT
+        sa.aggregate_id,
+        GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
+        FROM weaving_status_aggregate sa
+        INNER JOIN weaving_status s
+        ON s.ust_id = sa.status_id
+        WHERE aggregate_id IN (
+            SELECT
+            a.id as `aggregate-id`
+            FROM weaving_aggregate a
+            WHERE screen_name IS NULL
+            AND a.name NOT LIKE 'user ::%'
+            AND a.name " pattern "
+        )
+        GROUP BY aggregate_id
+      ) selection
+      INNER JOIN weaving_user member
+      ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
+      AND member.protected = 0
+      AND member.suspended = 0
+      AND member.not_found = 0
+      INNER JOIN weaving_aggregate a
+      ON a.id = selection.aggregate_id"))
+
 (defn get-aggregates-having-name-prefix
   [prefix]
-  (let [query (str "
-                SELECT
-                member.usr_id as `member-id`,
-                member.usr_twitter_username as `screen-name`,
-                member.usr_twitter_username as `member-name`,
-                a.id as `aggregate-id`,
-                a.name as `aggregate-name`,
-                member.last_status_publication_date as `last-status-publication-date`
-                FROM (
-                  SELECT
-                  sa.aggregate_id,
-                  GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
-                  FROM weaving_status_aggregate sa
-                  INNER JOIN weaving_status s
-                  ON s.ust_id = sa.status_id
-                  WHERE aggregate_id IN (
-                      SELECT
-                      a.id as `aggregate-id`
-                      FROM weaving_aggregate a
-                      WHERE screen_name IS NULL
-                      AND a.name NOT LIKE 'user ::%'
-                      AND a.name LIKE ?
-                  )
-                  GROUP BY aggregate_id
-                ) selection
-                INNER JOIN weaving_user member
-                ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
-                AND member.protected = 0
-                AND member.suspended = 0
-                AND member.not_found = 0
-                INNER JOIN weaving_aggregate a
-                ON a.id = selection.aggregate_id
-                ")
+  (let [query (select-aggregates-where "LIKE ?")
         results (db/exec-raw [query [(str prefix "%")]] :results)]
+    results))
+
+(defn get-aggregates-sharing-name
+  [name]
+  (let [query (select-aggregates-where "= ?")
+        results (db/exec-raw [query [name]] :results)]
     results))
 
 (defn get-member-aggregate

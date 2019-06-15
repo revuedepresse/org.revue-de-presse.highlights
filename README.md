@@ -76,6 +76,12 @@ lein run record-popularity-of-highlights `date -I`
 lein run generate-keywords-from-statuses `date -I`
 ```
 
+## How to generate keywords for an aggregate
+
+```
+lein run generate-keywords-for-aggregate aggregate_name
+```
+
 ### How to unarchive statuses from a database to another?
 
 ```
@@ -93,6 +99,12 @@ lein run collect-timely-statuses-for-member twitter_handle
 
 ```
 lein run collect-timely-statuses-for-member-subscriptions twitter_handle
+```
+
+### How to collect status from aggregates sharing a name?
+
+```
+lein run collect-timely-statuses-from-aggregate aggregate_name
 ```
 
 ## Tests

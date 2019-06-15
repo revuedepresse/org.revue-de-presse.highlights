@@ -5,6 +5,7 @@
   (:use [korma.db]
         [utils.string]
         [repository.database-schema]
+        [repository.query-executor]
         [twitter.status-hash]))
 
 (declare hashtag)
@@ -74,7 +75,11 @@
       '())))
 
 (defn bulk-insert-new-keywords
-  [keywords model member-model status-model]
+  [keywords
+   {member-model :members
+    model        :hashtag
+    status-model :status}
+   & [find-keywords]]
   (let [snake-cased-values (map snake-case-keys keywords)
         identified-props (pmap
                            #(assoc % :id (uuid/to-string
@@ -82,9 +87,9 @@
                            snake-cased-values)
         ids (map #(:id %) identified-props)]
     (if (pos? (count ids))
-      (do
-        (try
-          (db/insert model (db/values identified-props))
-          (catch Exception e (log/error (.getMessage e))))
-        (find-keywords-having-ids ids model member-model status-model))
+      (bulk-insert-and-find-on-condition
+        identified-props
+        model
+        (when (some? find-keywords)
+          #((find-keywords-having-ids ids model member-model status-model))))
       '())))
