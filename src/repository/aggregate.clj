@@ -126,7 +126,6 @@
                 "weaving_user subscription,                                                  "
                 "weaving_aggregate aggregate                                                 "
                 "WHERE aggregate.screen_name = subscription.usr_twitter_username             "
-                "AND aggregate.id IN (SELECT aggregate_id FROM weaving_status_aggregate)     "
                 "AND aggregate.name like 'user :: %'                                         "
                 "AND aggregate.screen_name IS NOT NULL                                       "
                 "AND member_subscription.member_id = member.usr_id                           "
@@ -140,35 +139,36 @@
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
-(defn get-duplicated-aggregates
+(defn get-all-member-aggregates
   []
   (let [query (str "
                 SELECT
-                a.id,
-                a.name,
-                a.screen_name
-                FROM weaving_aggregate a
-                WHERE (a.name, a.screen_name) IN (
+                member.usr_id as `member-id`,
+                member.usr_twitter_username as `screen-name`,
+                member.usr_twitter_username as `member-name`,
+                a.id as `aggregate-id`,
+                a.name as `aggregate-name`,
+                member.last_status_publication_date as `last-status-publication-date`
+                FROM (
                   SELECT
-                  selection.name,
-                  selection.screen_name
-                  FROM (
-                    SELECT
-                    COUNT(*) count_,
-                    aggregate.name,
-                    aggregate.screen_name
-                    FROM weaving_aggregate aggregate
-                    WHERE screen_name IS NOT NULL
-                    GROUP BY name, screen_name
-                    HAVING count_ > 1
-                  ) selection
-                ) AND a.screen_name IS NOT NULL
-                AND a.id IN (
-                  SELECT aggregate_id FROM weaving_status_aggregate
-                )
-                AND (a.id, a.screen_name) NOT IN (
-                  SELECT aggregate_id, member_name FROM liked_status
-                )
+                  sa.aggregate_id,
+                  GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
+                  FROM weaving_status_aggregate sa
+                  INNER JOIN weaving_status s
+                  ON s.ust_id = sa.status_id
+                  WHERE aggregate_id IN (
+                      SELECT
+                      a.id as `aggregate-id`
+                      FROM weaving_aggregate a
+                      WHERE screen_name IS NULL
+                      AND a.name NOT LIKE 'user ::%'
+                  )
+                  GROUP BY aggregate_id
+                ) selection
+                INNER JOIN weaving_user member
+                ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
+                INNER JOIN weaving_aggregate a
+                ON a.id = selection.aggregate_id
                 ")
         results (db/exec-raw [query []] :results)]
     results))

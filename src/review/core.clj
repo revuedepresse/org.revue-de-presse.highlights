@@ -64,6 +64,8 @@
     (= name "collect-timely-statuses-for-member-subscriptions")
     (let [[member] args]
       (collect-timely-statuses-for-member-subscriptions member))
+    (= name "collect-timely-statuses-from-aggregates")
+    (collect-timely-statuses-from-aggregates)
     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
     (let [[member] args]
       (consolidate-timely-statuses-from-subscriptions-for-member member))
