@@ -48,10 +48,13 @@
     keyword-props))
 
 (defn new-keywords-from-props
-  [props models & [find-keywords]]
+  [props models & [log-message find-keywords]]
   (let [{status-model  :status
          member-model  :members
          keyword-model :hashtag} models
+        log-message-ending (if (some? log-message)
+                             log-message
+                             "")
         statuses-ids (pmap :status-id props)
         matching-keywords (find-keywords-for-statuses-ids
                             statuses-ids
@@ -67,12 +70,12 @@
         keyword-collection (flatten (pmap (from-highlight) remaining-props))
         grouped-keywords (group-by #(str (:status-id %) "-" (:keyword %)) keyword-collection)
         counted-keywords (pmap assoc-occurrences grouped-keywords)
-        new-keywords (bulk-insert-new-keywords
-                       counted-keywords
-                       models
-                       find-keywords)]
-    (log/info (str (count counted-keywords) " keywords have been generated"))
-    new-keywords))
+        _ (bulk-insert-new-keywords
+            counted-keywords
+            models
+            find-keywords)]
+    (log/info (str (count counted-keywords) " keywords have been generated " log-message-ending))
+    counted-keywords))
 
 (defn generate-keywords-for-all-aggregates
   ([date]
@@ -86,11 +89,15 @@
                                                                            :aggregate-name press-aggregate-name
                                                                            :not-in         true
                                                                            :models         models})
-         new-keywords (new-keywords-from-props highlights models :find-keywords)]
+         new-keywords (new-keywords-from-props
+                        highlights
+                        models
+                        (str "for \"" press-aggregate-name "\"")
+                        :find-keywords)]
      new-keywords)))
 
 (defn generate-keywords-for-aggregate
-  [param & [models timely-status-finder]]
+  [param & [models timely-status-finder log-message-ending]]
   (let [models (if (some? models)
                  models
                  (get-entity-manager (:database env)))
@@ -98,16 +105,20 @@
                                timely-status-finder
                                find-timely-statuses-by-aggregate-name)
         timely-statuses (timely-status-finder param models)
-        new-keywords (new-keywords-from-props timely-statuses models)]
+        new-keywords (new-keywords-from-props
+                       timely-statuses
+                       models
+                       log-message-ending)]
     new-keywords))
 
 (defn generate-keywords-from-aggregate
   [aggregate timely-status-finder models]
   (let [aggregate-id (:aggregate-id aggregate)
         aggregate-name (:aggregate-name aggregate)
-        screen-name (:screen-name aggregate)]
-    (println (str "About to generate keywords for \"" aggregate-name "\" (" screen-name ") aggregate"))
-    (generate-keywords-for-aggregate aggregate-id models timely-status-finder)))
+        screen-name (:screen-name aggregate)
+        log-message-ending (str "for \"" aggregate-name "\" (" screen-name ") aggregate")]
+    (println (str "About to generate keywords " log-message-ending))
+    (generate-keywords-for-aggregate aggregate-id models timely-status-finder log-message-ending)))
 
 (defn generate-keywords-for-aggregates-sharing-name
   [aggregate-name]
