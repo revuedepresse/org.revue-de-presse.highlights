@@ -52,5 +52,43 @@ function save_highlights_for_all_aggregates() {
     run_command "${command}" "${success_message}"
 }
 
+function build_clojure_container() {
+    docker build -t devobs-clojure .
+}
+
+function remove_clojure_container {
+    if [ `docker ps -a | grep 'devobs-clojure' | grep -c ''` -gt 0 ];
+    then
+        docker rm -f `docker ps -a | grep devobs-clojure | awk '{print $1}'`
+    fi
+}
+
+function get_docker_network() {
+    echo 'press-review-network'
+}
+
+function get_network_option() {
+    network='--network '`get_docker_network`' '
+    if [ ! -z "${NO_DOCKER_NETWORK}" ];
+    then
+        network=''
+    fi
+
+    echo "${network}";
+}
+
+function run_clojure_container() {
+    local arguments="${COMMAND}"
+    remove_clojure_container
+
+    local network=`get_network_option`
+    local command='docker run -it --hostname clojure \
+        --hostname devobs.clojure '"${network}"' \
+        --rm --name devobs-clojure devobs-clojure \
+        java -jar devobs-standalone.jar '"${arguments}"
+    echo "About to run: \"${command}\""
+    /bin/bash -c "${command}"
+}
+
 alias refresh-highlights=refresh_highlights
 alias save-highlights-for-all-aggregates=save_highlights_for_all_aggregates
