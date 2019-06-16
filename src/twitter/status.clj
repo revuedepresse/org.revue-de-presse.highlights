@@ -61,7 +61,10 @@
         new-statuses (if
                        (pos? total-statuses)
                        (do
-                         (log/info (str "About to ensure " total-statuses " statuses exist."))
+                         (log/info (str
+                                     "About to ensure "
+                                     total-statuses " statuses exist for \""
+                                     (:screen_name (:user (first statuses))) "\""))
                          (bulk-insert-new-statuses (pmap #(get-status-json %) statuses) model))
                        (do
                          (log/info (str "No need to find some missing status."))

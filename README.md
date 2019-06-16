@@ -46,6 +46,14 @@ lein run consume-amqp-messages likes [100] [2]
 lein run consume-amqp-messages lists [1] [3]
 ```
 
+### How to collect statuses?
+
+```
+# 1 ; Maximum number of messages to be consumed
+# 3 ; Parallel consumers
+lein run consume-amqp-messages status [1] [3]
+```
+
 ### How to update bios of members?
 
 ```

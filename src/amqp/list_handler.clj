@@ -4,7 +4,6 @@
             [langohr.basic :as lb]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [amqp.handling-errors]
-        [amqp.status-handler]
         [command.collect-timely-statuses]))
 
 (defn wait-for-new-messages
@@ -25,6 +24,31 @@
   (let [{auto-ack :auto-ack
          channel :channel
          queue :queue
+         entity-manager :entity-manager} options
+        new-message (wait-for-new-messages channel queue auto-ack)
+        {:keys [delivery-tag]} (first new-message)
+        payload (second new-message)
+        payload-body (json/read-str (php->clj (String. payload "UTF-8")))
+        screen-name (get payload-body "screen_name")
+        aggregate-id (get payload-body "aggregate_id")]
+    (when payload
+      (try
+        (do
+          (handle-list
+            {:screen-name                   screen-name
+             :aggregate-id                  aggregate-id
+             :entity-manager                entity-manager
+             :unavailable-aggregate-message error-unavailable-aggregate})
+          (lb/ack channel delivery-tag))
+        (catch Exception e
+          (log/error "An error occurred with message " (.getMessage e)))))))
+
+(defn pull-messages-from-status-queue
+  "Pull messages from a queue dedicated to status collection"
+  [options]
+  (let [{auto-ack       :auto-ack
+         channel        :channel
+         queue          :queue
          entity-manager :entity-manager} options
         new-message (wait-for-new-messages channel queue auto-ack)
         {:keys [delivery-tag]} (first new-message)
