@@ -65,7 +65,8 @@
     (let [[member] args]
       (collect-timely-statuses-for-member-subscriptions member))
     (= name "collect-timely-statuses-from-aggregates")
-    (collect-timely-statuses-from-aggregates)
+    (let [[reverse-order] args]
+      (collect-timely-statuses-from-aggregates reverse-order))
     (= name "collect-timely-statuses-from-aggregate")
     (let [[aggregate-name] args]
       (collect-timely-statuses-from-aggregate aggregate-name))

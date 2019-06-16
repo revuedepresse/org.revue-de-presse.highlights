@@ -159,8 +159,11 @@
     statuses))
 
 (defn collect-timely-statuses-from-aggregates
-  []
-  (let [alphabet (map char (range 97 123))
+  [& [reverse-order]]
+  (let [alphabetic-characters (map char (range 97 123))
+        alphabet (if (some? reverse-order)
+                   (reverse alphabetic-characters)
+                   alphabetic-characters)
         entity-manager (get-entity-manager (:database env))
         _ (doall
             (map

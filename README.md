@@ -115,7 +115,13 @@ lein run collect-timely-statuses-for-member twitter_handle
 lein run collect-timely-statuses-for-member-subscriptions twitter_handle
 ```
 
-### How to collect status from aggregates sharing a name?
+### How to collect statuses from aggregates?
+
+```
+lein run collect-timely-statuses-from-aggregates ":reverse-order"
+```
+
+### How to collect statuses from aggregates sharing a name?
 
 ```
 lein run collect-timely-statuses-from-aggregate aggregate_name
