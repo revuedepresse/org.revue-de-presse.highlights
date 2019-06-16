@@ -84,9 +84,10 @@ function run_clojure_container() {
     local network=`get_network_option`
     local command='docker run -it --hostname clojure \
         --hostname devobs.clojure '"${network}"' \
-        --rm --name devobs-clojure devobs-clojure '"${arguments}"
+        --rm --name devobs-clojure devobs-clojure \
+        java -jar devobs-standalone.jar '"${arguments}"
     echo "About to run: \"${command}\""
-    /bin/bash -c "${command}""${arguments}"
+    /bin/bash -c "${command}"
 }
 
 alias refresh-highlights=refresh_highlights
