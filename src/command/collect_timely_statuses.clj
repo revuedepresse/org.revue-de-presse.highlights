@@ -213,24 +213,13 @@
                 total-new-relationships
                 total-new-statuses
                 aggregate-name))
-          statuses-sorted-by-date (sort-by :created-at found-statuses)
-          first-status (first statuses-sorted-by-date)
-          since (t/year (c/from-long (:created-at first-status)))
-          last-status (last statuses-sorted-by-date)
-          until (t/year (c/from-long (:created-at last-status)))
-          last-timely-status (find-last-timely-status-by-aggregate aggregate-id models)
-          last-time-status-publication-year (t/year (c/from-long (:publication-date-time last-timely-status)))
-          last-publication-year (if (< since last-time-status-publication-year)
-                                  since
-                                  last-time-status-publication-year)
-          years (take (inc (- until last-publication-year)) (iterate inc since))]
-      (if
-        (< 0 total-new-statuses)
-        (doall
-          (pmap
-            #(collect-timely-statuses
-               {:year           %
-                :aggregate-name aggregate-name
-                :aggregate-id   aggregate-id})
-            years))
-        (log/info (str "No timely status is to be generated for aggregate \"" aggregate-name "\""))))))
+          new-timely-statuses (when (> total-new-statuses 0)
+                                (bulk-insert-timely-statuses-from-aggregate aggregate-id))
+          log-message (if (< 0 total-new-statuses)
+                        (str
+                          "There are " (count new-timely-statuses)
+                          " new timely statuses for \"" aggregate-name "\" (" screen-name ") aggregate")
+                        (str
+                          "No timely status is to be generated for aggregate \""
+                          aggregate-name "\""))]
+      (log/info log-message))))

@@ -238,7 +238,7 @@
      :values         [aggregate-id]} models))
 
 (defn find-last-timely-status-by-aggregate
-  [aggregate-id {model :timely-status
+  [aggregate-id {model        :timely-status
                  status-model :status
                  member-model :members}]
   (let [matching-statuses (-> (select-fields model status-model member-model)
@@ -272,3 +272,42 @@
           (catch Exception e (log/error (.getMessage e))))
         (find-by-ids ids models))
       '())))
+
+(defn bulk-insert-timely-statuses-from-aggregate
+  [aggregate-id]
+  (let [query (str "
+                   INSERT INTO timely_status (
+                     id,
+                     status_id,
+                     member_name,
+                     aggregate_id,
+                     aggregate_name,
+                     publication_date_time,
+                     time_range
+                   )
+                   SELECT
+                   UUID() AS id,
+                   s.ust_id AS status_id,
+                   s.ust_full_name AS member_name,
+                   a.id AS aggregate_id,
+                   a.name AS aggregate_name,
+                   s.ust_created_at AS publication_date_time,
+                   CASE
+                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 5 MINUTE) THEN 0
+                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 10 MINUTE) THEN 1
+                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 30 MINUTE) THEN 2
+                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 DAY) THEN 3
+                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 WEEK) THEN 4
+                   ELSE 5
+                   END AS time_range
+                   FROM weaving_aggregate AS a
+                   INNER JOIN weaving_status_aggregate sa
+                   ON sa.aggregate_id = a.id
+                   INNER JOIN weaving_status AS s
+                   ON s.ust_id = sa.status_id
+                   WHERE a.id = ?
+                   AND (s.ust_id, a.id) NOT IN (
+                    SELECT status_id, aggregate_id FROM timely_status
+                   )")
+        count (db/exec-raw [query [aggregate-id]])]
+    (first count)))
