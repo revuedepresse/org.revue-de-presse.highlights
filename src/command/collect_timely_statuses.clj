@@ -217,7 +217,7 @@
                                 (bulk-insert-timely-statuses-from-aggregate aggregate-id))
           log-message (if (< 0 total-new-statuses)
                         (str
-                          "There are " (count new-timely-statuses)
+                          "There are " new-timely-statuses
                           " new timely statuses for \"" aggregate-name "\" (" screen-name ") aggregate")
                         (str
                           "No timely status is to be generated for aggregate \""
