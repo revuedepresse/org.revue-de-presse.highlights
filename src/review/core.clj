@@ -64,12 +64,18 @@
     (= name "collect-timely-statuses-for-member-subscriptions")
     (let [[member] args]
       (collect-timely-statuses-for-member-subscriptions member))
+    (= name "collect-timely-statuses-from-aggregates")
+    (let [[reverse-order] args]
+      (collect-timely-statuses-from-aggregates reverse-order))
+    (= name "collect-timely-statuses-from-aggregate")
+    (let [[aggregate-name] args]
+      (collect-timely-statuses-from-aggregate aggregate-name))
     (= name "consolidate-timely-statuses-from-subscriptions-for-member")
     (let [[member] args]
       (consolidate-timely-statuses-from-subscriptions-for-member member))
-    (= name "generate-timely-statuses-for-member")
+    (= name "collect-timely-statuses-for-member")
     (let [[member] args]
-      (generate-timely-statuses-for-member member))
+      (collect-timely-statuses-for-member member))
     (= name "generate-keywords-from-statuses")
     (let [[date] args]
       (if (> (count args) 1)
@@ -77,6 +83,12 @@
                                               {:week (Long/parseLong (first args))
                                                :year (Long/parseLong (second args))})
         (generate-keywords-for-all-aggregates date)))
+    (= name "generate-keywords-for-aggregate")
+    (let [[aggregate-name] args]
+      (generate-keywords-for-aggregate aggregate-name))
+    (= name "generate-keywords-for-aggregates-sharing-name")
+    (let [[aggregate-name] args]
+      (generate-keywords-for-aggregates-sharing-name aggregate-name))
     (= name "record-popularity-of-highlights")
     (let [[date] args]
       (record-popularity-of-highlights date))

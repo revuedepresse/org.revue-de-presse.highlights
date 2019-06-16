@@ -4,6 +4,7 @@
   (:use [korma.db]
         [utils.string]
         [repository.database-schema]
+        [repository.query-executor]
         [twitter.status-hash]))
 
 (declare aggregate status-aggregate)
@@ -125,7 +126,6 @@
                 "weaving_user subscription,                                                  "
                 "weaving_aggregate aggregate                                                 "
                 "WHERE aggregate.screen_name = subscription.usr_twitter_username             "
-                "AND aggregate.id IN (SELECT aggregate_id FROM weaving_status_aggregate)     "
                 "AND aggregate.name like 'user :: %'                                         "
                 "AND aggregate.screen_name IS NOT NULL                                       "
                 "AND member_subscription.member_id = member.usr_id                           "
@@ -137,6 +137,58 @@
                 "AND member.usr_twitter_username = ?                                         "
                 "ORDER BY aggregate.name ASC                                                 ")
         results (db/exec-raw [query [screen-name]] :results)]
+    results))
+
+(defn select-aggregates-where
+  [pattern & [additional-constraints]]
+  (str "
+      SELECT
+      member.usr_id as `member-id`,
+      member.usr_twitter_username as `screen-name`,
+      member.usr_twitter_username as `member-name`,
+      a.id as `aggregate-id`,
+      a.name as `aggregate-name`,
+      member.last_status_publication_date as `last-status-publication-date`
+      FROM (
+        SELECT
+        sa.aggregate_id,
+        GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
+        FROM weaving_status_aggregate sa
+        INNER JOIN weaving_status s
+        ON s.ust_id = sa.status_id
+        WHERE aggregate_id IN (
+            SELECT
+            a.id as `aggregate-id`
+            FROM weaving_aggregate a
+            WHERE 1
+            " additional-constraints "
+            AND a.name NOT LIKE 'user ::%'
+            AND a.name " pattern "
+        )
+        GROUP BY aggregate_id
+      ) selection
+      INNER JOIN weaving_user member
+      ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
+      AND member.protected = 0
+      AND member.suspended = 0
+      AND member.not_found = 0
+      INNER JOIN weaving_aggregate a
+      ON a.id = selection.aggregate_id"))
+
+(defn get-aggregates-having-name-prefix
+  [prefix]
+  (let [query (select-aggregates-where "LIKE ?" "AND a.screen_name IS NULL")
+        results (db/exec-raw [query [(str prefix "%")]] :results)]
+    results))
+
+(defn get-aggregates-sharing-name
+  [name]
+  (let [query (select-aggregates-where
+                "= ?"
+                (str "
+                  AND a.screen_name = s.ust_full_name
+                  AND a.screen_name IS NOT NULL"))
+        results (db/exec-raw [query [name]] :results)]
     results))
 
 (defn get-member-aggregate
@@ -153,5 +205,5 @@
                 "AND aggregate.screen_name IS NOT NULL                                  "
                 "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)   "
                 "AND member.usr_twitter_username = ?                                    ")
-        results (db/exec-raw [query [screen-name]] :results)]
+        results (exec-query [query [screen-name]] :results)]
     (first results)))

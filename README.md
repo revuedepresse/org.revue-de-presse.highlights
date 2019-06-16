@@ -46,6 +46,14 @@ lein run consume-amqp-messages likes [100] [2]
 lein run consume-amqp-messages lists [1] [3]
 ```
 
+### How to collect statuses?
+
+```
+# 1 ; Maximum number of messages to be consumed
+# 3 ; Parallel consumers
+lein run consume-amqp-messages status [1] [3]
+```
+
 ### How to update bios of members?
 
 ```
@@ -76,6 +84,18 @@ lein run record-popularity-of-highlights `date -I`
 lein run generate-keywords-from-statuses `date -I`
 ```
 
+## How to generate keywords for an aggregate
+
+```
+lein run generate-keywords-for-aggregate aggregate_name
+```
+
+## How to generate keywords for aggregates sharing a name
+
+```
+lein run generate-keywords-for-aggregates-sharing-name aggregate_name
+```
+
 ### How to unarchive statuses from a database to another?
 
 ```
@@ -83,10 +103,28 @@ lein run generate-keywords-from-statuses `date -I`
 /bin/bash -c 'for week in `seq 0 52`; do lein run unarchive-statuses $week 2018; done;'
 ```
 
+### How to collect statuses of a member?
+
+```
+lein run collect-timely-statuses-for-member twitter_handle
+```
+
 ### How to collect statuses from subscriptions of a member?
 
 ```
 lein run collect-timely-statuses-for-member-subscriptions twitter_handle
+```
+
+### How to collect statuses from aggregates?
+
+```
+lein run collect-timely-statuses-from-aggregates ":reverse-order"
+```
+
+### How to collect statuses from aggregates sharing a name?
+
+```
+lein run collect-timely-statuses-from-aggregate aggregate_name
 ```
 
 ## Tests

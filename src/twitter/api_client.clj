@@ -1,18 +1,18 @@
 (ns twitter.api-client
-    (:require [clojure.edn :as edn]
-              [clojure.string :as string]
-              [clojure.tools.logging :as log]
-              [environ.core :refer [env]]
-              [http.async.client :as ac]
-              [clj-time.format :as f]
-              [clj-time.core :as t]
-              [clj-time.local :as l]
-              [clj-time.coerce :as c])
-    (:use [repository.entity-manager]
-          [twitter.oauth]
-          [twitter.callbacks]
-          [twitter.callbacks.handlers]
-          [twitter.api.restful]))
+  (:require [clojure.edn :as edn]
+            [clojure.string :as string]
+            [clojure.tools.logging :as log]
+            [environ.core :refer [env]]
+            [http.async.client :as ac]
+            [clj-time.format :as f]
+            [clj-time.core :as t]
+            [clj-time.local :as l]
+            [clj-time.coerce :as c])
+  (:use [repository.entity-manager]
+        [twitter.oauth]
+        [twitter.callbacks]
+        [twitter.callbacks.handlers]
+        [twitter.api.restful]))
 
 (def ^:dynamic *api-client-enabled-logging* false)
 
@@ -25,9 +25,11 @@
 (def rate-limits (atom {}))
 (def remaining-calls (atom {}))
 
+(def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
+(def error-timeline-access-not-authorized "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
 (def error-not-authorized "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
 (def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
 
@@ -38,10 +40,10 @@
   "Make Twitter OAuth credentials from the environment configuration"
   ; @see https://github.com/adamwynne/twitter-api#restful-calls
   [token]
-  (let [{consumer-key :consumer-key
+  (let [{consumer-key    :consumer-key
          consumer-secret :consumer-secret
-         token :token
-         secret :secret} token]
+         token           :token
+         secret          :secret} token]
     (make-oauth-creds consumer-key
                       consumer-secret
                       token
@@ -63,13 +65,13 @@
   "Return consumer keys of tokens which are frozen."
   []
   (let [now (l/local-now)]
-  (if (nil? @frozen-tokens)
-    '("_")
-    (map name (keys (filter #(t/before? now (second %)) @frozen-tokens))))))
+    (if (nil? @frozen-tokens)
+      '("_")
+      (map name (keys (filter #(t/before? now (second %)) @frozen-tokens))))))
 
 (defn wait-for-15-minutes
   [endpoint]
-  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\"" ))
+  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\""))
   (Thread/sleep (* 60 15 1000)))
 
 (defn select-token
@@ -84,14 +86,14 @@
 
 (defn find-first-available-token-when
   [endpoint context model]
-    (let [excluded-consumer-key @current-consumer-key
-          excluded-consumer-keys (consumer-keys-of-frozen-tokens)
-          token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)
-          selected-token (select-token endpoint token-candidate context model)]
+  (let [excluded-consumer-key @current-consumer-key
+        excluded-consumer-keys (consumer-keys-of-frozen-tokens)
+        token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)
+        selected-token (select-token endpoint token-candidate context model)]
     (when *api-client-enabled-logging*
       (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
-                   (:consumer-key selected-token) "\" when " context)))
-      selected-token))
+                     (:consumer-key selected-token) "\" when " context)))
+    selected-token))
 
 (defn format-date
   [date]
@@ -141,19 +143,21 @@
     (when (or
             (nil? excluded-until)
             (t/after? now excluded-until))
-              (try (with-open [client (ac/create-client)]
-                     (call client))
-                (catch Exception e
-                  (log/warn (.getMessage e))
-                  (cond
-                    (= (.getMessage e) error-not-authorized)
-                      (throw (Exception. (str error-not-authorized)))
-                    (= endpoint "application/rate-limit-status")
-                      (do
-                        (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
-                        (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
-                          (handle-rate-limit-exceeded-error endpoint token-model)
-                          (try-calling-api call endpoint token-model context)))))))))
+      (try (with-open [client (ac/create-client)]
+             (call client))
+           (catch Exception e
+             (log/warn (.getMessage e))
+             (cond
+               (= (.getMessage e) error-not-authorized)
+               (throw (Exception. (str error-not-authorized)))
+               (= (.getMessage e) error-timeline-access-not-authorized)
+               (throw (Exception. (str error-timeline-access-not-authorized)))
+               (= endpoint "application/rate-limit-status")
+               (do
+                 (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
+                 (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
+                   (handle-rate-limit-exceeded-error endpoint token-model)
+                   (try-calling-api call endpoint token-model context)))))))))
 
 (defn get-rate-limit-status
   [model]
@@ -163,11 +167,11 @@
                    #(application-rate-limit-status :client %
                                                    :oauth-creds twitter-token
                                                    :params {:resources resources})
-                  "application/rate-limit-status"
-                  model
-                  "a call to \"application/rate-limit-status\"")
+                   "application/rate-limit-status"
+                   model
+                   "a call to \"application/rate-limit-status\"")
         resources (:resources (:body response))]
-        (swap! rate-limits (constantly resources))))
+    (swap! rate-limits (constantly resources))))
 
 (defn find-next-token
   [token-model endpoint context]
@@ -194,14 +198,14 @@
 
 (defn how-many-remaining-calls-for-statuses
   [token-model]
-  (when (nil? (@remaining-calls (keyword "statuses/show/:id" )))
+  (when (nil? (@remaining-calls (keyword "statuses/show/:id")))
     (do
       (get-rate-limit-status token-model)
       (swap! remaining-calls #(assoc
                                 %
                                 (keyword "statuses/show/:id")
                                 (:limit (get (:statuses @rate-limits) (keyword "/statuses/show/:id")))))))
-  (get @remaining-calls (keyword "statuses/show/:id" )))
+  (get @remaining-calls (keyword "statuses/show/:id")))
 
 (defn how-many-remaining-calls-showing-user
   [token-model]
@@ -210,18 +214,18 @@
 (defn update-remaining-calls
   [headers endpoint]
   (let [endpoint-keyword (keyword endpoint)]
-  (when
-    (and
-      (pos? (count headers))
-      (not (nil? (:x-rate-limit-remaining headers))))
-    (try
-      (swap! remaining-calls #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-remaining headers))))
-      (catch Exception e (log/warn (.getMessage e))))
     (when
       (and
-        (nil? (get @call-limits endpoint-keyword))
-        (:x-rate-limit-limit headers))
-      (swap! call-limits #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-limit headers))))))))
+        (pos? (count headers))
+        (not (nil? (:x-rate-limit-remaining headers))))
+      (try
+        (swap! remaining-calls #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-remaining headers))))
+        (catch Exception e (log/warn (.getMessage e))))
+      (when
+        (and
+          (nil? (get @call-limits endpoint-keyword))
+          (:x-rate-limit-limit headers))
+        (swap! call-limits #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-limit headers))))))))
 
 (defn log-remaining-calls-for
   "Log remaining calls to endpoint by extracting limit and remaining values from HTTP headers"
@@ -232,9 +236,9 @@
 
     (when *api-client-enabled-logging*
       (when limit
-        (log/info (str "Rate limit at " limit " for \"" endpoint "\"" )))
+        (log/info (str "Rate limit at " limit " for \"" endpoint "\"")))
       (log/info (str remaining-calls " remaining calls for \"" endpoint
-                 "\" called with consumer key \"" @current-consumer-key "\"" )))
+                     "\" called with consumer key \"" @current-consumer-key "\"")))
 
     (update-remaining-calls headers endpoint)))
 
@@ -247,9 +251,9 @@
   [headers]
   (def percentage (atom 1))
   (try (swap! percentage (constantly (ten-percent-of (Long/parseLong (:x-rate-limit-limit headers)))))
-      (catch Exception e (log/error (str "An error occurred when calculating "
-                                         "the 10 percent of the rate limit")))
-      (finally @percentage)))
+       (catch Exception e (log/error (str "An error occurred when calculating "
+                                          "the 10 percent of the rate limit")))
+       (finally @percentage)))
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
@@ -266,11 +270,11 @@
             (nil? @next-token)))
         (when
           (fn? on-reached-api-limit)
-            (on-reached-api-limit))
+          (on-reached-api-limit))
         (if (some? tokens)
           (handle-rate-limit-exceeded-error "statuses/show/:id" tokens)
           (wait-for-15-minutes endpoint)))
-       (catch Exception e (log/error (.getMessage e))))))
+      (catch Exception e (log/error (.getMessage e))))))
 
 (defn guard-against-exceptional-member
   [member model]
@@ -278,22 +282,22 @@
         (= 1 (:is-not-found member))
         (= 1 (:is-protected member))
         (= 1 (:is-suspended member)))
-      (new-member member model)
+    (new-member member model)
     member))
 
 (defn get-twitter-user-by-screen-name
   [screen-name]
   (let [response (with-open [client (ac/create-client)]
-                  (users-show :client client :oauth-creds (twitter-credentials @next-token)
-                              :params {:screen-name screen-name}))]
+                   (users-show :client client :oauth-creds (twitter-credentials @next-token)
+                               :params {:screen-name screen-name}))]
     (update-remaining-calls (:headers response) "users/show")
     response))
 
 (defn get-twitter-user-by-id
   [id]
   (let [response (with-open [client (ac/create-client)]
-                  (users-show :client client :oauth-creds (twitter-credentials @next-token)
-                              :params {:id id}))]
+                   (users-show :client client :oauth-creds (twitter-credentials @next-token)
+                               :params {:id id}))]
     (update-remaining-calls (:headers response) "users/show")
     response))
 
@@ -308,25 +312,25 @@
         (log/warn (.getMessage e))
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
-            (do
-              (handle-rate-limit-exceeded-error "users/show" token-model)
-              (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
+          (do
+            (handle-rate-limit-exceeded-error "users/show" token-model)
+            (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
           (string/includes? (.getMessage e) error-user-not-found)
-            (guard-against-exceptional-member {:screen_name screen-name
-                                               :twitter-id id
-                                               :is-not-found 1
-                                               :is-protected 0
-                                               :is-suspended 0
-                                               :total-subscribees 0
-                                               :total-subscriptions 0} member-model)
+          (guard-against-exceptional-member {:screen_name         screen-name
+                                             :twitter-id          id
+                                             :is-not-found        1
+                                             :is-protected        0
+                                             :is-suspended        0
+                                             :total-subscribees   0
+                                             :total-subscriptions 0} member-model)
           (string/includes? (.getMessage e) error-user-suspended)
-            (guard-against-exceptional-member {:screen_name screen-name
-                                               :twitter-id id
-                                               :is-not-found 0
-                                               :is-protected 0
-                                               :is-suspended 1
-                                               :total-subscribees 0
-                                               :total-subscriptions 0} member-model))))))
+          (guard-against-exceptional-member {:screen_name         screen-name
+                                             :twitter-id          id
+                                             :is-not-found        0
+                                             :is-protected        0
+                                             :is-suspended        1
+                                             :total-subscribees   0
+                                             :total-subscriptions 0} member-model))))))
 
 (defn get-twitter-status-by-id
   [status-id model]
@@ -344,13 +348,13 @@
         (log/warn (.getMessage e))
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
-            (do
-              (handle-rate-limit-exceeded-error "statuses/show/:id" model)
-              (get-twitter-status-by-id status-id model))
+          (do
+            (handle-rate-limit-exceeded-error "statuses/show/:id" model)
+            (get-twitter-status-by-id status-id model))
           (string/includes? (.getMessage e) error-no-status)
-            {:error error-no-status}
+          {:error error-no-status}
           :else
-            (log/error (.getMessage e)))))))
+          (log/error (.getMessage e)))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -365,33 +369,33 @@
 
 (defn member-by-prop
   [member token-model member-model context]
-    (if
-      (and
-        (know-all-about-remaining-calls-and-limit)
-        (is-rate-limit-exceeded))
-      (do
-        (freeze-current-token)
-        (find-next-token token-model "users/show" context)
-        (member-by-prop member token-model member-model context))
-      (let [twitter-user (get-twitter-user-by-id-or-screen-name member token-model member-model)]
-        (if (nil? twitter-user)
-          (do
-            (find-next-token token-model "users/show" context)
-            (member-by-prop member token-model member-model context))
-          twitter-user))))
+  (if
+    (and
+      (know-all-about-remaining-calls-and-limit)
+      (is-rate-limit-exceeded))
+    (do
+      (freeze-current-token)
+      (find-next-token token-model "users/show" context)
+      (member-by-prop member token-model member-model context))
+    (let [twitter-user (get-twitter-user-by-id-or-screen-name member token-model member-model)]
+      (if (nil? twitter-user)
+        (do
+          (find-next-token token-model "users/show" context)
+          (member-by-prop member token-model member-model context))
+        twitter-user))))
 
 (defn status-by-prop
   [status-id token-model context]
-    (if
-      (and
-        (know-all-about-remaining-calls-and-limit)
-        (is-rate-limit-exceeded))
-      (do
-        (freeze-current-token)
-        (find-next-token token-model "statuses/show/:id" context)
-        (status-by-prop status-id token-model context))
-      (let [twitter-status (get-twitter-status-by-id status-id token-model)]
-        twitter-status)))
+  (if
+    (and
+      (know-all-about-remaining-calls-and-limit)
+      (is-rate-limit-exceeded))
+    (do
+      (freeze-current-token)
+      (find-next-token token-model "statuses/show/:id" context)
+      (status-by-prop status-id token-model context))
+    (let [twitter-status (get-twitter-status-by-id status-id token-model)]
+      twitter-status)))
 
 (defn get-member-by-screen-name
   [screen-name token-model member-model]
@@ -410,7 +414,7 @@
     (:body user)))
 
 (defn get-status-by-id
-  [{id :id
+  [{id        :id
     status-id :status-id} token-model]
   (let [status (status-by-prop status-id token-model "a call to \"statuses/show\" with an id")
         headers (:headers status)]
@@ -430,14 +434,15 @@
                  (first matching-members)
                  (get-member-by-screen-name screen-name token-model member-model))]
     {:twitter-id (:twitter-id member)
-     :id (:id member)}))
+     :id         (:id member)}))
 
 (defn get-subscriptions-by-screen-name
   [screen-name tokens-model]
   (try-calling-api
-    #(friends-ids :client %
-                  :oauth-creds (twitter-credentials @next-token)
-                  :params {:screen-name screen-name})
+    #(friends-ids
+       :client %
+       :oauth-creds (twitter-credentials @next-token)
+       :params {:screen-name screen-name})
     "friends/id"
     tokens-model
     "a call to \"friends/id\""))
@@ -445,9 +450,10 @@
 (defn get-subscribers-by-screen-name
   [screen-name tokens-model]
   (try-calling-api
-    #(followers-ids :client %
-                    :oauth-creds (twitter-credentials @next-token)
-                    :params {:screen-name screen-name})
+    #(followers-ids
+       :client %
+       :oauth-creds (twitter-credentials @next-token)
+       :params {:screen-name screen-name})
     "followers/id"
     tokens-model
     "a call to \"followers/id\""))
@@ -472,29 +478,29 @@
 
 (defn get-favorites-by-screen-name
   [opts endpoint context tokens-model]
-  (let [base-params {:count 200
-                    :include-entities 1
-                    :include-rts 1
-                    :exclude-replies 0
-                    :screen-name (:screen-name opts)
-                    :trim-user 0
-                    :tweet-mode "extended"}
+  (let [base-params {:count            200
+                     :include-entities 1
+                     :include-rts      1
+                     :exclude-replies  0
+                     :screen-name      (:screen-name opts)
+                     :trim-user        0
+                     :tweet-mode       "extended"}
         params (cond
-          (not (nil? (:since-id opts)))
-            (assoc base-params :since-id (:since-id opts))
-          (not (nil? (:max-id opts)))
-            (assoc base-params :max-id (:max-id opts))
-          :else
-            base-params)]
+                 (not (nil? (:since-id opts)))
+                 (assoc base-params :since-id (:since-id opts))
+                 (not (nil? (:max-id opts)))
+                 (assoc base-params :max-id (:max-id opts))
+                 :else
+                 base-params)]
 
-  (try-calling-api
-    #(favorites-list
-       :client %
-       :oauth-creds (twitter-credentials @next-token)
-       :params params)
-    endpoint
-    tokens-model
-    (str "a " context))))
+    (try-calling-api
+      #(favorites-list
+         :client %
+         :oauth-creds (twitter-credentials @next-token)
+         :params params)
+      endpoint
+      tokens-model
+      (str "a " context))))
 
 (defn get-favorites-of-member
   [opts token-model]
@@ -510,28 +516,29 @@
 
 (defn get-statuses-by-screen-name
   [opts endpoint context tokens-model]
-  (let [base-params {:count 200
-                    :include-entities 1
-                    :include-rts 1
-                    :exclude-replies 0
-                    :screen-name (:screen-name opts)
-                    :trim-user 0
-                    :tweet-mode "extended"}
+  (let [base-params {:count            200
+                     :include-entities 1
+                     :include-rts      1
+                     :exclude-replies  0
+                     :screen-name      (:screen-name opts)
+                     :trim-user        0
+                     :tweet-mode       "extended"}
         params (cond
-          (not (nil? (:since-id opts)))
-            (assoc base-params :since-id (:since-id opts))
-          (not (nil? (:max-id opts)))
-            (assoc base-params :max-id (:max-id opts))
-          :else
-            base-params)]
+                 (not (nil? (:since-id opts)))
+                 (assoc base-params :since-id (:since-id opts))
+                 (not (nil? (:max-id opts)))
+                 (assoc base-params :max-id (:max-id opts))
+                 :else
+                 base-params)]
 
-  (try-calling-api
-    #(statuses-user-timeline :client %
-                    :oauth-creds (twitter-credentials @next-token)
-                    :params params)
-    endpoint
-    tokens-model
-    (str "a " context))))
+    (try-calling-api
+      #(statuses-user-timeline
+         :client %
+         :oauth-creds (twitter-credentials @next-token)
+         :params params)
+      endpoint
+      tokens-model
+      (str "a " context))))
 
 (defn get-statuses-of-member
   [opts token-model]

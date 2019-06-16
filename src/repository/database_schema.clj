@@ -1,6 +1,4 @@
-(ns repository.database-schema
-  (:require [korma.core :as db])
-  (:use [korma.db]))
+(ns repository.database-schema)
 
 (defn get-column
   [column-name model]

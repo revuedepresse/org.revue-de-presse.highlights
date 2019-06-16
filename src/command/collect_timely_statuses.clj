@@ -24,16 +24,15 @@
     (assoc status :time-range time-range)))
 
 (defn generate-timely-statuses-from-statuses-props
-  [{aggregate-name                :aggregate-name
-    ids                           :ids
-    {timely-status-model :timely-status
-     status-model        :status} :models} week year]
+  [{aggregate-name :aggregate-name
+    ids            :ids
+    models         :models} week year]
   (let [statuses (find-timely-statuses-props-for-aggregate ids)
-        find #(find-by-statuses-ids % aggregate-name timely-status-model status-model)
+        find #(find-timely-statuses-by-constraints % aggregate-name models)
         filtered-statuses (filter-out-known-statuses find statuses)
         statuses-props (pmap assoc-time-range filtered-statuses)
         _ (log/info (str "About to generate timely statuses from " year " for \"" aggregate-name "\""))
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        new-timely-statuses (bulk-insert statuses-props models)
         total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
@@ -47,12 +46,11 @@
     new-timely-statuses))
 
 (defn generate-timely-statuses-from-subscriptions-of-member
-  [{aggregate-id                  :aggregate-id
-    {timely-status-model :timely-status
-     status-model        :status} :models}]
+  [{aggregate-id :aggregate-id
+    models       :models}]
   (let [timely-statuses (find-missing-timely-statuses-from-aggregate aggregate-id)
         statuses-props (pmap assoc-time-range timely-statuses)
-        new-timely-statuses (bulk-insert statuses-props timely-status-model status-model)
+        new-timely-statuses (bulk-insert statuses-props models)
         total-timely-statuses (count new-timely-statuses)]
     (when *generate-timely-statuses-enabled-logging*
       (doall (pmap #(log/info (str "A timely status has been added for member \""
@@ -140,7 +138,47 @@
                      sorted-aggregates))]
     statuses))
 
-(defn generate-timely-statuses-for-member
+(defn collect-timely-statuses-for-aggregates-matching-pattern
+  [param entity-manager & [aggregate-getter]]
+  (let [getter (if
+                 (some? aggregate-getter)
+                 aggregate-getter
+                 get-aggregates-having-name-prefix)
+        aggregates (getter param)
+        aggregates-grouped-by-screen-name (group-by #(:member-name %) aggregates)
+        sortable-aggregates (pmap #(first (last %)) aggregates-grouped-by-screen-name)
+        sorted-aggregates (sort-by-status-publication-date sortable-aggregates)
+        statuses (doall
+                   (pmap
+                     #(handle-list
+                        {:screen-name                   (:member-name %)
+                         :aggregate-id                  (:aggregate-id %)
+                         :entity-manager                entity-manager
+                         :unavailable-aggregate-message error-unavailable-aggregate})
+                     sorted-aggregates))]
+    statuses))
+
+(defn collect-timely-statuses-from-aggregates
+  [& [reverse-order]]
+  (let [alphabetic-characters (map char (range 97 123))
+        alphabet (if (some? reverse-order)
+                   (reverse alphabetic-characters)
+                   alphabetic-characters)
+        entity-manager (get-entity-manager (:database env))
+        _ (doall
+            (map
+              #(collect-timely-statuses-for-aggregates-matching-pattern % entity-manager)
+              alphabet))]))
+
+(defn collect-timely-statuses-from-aggregate
+  [aggregate-name]
+  (let [entity-manager (get-entity-manager (:database env))
+        _ (collect-timely-statuses-for-aggregates-matching-pattern
+            aggregate-name
+            entity-manager
+            get-aggregates-sharing-name)]))
+
+(defn collect-timely-statuses-for-member
   [member]
   (let [entity-manager (get-entity-manager (:database env))
         aggregate (get-member-aggregate member)
@@ -161,9 +199,8 @@
   (when (not= 1 aggregate-id)
     (let [{member-model           :members
            status-model           :status
-           timely-status-model    :timely-status
            status-aggregate-model :status-aggregate
-           aggregate-model        :aggregate} entity-manager
+           aggregate-model        :aggregate :as models} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           aggregate-name (:name aggregate)
           member (first (find-member-by-screen-name screen-name member-model))
@@ -179,24 +216,13 @@
                 total-new-relationships
                 total-new-statuses
                 aggregate-name))
-          statuses-sorted-by-date (sort-by :created-at found-statuses)
-          first-status (first statuses-sorted-by-date)
-          since (t/year (c/from-long (:created-at first-status)))
-          last-status (last statuses-sorted-by-date)
-          until (t/year (c/from-long (:created-at last-status)))
-          last-timely-status (find-last-timely-status-by-aggregate aggregate-id timely-status-model status-model)
-          last-time-status-publication-year (t/year (c/from-long (:publication-date-time last-timely-status)))
-          last-publication-year (if (< since last-time-status-publication-year)
-                                  since
-                                  last-time-status-publication-year)
-          years (take (inc (- until last-publication-year)) (iterate inc since))]
-      (if
-        (< 0 total-new-statuses)
-        (doall
-          (pmap
-            #(collect-timely-statuses
-               {:year           %
-                :aggregate-name aggregate-name
-                :aggregate-id   aggregate-id})
-            years))
-        (log/info (str "No timely status is to be generated for aggregate \"" aggregate-name "\""))))))
+          new-timely-statuses (when (> total-new-statuses 0)
+                                (bulk-insert-timely-statuses-from-aggregate aggregate-id))
+          log-message (if (< 0 total-new-statuses)
+                        (str
+                          "There are " new-timely-statuses
+                          " new timely statuses for \"" aggregate-name "\" (" screen-name ") aggregate")
+                        (str
+                          "No timely status is to be generated for aggregate \""
+                          aggregate-name "\""))]
+      (log/info log-message))))
