@@ -7,6 +7,14 @@
     :password       ""
     :port           "3306"
   }
+  :database-read {
+    :charset        "utf8mb4"
+    :host           "127.0.0.1"
+    :name           "test"
+    :user           "root"
+    :password       ""
+    :port           "3306"
+  }
   :database-archive {
     :charset        "utf8mb4"
     :host           "127.0.0.1"

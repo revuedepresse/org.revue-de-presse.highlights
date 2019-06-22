@@ -115,7 +115,7 @@
     (let [{member-model           :members
            status-model           :status
            status-aggregate-model :status-aggregate
-           aggregate-model        :aggregate :as models} entity-manager
+           aggregate-model        :aggregate} entity-manager
           aggregate (get-aggregate-by-id aggregate-id aggregate-model unavailable-aggregate-message)
           aggregate-name (:name aggregate)
           member (first (find-member-by-screen-name screen-name member-model))

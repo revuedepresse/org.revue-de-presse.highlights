@@ -2,24 +2,25 @@
   (:require [korma.core :as db]
             [clojure.edn :as edn]
             [clojure.tools.logging :as log]
-            [clj-uuid :as uuid])
+            [clj-uuid :as uuid]
+            [repository.aggregate :as aggregate]
+            [repository.analysis.sample :as sample]
+            [repository.analysis.publication-frequency :as publication-frequency]
+            [repository.archived-status :as archived-status]
+            [repository.keyword :as keyword]
+            [repository.member-identity :as member-identity]
+            [repository.highlight :as highlight]
+            [repository.status :as status]
+            [repository.status-aggregate :as status-aggregate]
+            [repository.status-identity :as status-identity]
+            [repository.status-popularity :as status-popularity]
+            [repository.timely-status :as timely-status])
   (:use [korma.db]
-        [repository.aggregate]
-        [repository.analysis.sample]
-        [repository.analysis.publication-frequency]
-        [repository.archived-status]
-        [repository.keyword]
         [repository.database-schema]
-        [repository.member-identity]
-        [repository.highlight]
-        [repository.status]
-        [repository.status-identity]
-        [repository.status-popularity]
-        [repository.timely-status]
         [utils.string]
         [twitter.status-hash]))
 
-(declare archive-database-connection database-connection
+(declare archive-database-connection database-connection database-read-connection
          tokens
          users members
          subscriptions subscribees
@@ -152,7 +153,8 @@
   member-subscribees)
 
 (defn prepare-connection
-  [config & [is-archive-connection]]
+  [config & [{is-archive-connection :is-archive-connection
+              is-read-connection    :is-read-connection}]]
   (let [db-params {:classname         "com.mysql.jdbc.Driver"
                    :subprotocol       "mysql"
                    :subname           (str "//" (:host config) ":" (:port config) "/" (:name config))
@@ -167,41 +169,47 @@
                    ; @see 'https://github.com/korma/Korma/issues/382#issue-236722546
                    :make-pool         true
                    :maximum-pool-size 5}
-        connection (if is-archive-connection
-                     (defdb archive-database-connection db-params)
-                     (defdb database-connection db-params))]
+        connection (cond
+                     (some? is-archive-connection) (defdb archive-database-connection db-params)
+                     (some? is-read-connection) (defdb database-read-connection db-params)
+                     :else (defdb database-connection db-params))]
     connection))
 
 (defn connect-to-db
   "Create a connection and provide with a map of entities"
   ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
-  [config & [is-archive-connection]]
-  (let [connection (prepare-connection config is-archive-connection)]
-    {:aggregate             (get-aggregate-model connection)
-     :archived-status       (get-archived-status-model connection)
-     :highlight             (get-highlight-model connection)
-     :hashtag               (get-keyword-model connection)
+  [config & [{is-archive-connection :is-archive-connection
+              is-read-connection    :is-read-connection}]]
+  (let [connection (prepare-connection config {:is-archive-connection is-archive-connection
+                                               :is-read-connection    is-read-connection})]
+    {:aggregate             (aggregate/get-aggregate-model connection)
+     :archived-status       (archived-status/get-archived-status-model connection)
+     :highlight             (highlight/get-highlight-model connection)
+     :hashtag               (keyword/get-keyword-model connection)
      :liked-status          (get-liked-status-model connection)
      :members               (get-members-model connection)
-     :member-identity       (get-member-identity-model connection)
+     :member-identity       (member-identity/get-member-identity-model connection)
      :member-subscribees    (get-member-subscribees-model connection)
      :member-subscriptions  (get-member-subscriptions-model connection)
-     :publication-frequency (get-publication-frequency-model connection)
-     :sample                (get-sample-model connection)
+     :publication-frequency (publication-frequency/get-publication-frequency-model connection)
+     :sample                (sample/get-sample-model connection)
      :subscribees           (get-subscribees-model connection)
-     :status                (get-status-model connection)
-     :status-aggregate      (get-status-aggregate-model connection)
-     :status-identity       (get-status-identity-model connection)
-     :status-popularity     (get-status-popularity-model connection)
+     :status                (status/get-status-model connection)
+     :status-aggregate      (status-aggregate/get-status-aggregate-model connection)
+     :status-identity       (status-identity/get-status-identity-model connection)
+     :status-popularity     (status-popularity/get-status-popularity-model connection)
      :subscriptions         (get-subscriptions-model connection)
-     :timely-status         (get-timely-status-model connection)
+     :timely-status         (timely-status/get-timely-status-model connection)
      :tokens                (get-token-model connection)
-     :users                 (get-user-model connection)}))
+     :users                 (get-user-model connection)
+     :connection            connection}))
 
 (defn get-entity-manager
-  [config & [is-archive-connection]]
-  (connect-to-db (edn/read-string config) is-archive-connection))
+  [config & [{is-archive-connection :is-archive-connection
+              is-read-connection    :is-read-connection}]]
+  (connect-to-db (edn/read-string config) {:is-archive-connection is-archive-connection
+                                           :is-read-connection    is-read-connection}))
 
 (defn find-distinct-ids-of-subscriptions
   "Find distinct ids of subscription"
@@ -386,7 +394,7 @@
 (defn update-status-related-props-for-member-having-id
   [max-status-id max-status-publication-date member-id model]
   (db/update model
-             (db/set-fields {:max_status_id max-status-id
+             (db/set-fields {:max_status_id                max-status-id
                              :last_status_publication_date max-status-publication-date})
              (db/where {:usr_id member-id})))
 

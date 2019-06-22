@@ -7,7 +7,7 @@
         [repository.query-executor]
         [twitter.status-hash]))
 
-(declare aggregate status-aggregate)
+(declare aggregate)
 
 (defn get-aggregate-model
   [connection]
@@ -24,16 +24,6 @@
                   :screen_name
                   :list_id))
   aggregate)
-
-(defn get-status-aggregate-model
-  [connection]
-  (db/defentity status-aggregate
-                (db/table :weaving_status_aggregate)
-                (db/database connection)
-                (db/entity-fields
-                  :status_id
-                  :aggregate_id))
-  status-aggregate)
 
 (defn find-aggregate-by-id
   "Find an aggregate by id"
@@ -194,16 +184,32 @@
 (defn get-member-aggregate
   [screen-name]
   (let [query (str
-                "SELECT                                                                 "
-                "aggregate.id `aggregate-id`,                                           "
-                "aggregate.name `aggregate-name`                                        "
-                "FROM                                                                   "
-                "weaving_user member,                                                   "
-                "weaving_aggregate aggregate                                            "
-                "WHERE                                                                  "
-                "member.usr_twitter_username = aggregate.screen_name                    "
-                "AND aggregate.screen_name IS NOT NULL                                  "
-                "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)   "
-                "AND member.usr_twitter_username = ?                                    ")
+                "SELECT                                                                         "
+                "aggregate.id `aggregate-id`,                                                   "
+                "aggregate.name `aggregate-name`                                                "
+                "FROM                                                                           "
+                "weaving_user member,                                                           "
+                "weaving_aggregate aggregate                                                    "
+                "WHERE                                                                          "
+                "member.usr_twitter_username = aggregate.screen_name                            "
+                "AND aggregate.screen_name IS NOT NULL                                          "
+                "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)           "
+                "AND member.usr_twitter_username = ?                                            ")
         results (exec-query [query [screen-name]] :results)]
     (first results)))
+
+(defn find-aggregates-sharing-name
+  [aggregate-name db]
+  (let [query (str "
+                SELECT
+                id as `aggregate-id`,
+                name as `aggregate-name`,
+                screen_name as `screen-name`
+                FROM weaving_aggregate a
+                WHERE
+                a.name = ?
+                AND a.list_id IS NOT NULL
+                AND a.screen_name IS NOT NULL;
+              ")]
+    (binding [*current-db* db]
+      (exec-query [query [aggregate-name]] :results))))
