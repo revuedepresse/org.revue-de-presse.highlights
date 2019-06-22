@@ -237,42 +237,6 @@
      :default-values '(0)
      :values         [aggregate-id]} models))
 
-(defn find-last-timely-status-by-aggregate
-  [aggregate-id {model        :timely-status
-                 status-model :status
-                 member-model :members}]
-  (let [matching-statuses (-> (select-fields model status-model member-model)
-                              (db/where (= :aggregate_id aggregate-id))
-                              (db/order :publication_date_time :DESC)
-                              (db/limit 1)
-                              (db/select))]
-    (first matching-statuses)))
-
-(defn bulk-insert
-  [timely-statuses {model :timely-status :as models}]
-  (let [snake-cased-values (pmap snake-case-keys timely-statuses)
-        identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:aggregate_name %)))))
-                           snake-cased-values)
-        constraints (pmap #(apply list [(:status_id %) (:aggregate_name %)]) identified-props)
-        existing-timely-statuses (find-timely-statuses-by-constraints
-                                   {:columns        [:status_id :aggregate_name]
-                                    :default-values '((0 ""))
-                                    :values         constraints} models)
-        existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
-        deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
-        filtered-props (remove #(clojure.set/subset? #{(:status_id %)} existing-statuses-id) deduplicated-props)
-        ids (pmap #(:id %) filtered-props)
-        timely-statuses-to-be-inserted (pos? (count ids))]
-    (if timely-statuses-to-be-inserted
-      (do
-        (try
-          (db/insert model (db/values filtered-props))
-          (catch Exception e (log/error (.getMessage e))))
-        (find-by-ids ids models))
-      '())))
-
 (defn bulk-insert-timely-statuses-from-aggregate
   [aggregate-id]
   (let [query (str "
