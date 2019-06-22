@@ -56,10 +56,18 @@ function build_clojure_container() {
     docker build -t devobs-clojure .
 }
 
+function get_container_name() {
+    local suffix="${1}"
+    echo 'devobs-clojure-'"${suffix}"
+}
+
 function remove_clojure_container {
-    if [ `docker ps -a | grep 'devobs-clojure' | grep -c ''` -gt 0 ];
+    local suffix="${1}"
+    local container_name="$(get_container_name "${suffix}")"
+
+    if [ `docker ps -a | grep "${container_name}" | grep -c ''` -gt 0 ];
     then
-        docker rm -f `docker ps -a | grep devobs-clojure | awk '{print $1}'`
+        docker rm -f `docker ps -a | grep "${container_name}" | awk '{print $1}'`
     fi
 }
 
@@ -79,12 +87,15 @@ function get_network_option() {
 
 function run_clojure_container() {
     local arguments="${COMMAND}"
-    remove_clojure_container
+    local container_name_suffix="$(echo "${arguments}" | sha1sum  | awk '{print $1}')"
+    local container_name="$(get_container_name "${container_name_suffix}")"
+
+    remove_clojure_container "${container_name_suffix}"
 
     local network=`get_network_option`
     local command='docker run -it --hostname clojure \
         --hostname devobs.clojure '"${network}"' \
-        --rm --name devobs-clojure devobs-clojure \
+        --rm --name '"${container_name}"' devobs-clojure \
         java -jar devobs-standalone.jar '"${arguments}"
     echo "About to run: \"${command}\""
     /bin/bash -c "${command}"
