@@ -10,8 +10,10 @@
         [repository.archived-status]
         [repository.keyword]
         [repository.database-schema]
+        [repository.member-identity]
         [repository.highlight]
         [repository.status]
+        [repository.status-identity]
         [repository.status-popularity]
         [repository.timely-status]
         [utils.string]
@@ -182,6 +184,7 @@
      :hashtag               (get-keyword-model connection)
      :liked-status          (get-liked-status-model connection)
      :members               (get-members-model connection)
+     :member-identity       (get-member-identity-model connection)
      :member-subscribees    (get-member-subscribees-model connection)
      :member-subscriptions  (get-member-subscriptions-model connection)
      :publication-frequency (get-publication-frequency-model connection)
@@ -189,6 +192,7 @@
      :subscribees           (get-subscribees-model connection)
      :status                (get-status-model connection)
      :status-aggregate      (get-status-aggregate-model connection)
+     :status-identity       (get-status-identity-model connection)
      :status-popularity     (get-status-popularity-model connection)
      :subscriptions         (get-subscriptions-model connection)
      :timely-status         (get-timely-status-model connection)
