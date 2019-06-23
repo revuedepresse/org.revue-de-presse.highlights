@@ -17,7 +17,9 @@
                   :id
                   :member_identity
                   :twitter_id
-                  :publication_date_time))
+                  :publication_date_time
+                  :status
+                  :archived_status))
   status-identity)
 
 (defn select-fields
@@ -34,7 +36,9 @@
                  [member-id-col :member-id]
                  [member-twitter-id-col :member-twitter-id]
                  [:twitter_id :status-twitter-id]
-                 [:publication_date_time :publication-date-time])
+                 [:publication_date_time :publication-date-time]
+                 [:status :status-id]
+                 [:archived_status :archived-status-id])
       (db/join member-identity-model (= member-identity-id-col :member_identity)))))
 
 (defn get-collation
@@ -48,7 +52,8 @@
                 UUID() as `id`,
                 m.id AS `member-identity`,
                 s.ust_api_document AS `status-api-document`,
-                s.ust_created_at AS `publication-date-time`
+                s.ust_created_at AS `publication-date-time`,
+                s.ust_id AS `status-id`
                 FROM weaving_status_aggregate sa
                 INNER JOIN weaving_aggregate a
                 ON sa.aggregate_id = a.id
@@ -139,16 +144,25 @@
   (let [total-status-identities (count props)
         params (flatten
                  (map
-                   #(apply list [(:id %) (:member-identity %) (:twitter-id %) (:publication-date-time %)])
+                   #(apply list [(:id %)
+                                 (:member-identity %)
+                                 (:twitter-id %)
+                                 (:publication-date-time %)
+                                 (:status-id %)
+                                 nil])
                    props))
-        bindings (take total-status-identities (iterate (constantly "( ? , ? , ? , ? )") "( ? , ? , ? , ? )"))
+        bindings (take total-status-identities (iterate
+                                                 (constantly "( ? , ? , ? , ? , ? , ? )")
+                                                 "( ? , ? , ? , ? , ? , ? )"))
         query (str "
                 INSERT INTO status_identity
                 (
                   id,
                   member_identity,
                   twitter_id,
-                  publication_date_time
+                  publication_date_time,
+                  status,
+                  archived_status
                 ) VALUES
                 " (string/join "," bindings) "
               ")]
