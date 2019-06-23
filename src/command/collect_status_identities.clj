@@ -76,14 +76,18 @@
         _ (when (pos? (count props))
             (let [twitter-ids (map #(:twitter-id %) props)
                   existing-props (status-identity/find-status-identity-by-twitter-ids twitter-ids models)
+                  existing-props-twitter-ids (pmap #(:status-twitter-id %) existing-props)
                   filtered-props (doall
-                                   (remove (is-subset-of (set existing-props)) props))]
-              (status-identity/bulk-insert-status-identities
-                filtered-props
-                {:aggregate-id aggregate-id
-                 :week         week
-                 :year         year}
-                write-db)))]
+                                   (remove
+                                     (is-subset-of (set existing-props-twitter-ids))
+                                     props))]
+              (when (pos? (count filtered-props))
+                (status-identity/bulk-insert-status-identities
+                  filtered-props
+                  {:aggregate-id aggregate-id
+                   :week         week
+                   :year         year}
+                  write-db))))]
     total-status-identities))
 
 (defn decode-status-documents
