@@ -116,7 +116,7 @@
                            [aggregate-id year]
                            (let [weeks (take 53 (iterate inc 0))]
                              (doall
-                               (map
+                               (pmap
                                  #(decode-available-documents aggregate-id % year databases models)
                                  weeks))))
         decoded-statuses (doall
