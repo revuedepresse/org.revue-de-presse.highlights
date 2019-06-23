@@ -110,11 +110,16 @@
         min-week-year (status-identity/get-min-week-year-for-aggregate-id aggregate-id read-db)
         since-year (:since-year min-week-year)
         now (l/local-now)
-        remaining-years (inc (- (time/year now) since-year))
+        last-year (time/year now)
+        last-year-week (time/week-number-of-year now)
+        remaining-years (inc (- last-year since-year))
         years (take remaining-years (iterate inc since-year))
         for-each-week-of (fn
                            [aggregate-id year]
-                           (let [weeks (take 53 (iterate inc 0))]
+                           (let [last-week (if (= year last-year)
+                                             last-year-week
+                                             53)
+                                 weeks (take last-week (iterate inc 0))]
                              (doall
                                (pmap
                                  #(decode-available-documents aggregate-id % year databases models)
