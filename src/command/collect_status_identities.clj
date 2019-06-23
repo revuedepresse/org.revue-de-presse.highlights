@@ -53,10 +53,10 @@
     deduplicated-props))
 
 (defn is-subset-of
-  [props-set]
+  [props-set k]
   (fn [props]
-    (let [twitter-id (:twitter-id props)]
-      (clojure.set/subset? #{twitter-id} props-set))))
+    (let [val (get props k)]
+      (clojure.set/subset? #{val} props-set))))
 
 (defn remove-existing-props
   [props models]
@@ -65,14 +65,16 @@
         existing-props-twitter-ids (pmap #(:status-twitter-id %) existing-props)
         filtered-props (doall
                          (remove
-                           (is-subset-of (set existing-props-twitter-ids))
+                           (is-subset-of (set existing-props-twitter-ids) :twitter-id)
                            props))
-        status-ids (map #(:status %) filtered-props)
-        existing-props (status-identity/find-status-identity-by-status-ids status-ids models)
-        existing-props-twitter-ids (pmap #(:status-id %) existing-props)]
+        existing-props-status-ids (if (pos? (count filtered-props))
+                                    (let [status-ids (map #(:status-id %) filtered-props)
+                                          existing-statuses (status-identity/find-status-identity-by-status-ids status-ids models)]
+                                      (pmap #(:status-id %) existing-statuses))
+                                    '())]
     (doall
       (remove
-        (is-subset-of (set existing-props-twitter-ids))
+        (is-subset-of (set existing-props-status-ids) :status-id)
         filtered-props))))
 
 (defn decode-available-documents
