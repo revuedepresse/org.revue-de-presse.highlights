@@ -127,6 +127,12 @@ lein run collect-timely-statuses-from-aggregates ":reverse-order"
 lein run collect-timely-statuses-from-aggregate aggregate_name
 ```
 
+### How to collect statuses identities?
+
+```
+lein run collect-status-identities-for-aggregates "news :: France"
+```
+
 ## Tests
 
 There is no 100% (very far from it) code coverage as intended behaviors heavily depend on Twitter API...  

@@ -8,7 +8,7 @@
     (is (= (count keywords) 0))))
 
 (deftest it-should-generate-keywords
-  (let [weeks (take 52 (iterate inc 0))]
+  (let [weeks (take 53 (iterate inc 0))]
     (doall
       (pmap
         #(ensure-keywords-are-generated-for-week %)

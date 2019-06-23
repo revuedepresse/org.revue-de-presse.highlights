@@ -1,7 +1,5 @@
 (ns repository.timely-status
   (:require [clojure.string :as string]
-            [clojure.tools.logging :as log]
-            [clj-uuid :as uuid]
             [korma.core :as db])
   (:use [korma.db]
         [repository.database-schema]
@@ -94,60 +92,6 @@
                                        :publication-year publication-year
                                        :are-archived     are-archived})))
 
-(defn find-timely-statuses-props-for-aggregate
-  "Find the timely statuses properties for an aggregate"
-  ; Relies on original statuses
-  ([ids]
-   (let [bindings (take (count ids) (iterate (constantly "?") "?"))
-         more-bindings (string/join "," bindings)
-         params ids
-         query (str
-                 "SELECT DISTINCT                                          "
-                 "a.id as `aggregate-id`,                                  "
-                 "a.name as `aggregate-name`,                              "
-                 "s.ust_id as `status-id`,                                 "
-                 "s.ust_full_name as `member-name`,                        "
-                 "s.ust_created_at as `publication-date-time`              "
-                 "FROM weaving_status s                                    "
-                 "INNER JOIN weaving_status_aggregate sa                   "
-                 "ON sa.status_id = s.ust_id                               "
-                 "INNER JOIN weaving_aggregate a                           "
-                 "ON a.id = sa.aggregate_id                                "
-                 "WHERE (a.id, s.ust_id) NOT IN (                          "
-                 "  SELECT aggregate_id, status_id FROM timely_status      "
-                 ")                                                        ")
-         query (str query "AND s.ust_id IN (" more-bindings ")")
-         results (db/exec-raw [query params] :results)]
-     results)))
-
-(defn find-missing-timely-statuses-from-aggregate
-  "Find the statuses of a member published on a given day"
-  ([aggregate-id]
-   (let [query (str
-                 "SELECT                                                            "
-                 "sa.aggregate_id as `aggregate-id`,                                "
-                 "a.name as `aggregate-name`,                                       "
-                 "sa.status_id as `status-id`,                                      "
-                 "s.ust_full_name as `member-name`,                                 "
-                 "s.ust_created_at as `publication-date-time`                       "
-                 "FROM weaving_status_aggregate sa                                  "
-                 "INNER JOIN weaving_aggregate a                                    "
-                 "ON (                                                              "
-                 "  sa.aggregate_id = a.id                                          "
-                 "  AND a.id = ?                                                    "
-                 ")                                                                 "
-                 "INNER JOIN weaving_status s                                       "
-                 "ON (                                                              "
-                 "    s.ust_id = sa.status_id                                       "
-                 "    AND s.ust_full_name = a.screen_name                           "
-                 ")                                                                 "
-                 "WHERE (sa.status_id, sa.aggregate_id) NOT IN (                    "
-                 "    SELECT COALESCE(status_id, 0), COALESCE(aggregate_id, 0)      "
-                 "     FROM timely_status                                           "
-                 ")                                                                 ")
-         results (db/exec-raw [query [aggregate-id]] :results)]
-     results)))
-
 (defn find-aggregate-having-publication-from-date
   "Find the distinct aggregates for which publications have been collected for a given date"
   ([date excluded-aggregate]
@@ -236,42 +180,6 @@
     {:columns        [:aggregate_id]
      :default-values '(0)
      :values         [aggregate-id]} models))
-
-(defn find-last-timely-status-by-aggregate
-  [aggregate-id {model        :timely-status
-                 status-model :status
-                 member-model :members}]
-  (let [matching-statuses (-> (select-fields model status-model member-model)
-                              (db/where (= :aggregate_id aggregate-id))
-                              (db/order :publication_date_time :DESC)
-                              (db/limit 1)
-                              (db/select))]
-    (first matching-statuses)))
-
-(defn bulk-insert
-  [timely-statuses {model :timely-status :as models}]
-  (let [snake-cased-values (pmap snake-case-keys timely-statuses)
-        identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:aggregate_name %)))))
-                           snake-cased-values)
-        constraints (pmap #(apply list [(:status_id %) (:aggregate_name %)]) identified-props)
-        existing-timely-statuses (find-timely-statuses-by-constraints
-                                   {:columns        [:status_id :aggregate_name]
-                                    :default-values '((0 ""))
-                                    :values         constraints} models)
-        existing-statuses-id (pmap #(:status_id %) existing-timely-statuses)
-        deduplicated-props (dedupe (sort-by #(:status_id %) identified-props))
-        filtered-props (remove #(clojure.set/subset? #{(:status_id %)} existing-statuses-id) deduplicated-props)
-        ids (pmap #(:id %) filtered-props)
-        timely-statuses-to-be-inserted (pos? (count ids))]
-    (if timely-statuses-to-be-inserted
-      (do
-        (try
-          (db/insert model (db/values filtered-props))
-          (catch Exception e (log/error (.getMessage e))))
-        (find-by-ids ids models))
-      '())))
 
 (defn bulk-insert-timely-statuses-from-aggregate
   [aggregate-id]

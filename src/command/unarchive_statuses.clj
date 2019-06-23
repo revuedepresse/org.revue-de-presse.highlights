@@ -12,7 +12,7 @@
 (defn unarchive-statuses
   [week year]
   (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
-        db-read-params {:models (get-entity-manager (:database-archive env) :is-archive-connection)}
+        db-read-params {:models (get-entity-manager (:database-archive env) {:is-archive-connection true})}
         archived-status-model (:archived-status (:models db-read-params))
         read-aggregate-model (:aggregate (:models db-read-params))
         aggregate (first (find-aggregate-by-name press-aggregate-name read-aggregate-model))
