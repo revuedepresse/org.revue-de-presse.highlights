@@ -71,6 +71,7 @@
                 INNER JOIN weaving_user u
                 ON u.usr_id = m.member_id
                 WHERE sa.aggregate_id = ?
+                GROUP BY s.ust_status_id
               ")]
     (binding [*current-db* db]
       (db/exec-raw [query [week year aggregate-id]] :results))))
@@ -102,6 +103,17 @@
   (let [ids (if (pos? (count twitter-ids)) twitter-ids '(0))
         matching-records (-> (select-fields status-identity-model member-identity-model)
                              (db/where {:twitter_id [in ids]})
+                             (db/select))]
+    (if matching-records
+      matching-records
+      '())))
+
+(defn find-status-identity-by-status-ids
+  [status-ids {status-identity-model :status-identity
+                member-identity-model :member-identity}]
+  (let [ids (if (pos? (count status-ids)) status-ids '(0))
+        matching-records (-> (select-fields status-identity-model member-identity-model)
+                             (db/where {:status [in ids]})
                              (db/select))]
     (if matching-records
       matching-records

@@ -58,6 +58,23 @@
     (let [twitter-id (:twitter-id props)]
       (clojure.set/subset? #{twitter-id} props-set))))
 
+(defn remove-existing-props
+  [props models]
+  (let [twitter-ids (map #(:twitter-id %) props)
+        existing-props (status-identity/find-status-identity-by-twitter-ids twitter-ids models)
+        existing-props-twitter-ids (pmap #(:status-twitter-id %) existing-props)
+        filtered-props (doall
+                         (remove
+                           (is-subset-of (set existing-props-twitter-ids))
+                           props))
+        status-ids (map #(:status %) filtered-props)
+        existing-props (status-identity/find-status-identity-by-status-ids status-ids models)
+        existing-props-twitter-ids (pmap #(:status-id %) existing-props)]
+    (doall
+      (remove
+        (is-subset-of (set existing-props-twitter-ids))
+        filtered-props))))
+
 (defn decode-available-documents
   [aggregate-id week year {read-db  :read-db
                            write-db :write-db} models]
@@ -74,13 +91,7 @@
                   '()))
         total-status-identities (count props)
         _ (when (pos? (count props))
-            (let [twitter-ids (map #(:twitter-id %) props)
-                  existing-props (status-identity/find-status-identity-by-twitter-ids twitter-ids models)
-                  existing-props-twitter-ids (pmap #(:status-twitter-id %) existing-props)
-                  filtered-props (doall
-                                   (remove
-                                     (is-subset-of (set existing-props-twitter-ids))
-                                     props))]
+            (let [filtered-props (remove-existing-props props models)]
               (when (pos? (count filtered-props))
                 (status-identity/bulk-insert-status-identities
                   filtered-props
