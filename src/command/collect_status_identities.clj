@@ -48,9 +48,8 @@
                                       (catch Exception e
                                         (log/error (.getMessage e))))
         props (doall
-                (pmap assoc-missing-props aggregate-member-identities))
-        deduplicated-props (dedupe (sort-by #(str (:member-identity %) (:publication-date-time %)) props))]
-    deduplicated-props))
+                (pmap assoc-missing-props aggregate-member-identities))]
+    props))
 
 (defn is-subset-of
   [props-set k]
