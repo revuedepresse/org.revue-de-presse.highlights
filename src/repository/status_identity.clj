@@ -63,6 +63,9 @@
                   AND WEEK(s.ust_created_at) = ?
                   AND YEAR(s.ust_created_at) = ?
                   AND a.screen_name = s.ust_full_name COLLATE utf8mb4_unicode_ci
+                  AND s.ust_status_id " (get-collation) " NOT IN (
+                    SELECT twitter_id FROM status_identity
+                  )
                 )
                 INNER JOIN member_identity m
                 ON (
@@ -89,7 +92,10 @@
                     WEEK(s.ust_created_at) = ?
                     AND YEAR(s.ust_created_at) = ?
                     AND sa.status_id = s.ust_id
-                    AND a.screen_name = s.ust_full_name COLLATE utf8mb4_unicode_ci\n
+                    AND a.screen_name = s.ust_full_name COLLATE utf8mb4_unicode_ci
+                    AND s.ust_status_id " (get-collation) " NOT IN (
+                      SELECT twitter_id FROM status_identity
+                    )
                 )
                 WHERE
                 sa.aggregate_id = ?
@@ -139,7 +145,12 @@
                     INNER JOIN weaving_aggregate a
                     ON sa.aggregate_id = a.id
                     INNER JOIN weaving_status s
-                    ON sa.status_id = s.ust_id
+                    ON (
+                      sa.status_id = s.ust_id
+                      AND s.ust_status_id " (get-collation) " NOT IN (
+                        SELECT twitter_id FROM status_identity
+                      )
+                    )
                     AND a.screen_name = s.ust_full_name " (get-collation) "
                     WHERE sa.aggregate_id = ?
                 )
