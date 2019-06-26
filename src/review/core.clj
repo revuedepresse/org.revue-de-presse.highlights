@@ -122,6 +122,13 @@
   (let [[aggregate-name] args]
     (status-identities/collect-status-identities-for-aggregates aggregate-name)))
 
+(defn collect-status-identities-for
+  [args]
+  (let [[aggregate-id week year] args]
+    (status-identities/collect-status-identities-for {:aggregate-id aggregate-id
+                                                      :week           week
+                                                      :year           year})))
+
 (defn record-popularity-of-highlights
   [args]
   (let [[date] args]
