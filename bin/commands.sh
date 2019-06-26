@@ -13,45 +13,6 @@ function require_project_directory() {
     return 0
 }
 
-function run_command() {
-    local command="${1}"
-    local success_message="${2}"
-
-    project_dir_is_unavailable="$(require_project_directory)"
-    if [ "${project_dir_is_unavailable}" == "1" ];
-    then
-        return
-    fi
-
-    local from="$CLJ_PROJECT_DIR"
-    echo "${from}"
-    cd "${from}"
-
-    /bin/bash -c "${command}" 2>> ./logs/highlights.error.log >> ./logs/highlights.out.log && \
-    now="$(date)" && \
-    echo "${success_message}$(date)"'"' >> ./logs/highlights.out.log || \
-    echo 'Something went horribly horribly wrong' >> ./logs/highlights.out.log
-}
-
-function refresh_highlights() {
-    local now="$(date)"
-    local command="echo 'Started to record popularity of tweets at "${now}"' &&
-    ${lein_bin} run save-highlights `date -I` &&
-    ${lein_bin} run record-popularity-of-highlights `date -I` "
-
-    local success_message='Finished recording popularity of tweets at "'
-    run_command "${command}" "${success_message}"
-}
-
-function save_highlights_for_all_aggregates() {
-    local now="$(date)"
-    local command="echo 'Started to record popularity of tweets at "${now}"' &&
-    ${lein_bin} run save-highlights-for-all-aggregates  `date -I`"
-
-    local success_message='Finished saving highlights for all aggregates at "'
-    run_command "${command}" "${success_message}"
-}
-
 function build_clojure_container() {
     docker build -t devobs-clojure .
 }
@@ -99,6 +60,56 @@ function run_clojure_container() {
         java -jar devobs-standalone.jar '"${arguments}"
     echo "About to run: \"${command}\""
     /bin/bash -c "${command}"
+}
+
+function run_command() {
+    local command="${1}"
+    local before_message="${2}"
+    local success_message="${3}"
+
+    project_dir_is_unavailable="$(require_project_directory)"
+    if [ "${project_dir_is_unavailable}" == "1" ];
+    then
+        return
+    fi
+
+    local from="$CLJ_PROJECT_DIR"
+    echo 'About to run command from "'"${from}"'"'
+    cd "${from}"
+
+    echo '-> About to run "'"${command}"'"'
+
+    echo "${before_message}" && \
+    export COMMAND="${command}" && run_clojure_container \
+    2>> ./logs/highlights.error.log \
+    >> ./logs/highlights.out.log && \
+    now="$(date)" && \
+    echo "${success_message}$(date)"'"' >> ./logs/highlights.out.log || \
+    echo 'Something went horribly horribly wrong' >> ./logs/highlights.out.log
+}
+
+function refresh_highlights() {
+    local now="$(date)"
+    local before_message='Started to refresh highlights at '"${now}"
+    local success_message='Finished refreshing highlights at "'
+    local command='save-highlights '"$(date -I)"
+    run_command "${command}" "${before_message}" "${success_message}"
+
+    local now="$(date)"
+    local before_message='Started to record popularity of highlights at '"${now}"
+    local success_message='Finished recording popularity of highlights at "'
+    local command='record-popularity-of-highlights '"$(date -I)"
+    run_command "${command}" "${before_message}" "${success_message}"
+}
+
+function save_highlights_for_all_aggregates() {
+    local command="save-highlights-for-all-aggregates $(date -I)"
+
+    local now="$(date)"
+    local before_message='Started to record popularity of tweets at '"${now}"
+
+    local success_message='Finished saving highlights for all aggregates at "'
+    run_command "${command}" "${before_message}" "${success_message}"
 }
 
 alias refresh-highlights=refresh_highlights
