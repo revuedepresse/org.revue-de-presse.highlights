@@ -54,7 +54,7 @@ function run_clojure_container() {
     remove_clojure_container "${container_name_suffix}"
 
     local network=`get_network_option`
-    local command='docker run -it --hostname clojure \
+    local command='docker run --hostname clojure \
         --hostname devobs.clojure '"${network}"' \
         --rm --name '"${container_name}"' devobs-clojure \
         java -jar devobs-standalone.jar '"${arguments}"
