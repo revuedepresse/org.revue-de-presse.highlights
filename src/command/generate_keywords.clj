@@ -93,8 +93,16 @@
                         highlights
                         models
                         (str "for \"" press-aggregate-name "\"")
-                        :find-keywords)]
-     new-keywords)))
+                        :find-keywords)
+         props (get-keywords-props)]
+     {:provides  props
+      :result    new-keywords
+      :formatter #(str
+                    (:keyword %)
+                    " for aggregate " (:aggregate-name %) " #" (:aggregate-id %)
+                    " and member #" (:member-id %)
+                    "(" (:occurrences %) ")"
+                    )})))
 
 (defn generate-keywords-for-aggregate
   [param & [models timely-status-finder log-message-ending]]

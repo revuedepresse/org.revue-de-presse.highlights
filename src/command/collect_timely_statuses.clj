@@ -39,9 +39,9 @@
     (sort-by :last-status-publication-date aggregates-having-parsed-publication-dates)))
 
 (defn collect-timely-statuses-for-member-subscriptions
-  [member]
+  [screen-name]
   (let [entity-manager (get-entity-manager (:database env))
-        aggregates (get-member-aggregates-by-screen-name member)
+        aggregates (get-member-aggregates-by-screen-name screen-name)
         sorted-aggregates (sort-by-status-publication-date aggregates)
         statuses (doall
                    (pmap
@@ -94,11 +94,11 @@
             get-aggregates-sharing-name)]))
 
 (defn collect-timely-statuses-for-member
-  [member]
+  [screen-name]
   (let [entity-manager (get-entity-manager (:database env))
-        aggregate (get-member-aggregate member)
+        aggregate (get-member-aggregate screen-name)
         statuses (handle-list
-                   {:screen-name                   member
+                   {:screen-name                   screen-name
                     :aggregate-id                  (:aggregate-id aggregate)
                     :entity-manager                entity-manager
                     :unavailable-aggregate-message error-unavailable-aggregate})]

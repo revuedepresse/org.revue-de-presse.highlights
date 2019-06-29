@@ -5,6 +5,7 @@
   (:use [korma.db]
         [utils.string]
         [repository.database-schema]
+        [repository.status-aggregate]
         [repository.query-executor]
         [twitter.status-hash]))
 
@@ -25,6 +26,10 @@
                   :occurrences
                   :keyword))
   hashtag)
+
+(defn get-keywords-props
+  []
+  [:keyword :occurrences :member-id :aggregate-id :aggregate-name :status-id])
 
 (defn select-keywords
   [model member-model status-model]
@@ -60,6 +65,52 @@
                               (db/select))]
     (if matching-keywords
       matching-keywords
+      '())))
+
+(defn find-keywords-by-aggregate-name
+  "Find keywords by aggregate-name"
+  [aggregate-name & args]
+  (let [limit (if (some? args)
+                (first args)
+                100)
+        query (str "
+          SELECT SUM(occurrences) as `occurrences`,
+          aggregate_id as `aggregate-id`,
+          aggregate_name as `aggregate-name`,
+          keyword as `keyword`
+          FROM keyword
+          WHERE aggregate_name = ?
+          AND LENGTH(keyword) > 3
+          GROUP BY keyword
+          ORDER BY SUM(occurrences) DESC
+          LIMIT ?
+        ")
+        results (db/exec-raw [query [aggregate-name limit]] :results)]
+    (if results
+      (reverse results)
+      '())))
+
+(defn find-mentions-by-aggregate-name
+  "Find mentions by aggregate-name"
+  [aggregate-name & args]
+  (let [limit (if (some? args)
+                (first args)
+                100)
+        query (str "
+          SELECT SUM(occurrences) as `occurrences`,
+          aggregate_id as `aggregate-id`,
+          aggregate_name as `aggregate-name`,
+          keyword as `keyword`
+          FROM keyword
+          WHERE aggregate_name = ?
+          AND keyword LIKE \"@%\"
+          GROUP BY keyword
+          ORDER BY SUM(occurrences) DESC
+          LIMIT ?
+        ")
+        results (db/exec-raw [query [aggregate-name limit]] :results)]
+    (if results
+      (reverse results)
       '())))
 
 (defn find-keywords-for-statuses-ids

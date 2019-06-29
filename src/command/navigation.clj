@@ -3,6 +3,9 @@
             [environ.core :refer [env]]
             [clojure.string :as string])
   (:use [repository.entity-manager]
+        [repository.keyword]
+        [repository.status]
+        [repository.status-aggregate]
         [repository.aggregate]))
 
 (defn list-aggregates
@@ -17,12 +20,83 @@
                    (:aggregate-id %)
                    ")")}))
 
+(defn list-aggregates-containing-member
+  [screen-name]
+  (let [_ (get-entity-manager (:database env))
+        aggregates (find-aggregates-enlisting-member screen-name)]
+    {:provides  [:aggregate-name :aggregate-id]
+     :result    aggregates
+     :formatter #(str
+                   (:aggregate-name %)
+                   " (#"
+                   (:aggregate-id %)
+                   ")")}))
+
+(defn list-keywords-by-aggregate
+  [aggregate-name & [finder]]
+  (let [_ (get-entity-manager (:database env))
+        finder (if (some? finder)
+                 finder
+                 find-keywords-by-aggregate-name)
+        keywords (finder aggregate-name)
+        props [:occurrences :keyword :aggregate-name :aggregate-id]]
+    {:provides  props
+     :result    (map
+                  #(select-keys % props)
+                  keywords)
+     :formatter #(str
+                   (:aggregate-name %)
+                   " (#"
+                   (:aggregate-id %)
+                   ")")}))
+
+(defn list-mentions-by-aggregate
+  [aggregate-name]
+  (list-keywords-by-aggregate aggregate-name find-mentions-by-aggregate-name))
+
+(defn list-member-statuses
+  [screen-name]
+  (let [{status-model :status} (get-entity-manager (:database env))
+        statuses (find-statuses-by-screen-name screen-name status-model)
+        props [:status-id :status-twitter-id :text :created-at :screen-name]]
+    {:provides  props
+     :result    (map
+                  #(select-keys % props)
+                  statuses)
+     :formatter #(str
+                   "@" (:screen-name %) ": "
+                   (:text %)
+                   " (at "
+                   (:created-at %)
+                   ")")}))
+
+(defn list-aggregate-statuses
+  [aggregate-name]
+  (let [models (get-entity-manager (:database env))
+        statuses (find-statuses-by-aggregate-name
+                   aggregate-name
+                   models)
+        props [:status-id :status-twitter-id :text :created-at :screen-name :aggregate-name]]
+    {:provides  props
+     :result    (map
+                  #(select-keys % props)
+                  statuses)
+     :formatter #(str
+                   "@" (:screen-name %) ": "
+                   (:text %)
+                   " (at "
+                   (:created-at %)
+                   ")")}))
+
 (defn list-members-in-aggregate
   [aggregate-name]
   (let [_ (get-entity-manager (:database env))
-        members (find-members-by-aggregate aggregate-name)]
-    {:provides  [:aggregate-name :screen-name :member-id :member-twitter-id]
-     :result    members
+        members (find-members-by-aggregate aggregate-name)
+        props [:aggregate-name :screen-name :member-id :member-twitter-id]]
+    {:provides  props
+     :result    (map
+                  #(select-keys % props)
+                  members)
      :formatter #(str
                    (:screen-name %)
                    " (#"
@@ -32,10 +106,11 @@
 (defn get-member-description
   [screen-name]
   (let [{member-model :members} (get-entity-manager (:database env))
-        members (find-member-by-screen-name screen-name member-model)]
-    {:provides  [:description :screen-name :member-id]
+        members (find-member-by-screen-name screen-name member-model)
+        props [:description :screen-name :member-id]]
+    {:provides  props
      :result    (map
-                  #(select-keys % [:description :screen-name :member-id])
+                  #(select-keys % props)
                   members)
      :formatter #(str
                    (:screen-name %)
@@ -68,7 +143,7 @@
 
 (defn is-valid-numeric
   [subject]
-  (re-find #"^\d$" subject))
+  (re-find #"^\d+$" subject))
 
 (defn long-from-numeric
   [numeric]

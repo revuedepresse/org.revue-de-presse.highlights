@@ -58,10 +58,10 @@
   (let [[aggregate-name] args]
     (status-identities/collect-status-identities-for-aggregates aggregate-name)))
 
-(defn ^{:requires [:member]} command-collect-timely-statuses-for-member-subscriptions
+(defn ^{:requires [:screen-name]} command-collect-timely-statuses-for-member-subscriptions
   [args]
-  (let [[member] args]
-    (timely-statuses/collect-timely-statuses-for-member-subscriptions member)))
+  (let [[screen-name] args]
+    (timely-statuses/collect-timely-statuses-for-member-subscriptions screen-name)))
 
 (defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
   [args]
@@ -73,10 +73,10 @@
   (let [[aggregate-name] args]
     (timely-statuses/collect-timely-statuses-from-aggregate aggregate-name)))
 
-(defn ^{:requires [:member]} command-collect-timely-statuses-for-member
+(defn ^{:requires [:screen-name]} command-collect-timely-statuses-for-member
   [args]
-  (let [[member] args]
-    (timely-statuses/collect-timely-statuses-for-member member)))
+  (let [[screen-name] args]
+    (timely-statuses/collect-timely-statuses-for-member screen-name)))
 
 (defn ^{:requires [:date]} command-generate-keywords-from-statuses
   [args]
@@ -101,6 +101,31 @@
 (defn ^{:requires []} command-list-aggregates
   []
   (navigation/list-aggregates))
+
+(defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
+  [args]
+  (let [[screen-name] args]
+    (navigation/list-aggregates-containing-member screen-name)))
+
+(defn ^{:requires [:screen-name]} command-list-member-statuses
+  [args]
+  (let [[screen-name] args]
+    (navigation/list-member-statuses screen-name)))
+
+(defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
+  [args]
+  (let [[aggregate-name] args]
+    (navigation/list-aggregate-statuses aggregate-name)))
+
+(defn ^{:requires [:aggregate-name]} command-list-keywords-by-aggregate
+  [args]
+  (let [[aggregate-name] args]
+    (navigation/list-keywords-by-aggregate aggregate-name)))
+
+(defn ^{:requires [:aggregate-name]} command-list-mentions-by-aggregate
+  [args]
+  (let [[aggregate-name] args]
+    (navigation/list-mentions-by-aggregate aggregate-name)))
 
 (defn ^{:requires [:aggregate-name]} command-list-members-in-aggregate
   [args]
@@ -209,7 +234,7 @@
                                                                                 result-map)))
             :else (do
                     (println (str "\nInvalid command: \"" input "\""))
-                    (recur false nil))))))))
+                    (recur false result-map))))))))
 
 (defn -main
   "Command dispatch application"

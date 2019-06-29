@@ -39,6 +39,21 @@
         results (db/exec-raw [query] :results)]
     results))
 
+(defn find-aggregates-enlisting-member
+  "Find aggregates enlisting member"
+  [screen-name]
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NOT NULL
+                AND name NOT LIKE 'user ::%'
+                AND screen_name = ?
+                ORDER BY name ASC")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))
+
 (defn find-members-by-aggregate
   "Find all aggregates sorted by name"
   [aggregate-name]

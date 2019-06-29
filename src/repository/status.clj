@@ -32,6 +32,7 @@
   (->
     (db/select* model)
     (db/fields [:ust_id :id]
+               [:ust_id :status-id]
                [:ust_hash :hash]
                [:ust_text :text]
                [:ust_full_name :screen-name]
@@ -39,6 +40,7 @@
                [:ust_access_token :access-token]
                [:ust_api_document :document]
                [:ust_created_at :created-at]
+               [:ust_status_id :status-twitter-id]
                [:ust_status_id :twitter-id])))
 
 (defn find-statuses-having-column-matching-values
@@ -49,6 +51,7 @@
         matching-statuses (-> (select-statuses model)
                               (db/where {column [in values]})
                               (db/group :ust_status_id)
+                              (db/order :ust_created_at "ASC")
                               (db/select))]
     (if matching-statuses
       matching-statuses
@@ -74,23 +77,24 @@
   [authors aggregate-id]
   (let [bindings (take (count authors) (iterate (constantly "?") "?"))
         more-bindings (string/join "," bindings)
-        query (str
-          "SELECT ust_id AS id,                       "
-          "ust_hash AS hash,                          "
-          "ust_text AS text,                          "
-          "ust_full_name AS `screen-name`,            "
-          "ust_name AS `name`,                        "
-          "ust_access_token AS `access-token`,        "
-          "ust_api_document AS `document`,            "
-          "ust_created_at AS `created-at`,            "
-          "ust_status_id AS `twitter-id`              "
-          "FROM weaving_status                        "
-          "WHERE ust_full_name in (" more-bindings ") "
-          "AND (ust_full_name, ust_id) NOT IN (       "
-          "   SELECT member_name, status_id           "
-          "   FROM timely_status                      "
-          "   WHERE aggregate_id = ?                  "
-          ")                                          ")
+        query (str "
+          SELECT ust_id AS id,
+          ust_hash AS hash,
+          ust_text AS text,
+          ust_full_name AS `screen-name`,
+          ust_name AS `name`,
+          ust_access_token AS `access-token`,
+          ust_api_document AS `document`,
+          ust_created_at AS `created-at`,
+          ust_status_id AS `twitter-id`
+          FROM weaving_status
+          WHERE ust_full_name in (" more-bindings ")
+          AND (ust_full_name, ust_id) NOT IN (
+             SELECT member_name, status_id
+             FROM timely_status
+             WHERE aggregate_id = ?
+          )
+        ")
         params (conj authors aggregate-id)
         results (db/exec-raw [query params] :results)]
     (if (some? results)
