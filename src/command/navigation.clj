@@ -40,14 +40,30 @@
          {:name  cmd-name
           :index cmd-index}))))
 
+(defn is-valid-numeric
+  [subject]
+  (re-find #"^\d$" subject))
+
+(defn long-from-numeric
+  [numeric]
+  (when numeric
+    (Long/parseLong numeric)))
+
+(defn is-valid-choice
+  [input total-choices]
+  (let [matching-integer (is-valid-numeric input)
+        choice-index (long-from-numeric matching-integer)]
+    (and
+      (some? choice-index)
+      (< choice-index total-choices))))
+
+(defn is-invalid-choice
+  [input total-choices]
+  (not (is-valid-choice input total-choices)))
+
 (defn is-valid-command-index
   [input total-commands]
-  (let [matching-integer (re-find #"^\d$" input)
-        command-candidate-index (when matching-integer
-                                  (Long/parseLong matching-integer))]
-    (and
-      (some? command-candidate-index)
-      (< command-candidate-index total-commands))))
+  (is-valid-choice input total-commands))
 
 (defn print-menu-when
   [pred]
@@ -65,18 +81,46 @@
   [f]
   (seq (get-requirements f)))
 
+(defn right-padding
+  [s & args]
+  (let [padding-length (if (some? args)
+                         (first args)
+                         25)]
+    (format (str "%-" padding-length "s") s)))
+
 (defn format-selection
   [{m :map
     k :key
     i :index}]
-  (str i ") " (get m k)))
+  (str
+    (right-padding (str i ")") 5)
+    (right-padding (get m k))))
 
 (defn print-formatted-string
-  [formatter coll]
-  (doall
-    (map
-      #(println (formatter %))
-      coll)))
+  [formatter coll & options]
+  (let [no-wrap (when (some? options)
+                  (:no-wrap (first options)))
+        items-per-row (if (and
+                            (some? options)
+                            (:items-per-row options))
+                        (:items-per-row (first options))
+                        5)
+        divisor (inc items-per-row)
+        effect (if no-wrap
+                 identity
+                 println)
+        apply-effect (if no-wrap
+                       #(do
+                          (let [sep (if (= 0 %1) "" "|")
+                                prefix (if (= 0 (mod (inc %1) divisor)) "|\n" sep)]
+                            (effect (str prefix (formatter %2)))))
+                       #(effect (formatter %2)))
+        res (doall
+              (map-indexed
+                apply-effect
+                coll))]
+    (when no-wrap
+      (println (str (string/join "" res) "|")))))
 
 (defn get-choice
   [{choice             :map
@@ -112,7 +156,7 @@
   (let [printable-choices (transform-coll format-selection #(inc %) single-requirement coll)]
     (when (some? printable-choices)
       (println (str "Please select one " (string/replace (name single-requirement) "-" " ")))
-      (print-formatted-string identity printable-choices))))
+      (print-formatted-string identity printable-choices {:no-wrap true}))))
 
 (defn get-choices
   [single-requirement coll]
@@ -135,6 +179,22 @@
           "\nAbout to run command \"" command
           "\"")))))
 
+(defn apply-with
+  [f command choices valid-choice]
+  (let [selected-choice (dec (Long/parseLong valid-choice))
+        first-requirement (first (get-requirements f))
+        args [(get (nth choices selected-choice) first-requirement)]]
+    (print-command-name command args)
+    (apply f [args])))
+
+(defn should-quit-from-last-result
+  [result]
+  (= "q" (:result result)))
+
+(defn should-quit
+  [input]
+  (= input "q"))
+
 (defn run-command-indexed-at
   [index ns-commands last-eval]
   (let [command (:name (nth
@@ -142,22 +202,27 @@
                          (dec index)))
         f (resolve (symbol (str "review.core/command-" command)))]
     (if (has-requirements? f)
-      (do
-        (let [coll (:result last-eval)
-              _ (when-f-has-single-requirement
-                  f
-                  prompt-choices
-                  coll)
-              choices (when-f-has-single-requirement
-                        f
-                        get-choices
-                        coll)
-              input (read-line)
-              selected-choice (dec (Long/parseLong input))
-              first-requirement (first (get-requirements f))
-              args [(get (nth choices selected-choice) first-requirement)]]
-          (print-command-name command args)
-          (apply f [args])))
+      (let [coll (:result last-eval)
+            _ (when-f-has-single-requirement
+                f
+                prompt-choices
+                coll)
+            choices (when-f-has-single-requirement
+                      f
+                      get-choices
+                      coll)
+            input (read-line)
+            valid-choice (loop [choice-candidate input]
+                           (if (and
+                                 (is-invalid-choice choice-candidate (count choices))
+                                 (not (should-quit input)))
+                             (do
+                               (println "Please select a valid choice.")
+                               (recur (read-line)))
+                             choice-candidate))]
+        (if (should-quit input)
+          {:result "q"}
+          (apply-with f command choices valid-choice)))
       (do
         (print-command-name command)
         (apply f [])))))
@@ -192,7 +257,9 @@
 
 (defn format-command
   [command]
-  (str (:index command) ") " (:name command)))
+  (str
+    (right-padding (str (:index command) ")") 5)
+    (right-padding (:name command))))
 
 (defn print-new-line
   [] (println "\n"))
@@ -203,12 +270,6 @@
     (apply f [args])
     (catch Exception e
       (log/error (.getMessage e)))))
-
-(defn is-compliant-result-map?
-  [result-map]
-  (and (some? result-map)
-       (:formatter result-map)
-       (:result result-map)))
 
 (defn find-ns-symbols-from
   [last-eval]

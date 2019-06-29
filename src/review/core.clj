@@ -153,12 +153,10 @@
       (loop [print-menu true
              result-map nil]
         (navigation/print-menu-when print-menu)
-        (when (navigation/is-compliant-result-map? result-map)
-          (navigation/print-formatted-string
-            (:formatter result-map)
-            (:result result-map)))
         (let [ns-commands (navigation/find-ns-symbols result-map)
-              input (read-line)
+              input (if (navigation/should-quit-from-last-result result-map)
+                      "q"
+                      (read-line))
               _ (when (and
                         (some? result-map)
                         (:formatter result-map)
