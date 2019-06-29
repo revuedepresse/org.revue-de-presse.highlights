@@ -415,8 +415,11 @@
   (->
     (db/select* members)
     (db/fields [:usr_id :id]
+               [:usr_id :member-id]
                [:usr_twitter_id :twitter-id]
+               [:usr_twitter_id :member-twitter-id]
                [:usr_twitter_username :screen-name]
+               [:description :description]
                [:min_status_id :min-status-id]
                [:max_status_id :max-status-id]
                [:min_like_id :min-favorite-status-id]
@@ -429,6 +432,7 @@
   (-> (db/select* members)
       (db/fields [:usr_id :id]
                  [:usr_twitter_id :twitter-id]
+                 [:description :description]
                  [:usr_twitter_username :screen_name]
                  [:usr_twitter_username :screen-name])))
 

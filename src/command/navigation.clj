@@ -29,6 +29,18 @@
                    (:member-twitter-id %)
                    ")")}))
 
+(defn get-member-description
+  [screen-name]
+  (let [{member-model :members} (get-entity-manager (:database env))
+        members (find-member-by-screen-name screen-name member-model)]
+    {:provides  [:description :screen-name :member-id]
+     :result    members
+     :formatter #(str
+                   (:screen-name %)
+                   " (#"
+                   (:member-twitter-id %)
+                   ")")}))
+
 (defn get-meta-for-command-in-namespace
   [command namespace]
   (meta
@@ -122,14 +134,15 @@
                             (:items-per-row options))
                         (:items-per-row (first options))
                         5)
-        divisor (inc items-per-row)
         effect (if no-wrap
                  identity
                  println)
         apply-effect (if no-wrap
                        #(do
                           (let [sep (if (= 0 %1) "" item-separator)
-                                prefix (if (= 0 (mod (inc %1) divisor)) (str item-separator "\n") sep)]
+                                prefix (if (= 0 (mod %1 items-per-row))
+                                         (str item-separator "\n")
+                                         sep)]
                             (effect (str prefix (formatter %2)))))
                        #(effect (formatter %2)))
         res (doall

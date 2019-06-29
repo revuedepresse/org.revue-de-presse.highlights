@@ -140,6 +140,12 @@
         week (Long/parseLong week)]
     (unarchived-statuses/unarchive-statuses week year)))
 
+(defn ^{:requires [:screen-name]} command-show-member-descriptions
+  "Show member bio"
+  [args]
+  (let [[screen-name] args]
+    (navigation/get-member-description screen-name)))
+
 (defn ^{:requires [:any]} command-show-latest-evaluation
   [& args]
   (let [coll (if (and
