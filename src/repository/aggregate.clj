@@ -25,6 +25,20 @@
                   :list_id))
   aggregate)
 
+(defn find-all-aggregates
+  "Find all aggregates sorted by name"
+  []
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NULL
+                AND name NOT LIKE 'user ::%'
+                ORDER BY name ASC")
+        results (db/exec-raw [query] :results)]
+    results))
+
 (defn find-aggregate-by-id
   "Find an aggregate by id"
   [id model]
@@ -176,7 +190,7 @@
   (let [query (select-aggregates-where
                 "= ?"
                 (str "
-                  AND a.screen_name = s.ust_full_name
+                  AND a.screen_name = s.ust_full_name " (get-collation) "
                   AND a.screen_name IS NOT NULL"))
         results (db/exec-raw [query [name]] :results)]
     results))
@@ -191,7 +205,7 @@
                 "weaving_user member,                                                           "
                 "weaving_aggregate aggregate                                                    "
                 "WHERE                                                                          "
-                "member.usr_twitter_username = aggregate.screen_name                            "
+                "member.usr_twitter_username" (get-collation) "= aggregate.screen_name          "
                 "AND aggregate.screen_name IS NOT NULL                                          "
                 "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)           "
                 "AND member.usr_twitter_username = ?                                            ")

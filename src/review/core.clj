@@ -4,6 +4,7 @@
   (:require [clojure.tools.logging :as log]
             [command.analysis.frequency :as analysis-frequencies]
             [command.generate-keywords :as keywords]
+            [command.navigation :as navigation]
             [command.update-members-props :as members]
             [command.unarchive-statuses :as unarchived-statuses]
             [command.save-highlights :as highlights]
@@ -17,7 +18,7 @@
 
 (log/log-capture! "review")
 
-(defn add-frequencies-of-publication-for-member-subscriptions
+(defn command-add-frequencies-of-publication-for-member-subscriptions
   [args]
   (let [[screen-name sample-label week year] args
         week (Long/parseLong week)
@@ -31,7 +32,7 @@
       (catch Exception e
         (log/error (.getMessage e))))))
 
-(defn consume-amqp-messages
+(defn ^{:requires [:queue :messages :consumers]} command-consume-amqp-messages
   [args]
   (let [[queue messages consumers] args
         total-messages (if (nil? messages)
@@ -45,12 +46,73 @@
       (catch Exception e (log/error
                            (str "An error occurred with message: " (.getMessage e)))))))
 
-(defn recommend-subscriptions
+(defn ^{:requires [:aggregate-id :week :year]} command-collect-status-identities-for
+  [args]
+  (let [[aggregate-id week year] args]
+    (status-identities/collect-status-identities-for {:aggregate-id aggregate-id
+                                                      :week         week
+                                                      :year         year})))
+
+(defn ^{:requires [:aggregate-name]} command-collect-status-identities-for-aggregates
+  [args]
+  (let [[aggregate-name] args]
+    (status-identities/collect-status-identities-for-aggregates aggregate-name)))
+
+(defn ^{:requires [:member]} command-collect-timely-statuses-for-member-subscriptions
+  [args]
+  (let [[member] args]
+    (timely-statuses/collect-timely-statuses-for-member-subscriptions member)))
+
+(defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
+  [args]
+  (let [[reverse-order] args]
+    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
+
+(defn ^{:requires [:aggregate-name]} command-collect-timely-statuses-from-aggregate
+  [args]
+  (let [[aggregate-name] args]
+    (timely-statuses/collect-timely-statuses-from-aggregate aggregate-name)))
+
+(defn ^{:requires [:member]} command-collect-timely-statuses-for-member
+  [args]
+  (let [[member] args]
+    (timely-statuses/collect-timely-statuses-for-member member)))
+
+(defn ^{:requires [:date]} command-generate-keywords-from-statuses
+  [args]
+  (let [[date] args]
+    (if (> (count args) 1)
+      (keywords/generate-keywords-for-all-aggregates
+        date
+        {:week (Long/parseLong (first args))
+         :year (Long/parseLong (second args))})
+      (keywords/generate-keywords-for-all-aggregates date))))
+
+(defn ^{:requires [:aggregate-name]} command-generate-keywords-for-aggregate
+  [args]
+  (let [[aggregate-name] args]
+    (keywords/generate-keywords-for-aggregate aggregate-name)))
+
+(defn ^{:requires [:aggregate-name]} command-generate-keywords-for-aggregates-sharing-name
+  [args]
+  (let [[aggregate-name] args]
+    (keywords/generate-keywords-for-aggregates-sharing-name aggregate-name)))
+
+(defn ^{:requires []} command-list-aggregates
+  []
+  (navigation/list-aggregates))
+
+(defn ^{:requires [:screen-name]} command-recommend-subscriptions
   [args]
   (let [[screen-name] args]
     (recommend-subscriptions-from-member-subscription-history screen-name)))
 
-(defn save-highlights
+(defn ^{:requires [:date]} command-record-popularity-of-highlights
+  [args]
+  (let [[date] args]
+    (highlights/record-popularity-of-highlights date)))
+
+(defn ^{:requires [:date]} command-save-highlights
   [args]
   (let [[date] args]
     (cond
@@ -61,100 +123,70 @@
       :else
       (apply highlights/save-highlights args))))
 
-(defn save-highlights-for-all-aggregates
+(defn ^{:requires [:date]} command-save-highlights-for-all-aggregates
   [args]
   (let [[date] args]
     (highlights/save-highlights-for-all-aggregates date)))
 
-(defn update-members-descriptions-urls
-  []
-  (members/update-members-descriptions-urls))
-
-(defn unarchive-statuses
+(defn ^{:requires [:week :year]} command-unarchive-statuses
   [args]
   (let [[week year] args
         year (Long/parseLong year)
         week (Long/parseLong week)]
     (unarchived-statuses/unarchive-statuses week year)))
 
-(defn collect-timely-statuses-for-member-subscriptions
-  [args]
-  (let [[member] args]
-    (timely-statuses/collect-timely-statuses-for-member-subscriptions member)))
+(defn ^{:requires []} command-update-members-descriptions-urls
+  []
+  (members/update-members-descriptions-urls))
 
-(defn collect-timely-statuses-from-aggregates
-  [args]
-  (let [[reverse-order] args]
-    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
-
-(defn collect-timely-statuses-from-aggregate
-  [args]
-  (let [[aggregate-name] args]
-    (timely-statuses/collect-timely-statuses-from-aggregate aggregate-name)))
-
-(defn collect-timely-statuses-for-member
-  [args]
-  (let [[member] args]
-    (timely-statuses/collect-timely-statuses-for-member member)))
-
-(defn generate-keywords-from-statuses
-  [args]
-  (let [[date] args]
-    (if (> (count args) 1)
-      (keywords/generate-keywords-for-all-aggregates
-        date
-        {:week (Long/parseLong (first args))
-         :year (Long/parseLong (second args))})
-      (keywords/generate-keywords-for-all-aggregates date))))
-
-(defn generate-keywords-for-aggregate
-  [args]
-  (let [[aggregate-name] args]
-    (keywords/generate-keywords-for-aggregate aggregate-name)))
-
-(defn generate-keywords-for-aggregates-sharing-name
-  [args]
-  (let [[aggregate-name] args]
-    (keywords/generate-keywords-for-aggregates-sharing-name aggregate-name)))
-
-(defn collect-status-identities-for-aggregates
-  [args]
-  (let [[aggregate-name] args]
-    (status-identities/collect-status-identities-for-aggregates aggregate-name)))
-
-(defn collect-status-identities-for
-  [args]
-  (let [[aggregate-id week year] args]
-    (status-identities/collect-status-identities-for {:aggregate-id aggregate-id
-                                                      :week           week
-                                                      :year           year})))
-
-(defn record-popularity-of-highlights
-  [args]
-  (let [[date] args]
-    (highlights/record-popularity-of-highlights date)))
-
-(defn who-publish-the-most-for-each-day-of-week
+(defn ^{:requires [:label]} command-who-publish-the-most-for-each-day-of-week
   [args]
   (let [[label] args]
     (analysis-frequencies/who-publish-the-most-for-each-day-of-week label)))
 
 (defn execute-command
   [name args]
-  (let [s (symbol (str "review.core/" name))
+  (let [s (symbol (str "review.core/command" name))
         f (resolve s)]
     (if f
-      (try
-        (apply f [args])
-        (catch Exception e
-          (log/error (.getMessage e))))
-      (log/info "Invalid command"))))
+      (navigation/try-running-command f args)
+      (loop [print-menu true
+             result-map nil]
+        (navigation/print-menu-when print-menu)
+        (when (navigation/is-compliant-result-map? result-map)
+          (navigation/print-formatted-string
+            (:formatter result-map)
+            (:result result-map)))
+        (let [ns-commands (navigation/find-ns-symbols result-map)
+              input (read-line)
+              _ (when (and
+                        (some? result-map)
+                        (:formatter result-map)
+                        (:result result-map))
+                  (navigation/print-formatted-string
+                    (:formatter result-map)
+                    (:result result-map)))]
+          (cond
+            (= input "q") (println "bye")
+            (= input "h") (do
+                            (navigation/print-help ns-commands)
+                            (recur false nil))
+            (navigation/is-valid-command-index input (count ns-commands)) (do
+                                                                            (recur
+                                                                              false
+                                                                              (navigation/run-command-indexed-at
+                                                                                (Long/parseLong input)
+                                                                                ns-commands
+                                                                                result-map)))
+            :else (do
+                    (println (str "\nInvalid command: \"" input "\""))
+                    (recur false nil))))))))
 
 (defn -main
   "Command dispatch application"
-  [name & args]
+  [& args]
   (try
-    (execute-command name args)
+    (execute-command (first args) (rest args))
     (catch Exception e
       (log/error (.getMessage e)))))
 

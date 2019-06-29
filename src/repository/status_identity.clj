@@ -41,10 +41,6 @@
                  [:archived_status :archived-status-id])
       (db/join member-identity-model (= member-identity-id-col :member_identity)))))
 
-(defn get-collation
-  []
-  " COLLATE utf8mb4_unicode_ci ")
-
 (defn find-by-aggregate-id
   [aggregate-id week year db]
   (let [query (str "
