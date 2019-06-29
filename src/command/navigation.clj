@@ -59,7 +59,7 @@
 
 (defn is-invalid-choice
   [input total-choices]
-  (not (is-valid-choice input total-choices)))
+  (nil? (is-valid-choice input total-choices)))
 
 (defn is-valid-command-index
   [input total-commands]
