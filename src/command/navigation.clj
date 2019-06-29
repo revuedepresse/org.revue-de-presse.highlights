@@ -34,7 +34,9 @@
   (let [{member-model :members} (get-entity-manager (:database env))
         members (find-member-by-screen-name screen-name member-model)]
     {:provides  [:description :screen-name :member-id]
-     :result    members
+     :result    (map
+                  #(select-keys % [:description :screen-name :member-id])
+                  members)
      :formatter #(str
                    (:screen-name %)
                    " (#"
@@ -297,7 +299,7 @@
 (defn format-command
   [command]
   (str
-    (right-padding (str (:index command) ")") 3)
+    (right-padding (str (:index command) ")") 4)
     (right-padding (:name command))))
 
 (defn print-new-line
