@@ -102,6 +102,11 @@
   []
   (navigation/list-aggregates))
 
+(defn ^{:requires [:aggregate-name]} command-list-members-in-aggregate
+  [args]
+  (let [[aggregate-name] args]
+    (navigation/list-members-in-aggregate aggregate-name)))
+
 (defn ^{:requires [:screen-name]} command-recommend-subscriptions
   [args]
   (let [[screen-name] args]
@@ -135,6 +140,33 @@
         week (Long/parseLong week)]
     (unarchived-statuses/unarchive-statuses week year)))
 
+(defn ^{:requires [:any]} command-show-latest-evaluation
+  [& args]
+  (let [coll (if (and
+                   (some? args)
+                   (pos? (count args)))
+               (:result (first args))
+               '())
+        formatter (if (some? coll)
+                    (fn [m]
+                      (str
+                        (clojure.string/join
+                          "\n"
+                          (map
+                            #(str (name %) ": " (get m %))
+                            (sort (keys (first coll))))
+                          )
+                        "\n"))
+                    identity)]
+    (navigation/print-formatted-string
+      formatter
+      coll
+      {:no-wrap false
+       :sep     "------------------"})
+    (if (some? coll)
+      args
+      {:result '()})))
+
 (defn ^{:requires []} command-update-members-descriptions-urls
   []
   (members/update-members-descriptions-urls))
@@ -156,14 +188,7 @@
         (let [ns-commands (navigation/find-ns-symbols result-map)
               input (if (navigation/should-quit-from-last-result result-map)
                       "q"
-                      (read-line))
-              _ (when (and
-                        (some? result-map)
-                        (:formatter result-map)
-                        (:result result-map))
-                  (navigation/print-formatted-string
-                    (:formatter result-map)
-                    (:result result-map)))]
+                      (read-line))]
           (cond
             (= input "q") (println "bye")
             (= input "h") (do

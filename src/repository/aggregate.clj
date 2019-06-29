@@ -39,6 +39,24 @@
         results (db/exec-raw [query] :results)]
     results))
 
+(defn find-members-by-aggregate
+  "Find all aggregates sorted by name"
+  [aggregate-name]
+  (let [query (str "
+                SELECT
+                a.screen_name as `screen-name`,
+                mi.twitter_id as `member-twitter-id`,
+                mi.member_id as `member-id`,
+                a.name as `aggregate-name`
+                FROM weaving_aggregate a
+                INNER JOIN member_identity mi
+                ON mi.screen_name = a.screen_name
+                WHERE a.screen_name IS NOT NULL
+                AND a.name = ?
+                ORDER BY a.screen_name ASC")
+        results (db/exec-raw [query [aggregate-name]] :results)]
+    results))
+
 (defn find-aggregate-by-id
   "Find an aggregate by id"
   [id model]

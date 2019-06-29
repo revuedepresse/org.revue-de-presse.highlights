@@ -17,6 +17,18 @@
                    (:aggregate-id %)
                    ")")}))
 
+(defn list-members-in-aggregate
+  [aggregate-name]
+  (let [_ (get-entity-manager (:database env))
+        members (find-members-by-aggregate aggregate-name)]
+    {:provides  [:aggregate-name :screen-name :member-id :member-twitter-id]
+     :result    members
+     :formatter #(str
+                   (:screen-name %)
+                   " (#"
+                   (:member-twitter-id %)
+                   ")")}))
+
 (defn get-meta-for-command-in-namespace
   [command namespace]
   (meta
@@ -100,6 +112,11 @@
   [formatter coll & options]
   (let [no-wrap (when (some? options)
                   (:no-wrap (first options)))
+        item-separator (if (and
+                             (some? options)
+                             (:sep (first options)))
+                         (:sep (first options))
+                         "|")
         items-per-row (if (and
                             (some? options)
                             (:items-per-row options))
@@ -111,8 +128,8 @@
                  println)
         apply-effect (if no-wrap
                        #(do
-                          (let [sep (if (= 0 %1) "" "|")
-                                prefix (if (= 0 (mod (inc %1) divisor)) "|\n" sep)]
+                          (let [sep (if (= 0 %1) "" item-separator)
+                                prefix (if (= 0 (mod (inc %1) divisor)) (str item-separator "\n") sep)]
                             (effect (str prefix (formatter %2)))))
                        #(effect (formatter %2)))
         res (doall
@@ -195,37 +212,46 @@
   [input]
   (= input "q"))
 
+(defn meets-any-requirements?
+  [f]
+  (and
+    (has-requirements? f)
+    (= :any (first (get-requirements f)))))
+
 (defn run-command-indexed-at
   [index ns-commands last-eval]
   (let [command (:name (nth
                          ns-commands
                          (dec index)))
         f (resolve (symbol (str "review.core/command-" command)))]
-    (if (has-requirements? f)
-      (let [coll (:result last-eval)
-            _ (when-f-has-single-requirement
-                f
-                prompt-choices
-                coll)
-            choices (when-f-has-single-requirement
-                      f
-                      get-choices
-                      coll)
-            input (read-line)
-            valid-choice (loop [choice-candidate input]
-                           (if (and
-                                 (is-invalid-choice choice-candidate (count choices))
-                                 (not (should-quit input)))
-                             (do
-                               (println "Please select a valid choice.")
-                               (recur (read-line)))
-                             choice-candidate))]
-        (if (should-quit input)
-          {:result "q"}
-          (apply-with f command choices valid-choice)))
-      (do
-        (print-command-name command)
-        (apply f [])))))
+    (cond
+      (and
+        (has-requirements? f)
+        (not (meets-any-requirements? f))) (let [coll (:result last-eval)
+                                                 _ (when-f-has-single-requirement
+                                                     f
+                                                     prompt-choices
+                                                     coll)
+                                                 choices (when-f-has-single-requirement
+                                                           f
+                                                           get-choices
+                                                           coll)
+                                                 input (read-line)
+                                                 valid-choice (loop [choice-candidate input]
+                                                                (if (and
+                                                                      (is-invalid-choice choice-candidate (count choices))
+                                                                      (not (should-quit input)))
+                                                                  (do
+                                                                    (println "Please select a valid choice.")
+                                                                    (recur (read-line)))
+                                                                  choice-candidate))]
+                                             (if (should-quit input)
+                                               {:result "q"}
+                                               (apply-with f command choices valid-choice)))
+      (meets-any-requirements? f) (apply f [last-eval])
+      :else (do
+              (print-command-name command) 1
+              (apply f [])))))
 
 (defn find-ns-symbols-without-args
   []
@@ -258,7 +284,7 @@
 (defn format-command
   [command]
   (str
-    (right-padding (str (:index command) ")") 5)
+    (right-padding (str (:index command) ")") 3)
     (right-padding (:name command))))
 
 (defn print-new-line
@@ -282,10 +308,15 @@
 (defn find-ns-symbols
   [last-eval]
   (let [ns-commands-available-from-last-eval (find-ns-symbols-from last-eval)
+        show-last-evaluation (if (some? last-eval)
+                               (apply list [{:name "show-latest-evaluation"}])
+                               '())
         ns-commands (->>
                       (into
                         (find-ns-symbols-without-args)
                         ns-commands-available-from-last-eval)
+                      (into
+                        show-last-evaluation)
                       (map
                         #(dissoc % :index))
                       (sort-by
