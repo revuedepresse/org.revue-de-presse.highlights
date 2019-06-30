@@ -2,10 +2,10 @@
   (:require [clojure.tools.logging :as log]
             [korma.core :as db])
   (:use [korma.db]
-        [utils.string]
         [repository.database-schema]
         [repository.query-executor]
-        [twitter.status-hash]))
+        [twitter.status-hash]
+        [utils.string]))
 
 (declare aggregate)
 

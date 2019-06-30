@@ -51,7 +51,7 @@
         matching-statuses (-> (select-statuses model)
                               (db/where {column [in values]})
                               (db/group :ust_status_id)
-                              (db/order :ust_created_at "ASC")
+                              (db/order :ust_created_at "DESC")
                               (db/select))]
     (if matching-statuses
       matching-statuses

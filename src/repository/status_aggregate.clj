@@ -52,7 +52,7 @@
         aggregate-name-col (get-column "name" aggregate-model)
         matching-statuses (-> (select-fields model status-model aggregate-model)
                               (db/where {aggregate-name-col aggregate-name})
-                              (db/order created-at-col "ASC")
+                              (db/order created-at-col "DESC")
                               (db/limit limit)
                               (db/select))]
     (if matching-statuses

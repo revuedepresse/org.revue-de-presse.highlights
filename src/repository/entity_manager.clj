@@ -427,6 +427,7 @@
                [:min_like_id :min-favorite-status-id]
                [:max_like_id :max-favorite-status-id])
     (db/where {:usr_twitter_username screen-name})
+    (db/order [:usr_twitter_username "ASC"])
     (db/select)))
 
 (defn select-members

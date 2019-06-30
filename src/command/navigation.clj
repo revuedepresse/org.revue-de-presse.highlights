@@ -2,121 +2,12 @@
   (:require [clojure.tools.logging :as log]
             [environ.core :refer [env]]
             [clojure.string :as string])
-  (:use [repository.entity-manager]
+  (:use [formatting.formatter]
+        [repository.entity-manager]
         [repository.keyword]
         [repository.status]
         [repository.status-aggregate]
         [repository.aggregate]))
-
-(defn list-aggregates
-  []
-  (let [_ (get-entity-manager (:database env))
-        aggregates (find-all-aggregates)]
-    {:provides  [:aggregate-name :aggregate-id]
-     :result    aggregates
-     :formatter #(str
-                   (:aggregate-name %)
-                   " (#"
-                   (:aggregate-id %)
-                   ")")}))
-
-(defn list-aggregates-containing-member
-  [screen-name]
-  (let [_ (get-entity-manager (:database env))
-        aggregates (find-aggregates-enlisting-member screen-name)]
-    {:provides  [:aggregate-name :aggregate-id]
-     :result    aggregates
-     :formatter #(str
-                   (:aggregate-name %)
-                   " (#"
-                   (:aggregate-id %)
-                   ")")}))
-
-(defn list-keywords-by-aggregate
-  [aggregate-name & [finder]]
-  (let [_ (get-entity-manager (:database env))
-        finder (if (some? finder)
-                 finder
-                 find-keywords-by-aggregate-name)
-        keywords (finder aggregate-name)
-        props [:occurrences :keyword :aggregate-name :aggregate-id]]
-    {:provides  props
-     :result    (map
-                  #(select-keys % props)
-                  keywords)
-     :formatter #(str
-                   (:aggregate-name %)
-                   " (#"
-                   (:aggregate-id %)
-                   ")")}))
-
-(defn list-mentions-by-aggregate
-  [aggregate-name]
-  (list-keywords-by-aggregate aggregate-name find-mentions-by-aggregate-name))
-
-(defn list-member-statuses
-  [screen-name]
-  (let [{status-model :status} (get-entity-manager (:database env))
-        statuses (find-statuses-by-screen-name screen-name status-model)
-        props [:status-id :status-twitter-id :text :created-at :screen-name]]
-    {:provides  props
-     :result    (map
-                  #(select-keys % props)
-                  statuses)
-     :formatter #(str
-                   "@" (:screen-name %) ": "
-                   (:text %)
-                   " (at "
-                   (:created-at %)
-                   ")")}))
-
-(defn list-aggregate-statuses
-  [aggregate-name]
-  (let [models (get-entity-manager (:database env))
-        statuses (find-statuses-by-aggregate-name
-                   aggregate-name
-                   models)
-        props [:status-id :status-twitter-id :text :created-at :screen-name :aggregate-name]]
-    {:provides  props
-     :result    (map
-                  #(select-keys % props)
-                  statuses)
-     :formatter #(str
-                   "@" (:screen-name %) ": "
-                   (:text %)
-                   " (at "
-                   (:created-at %)
-                   ")")}))
-
-(defn list-members-in-aggregate
-  [aggregate-name]
-  (let [_ (get-entity-manager (:database env))
-        members (find-members-by-aggregate aggregate-name)
-        props [:aggregate-name :screen-name :member-id :member-twitter-id]]
-    {:provides  props
-     :result    (map
-                  #(select-keys % props)
-                  members)
-     :formatter #(str
-                   (:screen-name %)
-                   " (#"
-                   (:member-twitter-id %)
-                   ")")}))
-
-(defn get-member-description
-  [screen-name]
-  (let [{member-model :members} (get-entity-manager (:database env))
-        members (find-member-by-screen-name screen-name member-model)
-        props [:description :screen-name :member-id]]
-    {:provides  props
-     :result    (map
-                  #(select-keys % props)
-                  members)
-     :formatter #(str
-                   (:screen-name %)
-                   " (#"
-                   (:member-twitter-id %)
-                   ")")}))
 
 (defn get-meta-for-command-in-namespace
   [command namespace]
@@ -308,8 +199,36 @@
     (has-requirements? f)
     (= :any (first (get-requirements f)))))
 
+(defn validate-input
+  [input choices]
+  (loop [choice-candidate input]
+    (if (and
+          (is-invalid-choice choice-candidate (count choices))
+          (not (should-quit input)))
+      (do
+        (println "Please select a valid choice.")
+        (recur (read-line)))
+      choice-candidate)))
+
+(defn let-user-make-a-choice
+  [f result-map]
+  (let [coll (:result result-map)
+        _ (when-f-has-single-requirement
+            f
+            prompt-choices
+            coll)
+        choices (when-f-has-single-requirement
+                  f
+                  get-choices
+                  coll)
+        input (read-line)
+        valid-choice (validate-input input choices)]
+    {:user-choice valid-choice
+     :choices     choices
+     :input       input}))
+
 (defn run-command-indexed-at
-  [index ns-commands last-eval]
+  [index ns-commands result-map]
   (let [command (:name (nth
                          ns-commands
                          (dec index)))
@@ -317,28 +236,13 @@
     (cond
       (and
         (has-requirements? f)
-        (not (meets-any-requirements? f))) (let [coll (:result last-eval)
-                                                 _ (when-f-has-single-requirement
-                                                     f
-                                                     prompt-choices
-                                                     coll)
-                                                 choices (when-f-has-single-requirement
-                                                           f
-                                                           get-choices
-                                                           coll)
-                                                 input (read-line)
-                                                 valid-choice (loop [choice-candidate input]
-                                                                (if (and
-                                                                      (is-invalid-choice choice-candidate (count choices))
-                                                                      (not (should-quit input)))
-                                                                  (do
-                                                                    (println "Please select a valid choice.")
-                                                                    (recur (read-line)))
-                                                                  choice-candidate))]
+        (not (meets-any-requirements? f))) (let [{user-choice :user-choice
+                                                  choices     :choices
+                                                  input       :input} (let-user-make-a-choice f result-map)]
                                              (if (should-quit input)
                                                {:result "q"}
-                                               (apply-with f command choices valid-choice)))
-      (meets-any-requirements? f) (apply f [last-eval])
+                                               (apply-with f command choices user-choice)))
+      (meets-any-requirements? f) (apply f [result-map])
       :else (do
               (print-command-name command) 1
               (apply f [])))))

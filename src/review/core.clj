@@ -9,7 +9,8 @@
             [command.unarchive-statuses :as unarchived-statuses]
             [command.save-highlights :as highlights]
             [command.collect-status-identities :as status-identities]
-            [command.collect-timely-statuses :as timely-statuses])
+            [command.collect-timely-statuses :as timely-statuses]
+            [adaptor.database-navigation :as adaptor])
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
@@ -100,37 +101,37 @@
 
 (defn ^{:requires []} command-list-aggregates
   []
-  (navigation/list-aggregates))
+  (adaptor/list-aggregates))
 
 (defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
   [args]
   (let [[screen-name] args]
-    (navigation/list-aggregates-containing-member screen-name)))
+    (adaptor/list-aggregates-containing-member screen-name)))
 
 (defn ^{:requires [:screen-name]} command-list-member-statuses
   [args]
   (let [[screen-name] args]
-    (navigation/list-member-statuses screen-name)))
+    (adaptor/list-member-statuses screen-name)))
 
 (defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
   [args]
   (let [[aggregate-name] args]
-    (navigation/list-aggregate-statuses aggregate-name)))
+    (adaptor/list-aggregate-statuses aggregate-name)))
 
 (defn ^{:requires [:aggregate-name]} command-list-keywords-by-aggregate
   [args]
   (let [[aggregate-name] args]
-    (navigation/list-keywords-by-aggregate aggregate-name)))
+    (adaptor/list-keywords-by-aggregate aggregate-name)))
 
 (defn ^{:requires [:aggregate-name]} command-list-mentions-by-aggregate
   [args]
   (let [[aggregate-name] args]
-    (navigation/list-mentions-by-aggregate aggregate-name)))
+    (adaptor/list-mentions-by-aggregate aggregate-name)))
 
 (defn ^{:requires [:aggregate-name]} command-list-members-in-aggregate
   [args]
   (let [[aggregate-name] args]
-    (navigation/list-members-in-aggregate aggregate-name)))
+    (adaptor/list-members-in-aggregate aggregate-name)))
 
 (defn ^{:requires [:screen-name]} command-recommend-subscriptions
   [args]
@@ -165,11 +166,11 @@
         week (Long/parseLong week)]
     (unarchived-statuses/unarchive-statuses week year)))
 
-(defn ^{:requires [:screen-name]} command-show-member-descriptions
+(defn ^{:requires [:screen-name]} command-show-member-description
   "Show member bio"
   [args]
   (let [[screen-name] args]
-    (navigation/get-member-description screen-name)))
+    (adaptor/get-member-description screen-name)))
 
 (defn ^{:requires [:any]} command-show-latest-evaluation
   [& args]

@@ -1,6 +1,5 @@
 (ns repository.keyword
-  (:require [clojure.tools.logging :as log]
-            [clj-uuid :as uuid]
+  (:require [clj-uuid :as uuid]
             [korma.core :as db])
   (:use [korma.db]
         [utils.string]
@@ -87,7 +86,7 @@
         ")
         results (db/exec-raw [query [aggregate-name limit]] :results)]
     (if results
-      (reverse results)
+      results
       '())))
 
 (defn find-mentions-by-aggregate-name
@@ -110,7 +109,7 @@
         ")
         results (db/exec-raw [query [aggregate-name limit]] :results)]
     (if results
-      (reverse results)
+      results
       '())))
 
 (defn find-keywords-for-statuses-ids
