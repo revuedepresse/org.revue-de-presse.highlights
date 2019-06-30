@@ -20,7 +20,7 @@
   [namespace prefix meta-pred]
   (->>
     (filter
-      #(string/starts-with? % "command-")
+      #(string/starts-with? % prefix)
       (keys (ns-publics namespace)))
     (filter
       #(meta-pred
@@ -333,3 +333,23 @@
                                   #(format-command %)
                                   ns-commands)]
     (show-available-commands)))
+
+(defn handle-input
+  [result-map]
+  (let [ns-commands (find-ns-symbols result-map)
+        input (if (should-quit-from-last-result result-map)
+                "q"
+                (read-line))]
+    (cond
+      (= input "q") (do
+                      (println "bye"))
+      (= input "h") (do
+                      (print-help ns-commands)
+                      [false nil])
+      (is-valid-command-index input (count ns-commands)) [false (run-command-indexed-at
+                                                                  (Long/parseLong input)
+                                                                  ns-commands
+                                                                  result-map)]
+      :else (do
+              (println (str "\nInvalid command: \"" input "\""))
+              [false result-map]))))

@@ -103,6 +103,10 @@
   []
   (adaptor/list-aggregates))
 
+(defn ^{:requires []} command-list-keyword-aggregates
+  []
+  (adaptor/list-keyword-aggregates))
+
 (defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
   [args]
   (let [[screen-name] args]
@@ -222,25 +226,11 @@
       (loop [print-menu true
              result-map nil]
         (navigation/print-menu-when print-menu)
-        (let [ns-commands (navigation/find-ns-symbols result-map)
-              input (if (navigation/should-quit-from-last-result result-map)
-                      "q"
-                      (read-line))]
-          (cond
-            (= input "q") (println "bye")
-            (= input "h") (do
-                            (navigation/print-help ns-commands)
-                            (recur false nil))
-            (navigation/is-valid-command-index input (count ns-commands)) (do
-                                                                            (recur
-                                                                              false
-                                                                              (navigation/run-command-indexed-at
-                                                                                (Long/parseLong input)
-                                                                                ns-commands
-                                                                                result-map)))
-            :else (do
-                    (println (str "\nInvalid command: \"" input "\""))
-                    (recur false result-map))))))))
+        (let [ret (navigation/handle-input result-map)]
+              (when (some? ret)
+                (recur
+                  (first ret)
+                  (rest ret))))))))
 
 (defn -main
   "Command dispatch application"

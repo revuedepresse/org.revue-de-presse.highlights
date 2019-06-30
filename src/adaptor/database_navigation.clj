@@ -30,6 +30,10 @@
     (adapt-results {:finder    finder
                     :formatter (get-indexed-prop-formatter :aggregate-name :aggregate-id)})))
 
+(defn list-keyword-aggregates
+  []
+  (list-aggregates #(find-keyword-aggregates)))
+
 (defn list-aggregates-containing-member
   [screen-name]
   (list-aggregates #(find-aggregates-enlisting-member screen-name)))

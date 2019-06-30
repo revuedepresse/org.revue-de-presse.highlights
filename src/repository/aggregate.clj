@@ -54,6 +54,22 @@
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
+(defn find-keyword-aggregates
+  "Find aggregates for which there are keywords"
+  []
+  (let [query (str "
+                SELECT
+                a.id as `aggregate-id`,
+                a.name as `aggregate-name`
+                FROM weaving_aggregate a
+                WHERE name NOT LIKE 'user ::%'
+                AND screen_name IS NULL
+                AND name IN (SELECT DISTINCT aggregate_name FROM keyword)
+                ORDER BY name ASC
+              ")
+        results (db/exec-raw [query] :results)]
+    results))
+
 (defn find-members-by-aggregate
   "Find all aggregates sorted by name"
   [aggregate-name]
