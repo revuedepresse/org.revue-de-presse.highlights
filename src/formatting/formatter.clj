@@ -20,11 +20,12 @@
 (defn get-keyword-formatter
   [keyword occurrences]
   (fn [m]
-    (str
-      (get m keyword)
-      " (occurrences: "
-      (get m occurrences)
-      ")")))
+    (let [formatter #(str
+                       (get % keyword)
+                       " (occurrences: "
+                       (get % occurrences)
+                       ")")]
+      (right-padding (formatter m) 35))))
 
 (defn get-status-formatter
   [screen-name text publication-date]
@@ -39,6 +40,17 @@
 (defn get-aggregate-formatter
   []
   (let [formatter (get-indexed-prop-formatter :aggregate-name :aggregate-id)]
+    (fn [m]
+      (right-padding (formatter m) 35))))
+
+(defn get-member-formatter
+  [screen-name member-twitter-id]
+  (let [formatter #(str
+                     "@"
+                     (get % screen-name)
+                     " (#"
+                     (get % member-twitter-id)
+                     ")")]
     (fn [m]
       (right-padding (formatter m) 35))))
 

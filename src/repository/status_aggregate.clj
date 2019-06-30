@@ -24,19 +24,16 @@
         status-id-col (get-column "ust_id" status-model)
         status-twitter-id-col (get-column "ust_status_id" status-model)
         text-col (get-column "ust_text" status-model)
-        created-at-col (get-column "ust_created_at" status-model)
-        status-api-document (get-column "ust_api_document" status-model)]
+        created-at-col (get-column "ust_created_at" status-model)]
     (->
       (db/select* model)
       (db/fields [:status_id :status-id]
                  [:aggregate_id :aggregate-id]
-                 [status-api-document :status-api-document]
+                 [aggregate-screen-name-col :screen-name]
                  [text-col :text]
                  [created-at-col :created-at]
                  [status-twitter-id-col :status-twitter-id]
                  [aggregate-name-col :aggregate-name]
-                 [aggregate-screen-name-col :aggregate-screen-name-col]
-                 [aggregate-screen-name-col :screen-name]
                  [aggregate-list-id-col :aggregate-list-id-col])
       (db/join aggregate-model (= aggregate-id-col :aggregate_id))
       (db/join status-model (= status-id-col :status_id)))))

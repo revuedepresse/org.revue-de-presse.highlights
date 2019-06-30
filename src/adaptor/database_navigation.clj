@@ -87,7 +87,7 @@
                   :finder    (fn [get-models]
                                (let [_ get-models]
                                  (find-members-by-aggregate aggregate-name)))
-                  :formatter (get-indexed-prop-formatter :screen-name :member-twitter-id)}))
+                  :formatter (get-member-formatter :screen-name :member-twitter-id)}))
 
 (defn get-member-description
   [screen-name]
@@ -95,7 +95,7 @@
                   :finder    (fn [get-models]
                                (let [{member-model :members} (get-models)]
                                  (find-member-by-screen-name screen-name member-model)))
-                  :formatter (get-indexed-prop-formatter :screen-name :member-twitter-id)}))
+                  :formatter (get-member-formatter :screen-name :member-twitter-id)}))
 
 (defn render-latest-result-map
   [args]
