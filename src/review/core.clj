@@ -183,30 +183,7 @@
 
 (defn ^{:requires [:any]} command-show-latest-evaluation
   [& args]
-  (let [coll (if (and
-                   (some? args)
-                   (pos? (count args)))
-               (:result (first args))
-               '())
-        formatter (if (some? coll)
-                    (fn [m]
-                      (str
-                        (clojure.string/join
-                          "\n"
-                          (map
-                            #(str (name %) ": " (get m %))
-                            (sort (keys (first coll))))
-                          )
-                        "\n"))
-                    identity)]
-    (navigation/print-formatted-string
-      formatter
-      coll
-      {:no-wrap false
-       :sep     "------------------"})
-    (if (some? coll)
-      args
-      {:result '()})))
+  (adaptor/render-latest-result-map args))
 
 (defn ^{:requires []} command-update-members-descriptions-urls
   []
@@ -230,7 +207,7 @@
               (when (some? ret)
                 (recur
                   (first ret)
-                  (rest ret))))))))
+                  (second ret))))))))
 
 (defn -main
   "Command dispatch application"
@@ -238,5 +215,6 @@
   (try
     (execute-command (first args) (rest args))
     (catch Exception e
-      (log/error (.getMessage e)))))
-
+      (log/error (.getMessage e))
+      (doall
+        (map println (.getStackTrace e))))))

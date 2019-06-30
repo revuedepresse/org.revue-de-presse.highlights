@@ -65,7 +65,6 @@
                 WHERE name NOT LIKE 'user ::%'
                 AND screen_name IS NULL
                 AND name IN (SELECT DISTINCT aggregate_name FROM keyword)
-                ORDER BY name ASC
               ")
         results (db/exec-raw [query] :results)]
     results))

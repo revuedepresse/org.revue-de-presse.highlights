@@ -28,11 +28,12 @@
                    (finder)
                    (find-all-aggregates)))]
     (adapt-results {:finder    finder
-                    :formatter (get-indexed-prop-formatter :aggregate-name :aggregate-id)})))
+                    :formatter (get-aggregate-formatter)})))
 
 (defn list-keyword-aggregates
   []
-  (list-aggregates #(find-keyword-aggregates)))
+  (list-aggregates (fn []
+                     (sort-by #(:aggregate-name %) (find-keyword-aggregates)))))
 
 (defn list-aggregates-containing-member
   [screen-name]
@@ -48,7 +49,7 @@
                    (reverse (finder aggregate-name))))]
     (adapt-results {:props     [:occurrences :keyword :aggregate-name :aggregate-id]
                     :finder    finder
-                    :formatter (get-indexed-prop-formatter :aggregate-name :aggregate-id)})))
+                    :formatter (get-keyword-formatter :keyword :occurrences)})))
 
 (defn list-mentions-by-aggregate
   [aggregate-name]
@@ -95,3 +96,30 @@
                                (let [{member-model :members} (get-models)]
                                  (find-member-by-screen-name screen-name member-model)))
                   :formatter (get-indexed-prop-formatter :screen-name :member-twitter-id)}))
+
+(defn render-latest-result-map
+  [args]
+  (let [coll (if (and
+                   (some? args)
+                   (pos? (count args)))
+               (:result (first args))
+               '())
+        formatter (if (some? coll)
+                    (fn [m]
+                      (str
+                        (clojure.string/join
+                          "\n"
+                          (map
+                            #(str (name %) ": " (get m %))
+                            (sort (keys (first coll))))
+                          )
+                        "\n"))
+                    identity)]
+    (print-formatted-string
+      formatter
+      coll
+      {:no-wrap false
+       :sep     "------------------"})
+    (if (some? coll)
+      args
+      {:result '()})))

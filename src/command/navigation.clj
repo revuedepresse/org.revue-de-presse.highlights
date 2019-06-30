@@ -51,7 +51,7 @@
 
 (defn is-invalid-choice
   [input total-choices]
-  (nil? (is-valid-choice input total-choices)))
+  (not (is-valid-choice input total-choices)))
 
 (defn is-valid-command-index
   [input total-commands]
@@ -62,8 +62,8 @@
   (when pred
     (do
       (println "\nEntering interactive mode")
-      (println "\n\"q\" to quit or CTRL/COMMAND + C")
-      (println "\"h\" to list available commands"))))
+      (println "\n[h]elp about available commands")
+      (println "[q]uit or CTRL/COMMAND + C"))))
 
 (defn get-requirements
   [f]
@@ -72,53 +72,6 @@
 (defn has-requirements?
   [f]
   (seq (get-requirements f)))
-
-(defn right-padding
-  [s & args]
-  (let [padding-length (if (some? args)
-                         (first args)
-                         25)]
-    (format (str "%-" padding-length "s") s)))
-
-(defn format-selection
-  [{m :map
-    k :key
-    i :index}]
-  (str
-    (right-padding (str i ")") 5)
-    (right-padding (get m k))))
-
-(defn print-formatted-string
-  [formatter coll & options]
-  (let [no-wrap (when (some? options)
-                  (:no-wrap (first options)))
-        item-separator (if (and
-                             (some? options)
-                             (:sep (first options)))
-                         (:sep (first options))
-                         "|")
-        items-per-row (if (and
-                            (some? options)
-                            (:items-per-row options))
-                        (:items-per-row (first options))
-                        5)
-        effect (if no-wrap
-                 identity
-                 println)
-        apply-effect (if no-wrap
-                       #(do
-                          (let [sep (if (= 0 %1) "" item-separator)
-                                prefix (if (= 0 (mod %1 items-per-row))
-                                         (str item-separator "\n")
-                                         sep)]
-                            (effect (str prefix (formatter %2)))))
-                       #(effect (formatter %2)))
-        res (doall
-              (map-indexed
-                apply-effect
-                coll))]
-    (when no-wrap
-      (println (str (string/join "" res) "|")))))
 
 (defn get-choice
   [{choice             :map
@@ -134,27 +87,35 @@
     (= 1 (count requirements))))
 
 (defn when-f-has-single-requirement
-  [f next coll]
+  [f next coll & [formatter]]
   (let [requirements (get-requirements f)
         next-eval (when (has-single-requirement? f)
-                    (next (first requirements) coll))]
+                    (if formatter
+                      (next (first requirements) coll formatter)
+                      (next (first requirements) coll)))]
     next-eval))
 
 (defn transform-coll
-  [f f-key single-requirement coll]
+  [f f-key single-requirement coll & [formatter]]
   (let [choices (map-indexed
-                  #(f {:key   single-requirement
-                       :map   %2
-                       :index (f-key %1)})
+                  #(f {:formatter formatter
+                       :key       single-requirement
+                       :map       %2
+                       :index     (f-key %1)})
                   coll)]
     choices))
 
 (defn prompt-choices
-  [single-requirement coll]
-  (let [printable-choices (transform-coll format-selection #(inc %) single-requirement coll)]
+  [single-requirement coll & [formatter]]
+  (let [formatter (when (some? formatter)
+                    formatter)
+        printable-choices (transform-coll format-selection #(inc %) single-requirement coll formatter)]
     (when (some? printable-choices)
       (println (str "Please select one " (string/replace (name single-requirement) "-" " ")))
-      (print-formatted-string identity printable-choices {:no-wrap true}))))
+      (print-formatted-string
+        identity
+        printable-choices
+        {:no-wrap true}))))
 
 (defn get-choices
   [single-requirement coll]
@@ -204,19 +165,21 @@
   (loop [choice-candidate input]
     (if (and
           (is-invalid-choice choice-candidate (count choices))
-          (not (should-quit input)))
+          (not (should-quit choice-candidate)))
       (do
-        (println "Please select a valid choice.")
+        (println "Please select a valid choice (or [q]uit).")
         (recur (read-line)))
       choice-candidate)))
 
 (defn let-user-make-a-choice
   [f result-map]
   (let [coll (:result result-map)
+        formatter (:formatter result-map)
         _ (when-f-has-single-requirement
             f
             prompt-choices
-            coll)
+            coll
+            formatter)
         choices (when-f-has-single-requirement
                   f
                   get-choices
@@ -224,8 +187,7 @@
         input (read-line)
         valid-choice (validate-input input choices)]
     {:user-choice valid-choice
-     :choices     choices
-     :input       input}))
+     :choices     choices}))
 
 (defn run-command-indexed-at
   [index ns-commands result-map]
@@ -237,9 +199,8 @@
       (and
         (has-requirements? f)
         (not (meets-any-requirements? f))) (let [{user-choice :user-choice
-                                                  choices     :choices
-                                                  input       :input} (let-user-make-a-choice f result-map)]
-                                             (if (should-quit input)
+                                                  choices     :choices} (let-user-make-a-choice f result-map)]
+                                             (if (should-quit user-choice)
                                                {:result "q"}
                                                (apply-with f command choices user-choice)))
       (meets-any-requirements? f) (apply f [result-map])
