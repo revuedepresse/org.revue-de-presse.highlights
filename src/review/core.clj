@@ -118,6 +118,11 @@
   (let [[aggregate-name] args]
     (adaptor/list-aggregate-statuses aggregate-name)))
 
+(defn ^{:requires [:keyword]} command-list-statuses-containing-keyword
+  [args]
+  (let [[keyword] args]
+    (adaptor/list-statuses-containing-keyword keyword)))
+
 (defn ^{:requires [:aggregate-name]} command-list-keywords-by-aggregate
   [args]
   (let [[aggregate-name] args]

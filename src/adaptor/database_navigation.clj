@@ -67,6 +67,15 @@
                                           (get-models))))
                   :formatter (get-status-formatter :screen-name :text :created-at)}))
 
+(defn list-statuses-containing-keyword
+  [keyword]
+  (adapt-results {:props     [:status-id :status-twitter-id :text :created-at :screen-name :aggregate-name]
+                  :finder    (fn [get-models]
+                               (reverse (find-statuses-containing-keyword
+                                          keyword
+                                          (get-models))))
+                  :formatter (get-status-formatter :screen-name :text :created-at)}))
+
 (defn list-members-in-aggregate
   [aggregate-name]
   (adapt-results {:props     [:aggregate-name :screen-name :member-id :member-twitter-id]
