@@ -48,9 +48,8 @@
                                       (catch Exception e
                                         (log/error (.getMessage e))))
         props (doall
-                (pmap assoc-missing-props aggregate-member-identities))
-        deduplicated-props (dedupe (sort-by #(str (:member-identity %) (:publication-date-time %)) props))]
-    deduplicated-props))
+                (pmap assoc-missing-props aggregate-member-identities))]
+    props))
 
 (defn is-subset-of
   [props-set k]
@@ -109,24 +108,46 @@
                          "aggregate #" aggregate-id))
         min-week-year (status-identity/get-min-week-year-for-aggregate-id aggregate-id read-db)
         since-year (:since-year min-week-year)
+        since-week (:since-week min-week-year)
         now (l/local-now)
-        remaining-years (inc (- (time/year now) since-year))
+        last-year (time/year now)
+        last-year-week (time/week-number-of-year now)
+        remaining-years (inc (- last-year since-year))
         years (take remaining-years (iterate inc since-year))
         for-each-week-of (fn
                            [aggregate-id year]
-                           (let [weeks (take 53 (iterate inc 0))]
+                           (let [first-week (if (= year since-year)
+                                              since-week
+                                              0)
+                                 total-weeks (inc
+                                               (if (= year last-year)
+                                                 (- last-year-week first-week)
+                                                 (- 53 first-week)))
+                                 weeks (take total-weeks (iterate inc first-week))]
                              (doall
-                               (map
+                               (pmap
                                  #(decode-available-documents aggregate-id % year databases models)
                                  weeks))))
         decoded-statuses (doall
                            (pmap #(for-each-week-of aggregate-id %) years))]
     decoded-statuses))
 
+(defn collect-status-identities-for
+  [{aggregate-id :aggregate-id
+    week         :week
+    year         :year}]
+  (let [{write-db :connection} (get-entity-manager (:database env))
+        {read-db :connection :as models} (get-entity-manager
+                                           (:database-read env)
+                                           {:is-read-connection true})]
+    (decode-available-documents aggregate-id week year {:read-db  read-db
+                                                        :write-db write-db} models)))
 (defn collect-status-identities-for-aggregates
   [aggregate-name]
   (let [{write-db :connection} (get-entity-manager (:database env))
-        {read-db :connection :as models} (get-entity-manager (:database-read env) {:is-read-connection true})
+        {read-db :connection :as models} (get-entity-manager
+                                           (:database-read env)
+                                           {:is-read-connection true})
         aggregates (find-aggregates-sharing-name aggregate-name read-db)
         _ (doall
             (pmap

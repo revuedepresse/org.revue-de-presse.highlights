@@ -15,3 +15,9 @@ build-clojure-container: ## Build Clojure container
 
 run-clojure-container: ## Build Clojure container
 		@/bin/bash -c "source ./bin/commands.sh && run_clojure_container"
+
+refresh-highlights: ## Refresh highlights
+		@/bin/bash -c "source ./bin/commands.sh && refresh_highlights"
+
+save-highlights-for-all-aggregates: ## Save highlights for all aggregates
+		@/bin/bash -c "source ./bin/commands.sh && save_highlights_for_all_aggregates"

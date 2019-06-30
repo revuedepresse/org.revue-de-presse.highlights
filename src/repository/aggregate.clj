@@ -2,10 +2,10 @@
   (:require [clojure.tools.logging :as log]
             [korma.core :as db])
   (:use [korma.db]
-        [utils.string]
         [repository.database-schema]
         [repository.query-executor]
-        [twitter.status-hash]))
+        [twitter.status-hash]
+        [utils.string]))
 
 (declare aggregate)
 
@@ -24,6 +24,53 @@
                   :screen_name
                   :list_id))
   aggregate)
+
+(defn find-all-aggregates
+  "Find all aggregates sorted by name"
+  []
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NULL
+                AND name NOT LIKE 'user ::%'
+                ORDER BY name ASC")
+        results (db/exec-raw [query] :results)]
+    results))
+
+(defn find-aggregates-enlisting-member
+  "Find aggregates enlisting member"
+  [screen-name]
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NOT NULL
+                AND name NOT LIKE 'user ::%'
+                AND screen_name = ?
+                ORDER BY name ASC")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))
+
+(defn find-members-by-aggregate
+  "Find all aggregates sorted by name"
+  [aggregate-name]
+  (let [query (str "
+                SELECT
+                a.screen_name as `screen-name`,
+                mi.twitter_id as `member-twitter-id`,
+                mi.member_id as `member-id`,
+                a.name as `aggregate-name`
+                FROM weaving_aggregate a
+                INNER JOIN member_identity mi
+                ON mi.screen_name = a.screen_name
+                WHERE a.screen_name IS NOT NULL
+                AND a.name = ?
+                ORDER BY a.screen_name ASC")
+        results (db/exec-raw [query [aggregate-name]] :results)]
+    results))
 
 (defn find-aggregate-by-id
   "Find an aggregate by id"
@@ -176,7 +223,7 @@
   (let [query (select-aggregates-where
                 "= ?"
                 (str "
-                  AND a.screen_name = s.ust_full_name
+                  AND a.screen_name = s.ust_full_name " (get-collation) "
                   AND a.screen_name IS NOT NULL"))
         results (db/exec-raw [query [name]] :results)]
     results))
@@ -191,7 +238,7 @@
                 "weaving_user member,                                                           "
                 "weaving_aggregate aggregate                                                    "
                 "WHERE                                                                          "
-                "member.usr_twitter_username = aggregate.screen_name                            "
+                "member.usr_twitter_username" (get-collation) "= aggregate.screen_name          "
                 "AND aggregate.screen_name IS NOT NULL                                          "
                 "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)           "
                 "AND member.usr_twitter_username = ?                                            ")

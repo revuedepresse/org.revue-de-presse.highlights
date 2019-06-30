@@ -187,8 +187,10 @@
      :archived-status       (archived-status/get-archived-status-model connection)
      :highlight             (highlight/get-highlight-model connection)
      :hashtag               (keyword/get-keyword-model connection)
+     :keyword               (keyword/get-keyword-model connection)
      :liked-status          (get-liked-status-model connection)
      :members               (get-members-model connection)
+     :member                (get-members-model connection)
      :member-identity       (member-identity/get-member-identity-model connection)
      :member-subscribees    (get-member-subscribees-model connection)
      :member-subscriptions  (get-member-subscriptions-model connection)
@@ -415,13 +417,17 @@
   (->
     (db/select* members)
     (db/fields [:usr_id :id]
+               [:usr_id :member-id]
                [:usr_twitter_id :twitter-id]
+               [:usr_twitter_id :member-twitter-id]
                [:usr_twitter_username :screen-name]
+               [:description :description]
                [:min_status_id :min-status-id]
                [:max_status_id :max-status-id]
                [:min_like_id :min-favorite-status-id]
                [:max_like_id :max-favorite-status-id])
     (db/where {:usr_twitter_username screen-name})
+    (db/order [:usr_twitter_username "ASC"])
     (db/select)))
 
 (defn select-members
@@ -429,6 +435,7 @@
   (-> (db/select* members)
       (db/fields [:usr_id :id]
                  [:usr_twitter_id :twitter-id]
+                 [:description :description]
                  [:usr_twitter_username :screen_name]
                  [:usr_twitter_username :screen-name])))
 
