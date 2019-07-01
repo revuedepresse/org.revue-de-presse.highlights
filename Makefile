@@ -13,7 +13,7 @@ remove-clojure-image: ## Remove Clojure container
 build-clojure-container: ## Build Clojure container
 		@/bin/bash -c 'source ./bin/commands.sh && build_clojure_container'
 
-run-clojure-container: ## Build Clojure container
+run-clojure-container: ## Run Clojure container
 		@/bin/bash -c "source ./bin/commands.sh && run_clojure_container"
 
 refresh-highlights: ## Refresh highlights

@@ -53,8 +53,14 @@ function run_clojure_container() {
 
     remove_clojure_container "${container_name_suffix}"
 
+    local interactive_mode_option=''
+    if [ -z "${arguments}" ];
+    then
+        interactive_mode_option=' -ti'
+    fi
+
     local network=`get_network_option`
-    local command='docker run \
+    local command='docker run '"${interactive_mode_option}"' \
         --hostname devobs.clojure '"${network}"' \
         --rm --name '"${container_name}"' devobs-clojure \
         java -jar devobs-standalone.jar '"${arguments}"
