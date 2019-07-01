@@ -2,10 +2,12 @@
   (:require [environ.core :refer [env]])
   (:use [formatting.formatter]
         [repository.aggregate]
+        [repository.entity-manager]
         [repository.keyword]
+        [repository.member]
+        [repository.member-subscription]
         [repository.status]
-        [repository.status-aggregate]
-        [repository.entity-manager]))
+        [repository.status-aggregate]))
 
 (defn adapt-results
   [{props :props finder :finder formatter :formatter}]
@@ -30,14 +32,14 @@
     (adapt-results {:finder    finder
                     :formatter (get-aggregate-formatter)})))
 
+(defn list-aggregates-containing-member
+  [screen-name]
+  (list-aggregates #(find-aggregates-enlisting-member screen-name)))
+
 (defn list-keyword-aggregates
   []
   (list-aggregates (fn []
                      (sort-by #(:aggregate-name %) (find-keyword-aggregates)))))
-
-(defn list-aggregates-containing-member
-  [screen-name]
-  (list-aggregates #(find-aggregates-enlisting-member screen-name)))
 
 (defn list-keywords-by-aggregate
   [aggregate-name & [finder]]
@@ -81,13 +83,33 @@
                                           (get-models))))
                   :formatter (get-status-formatter :screen-name :text :created-at)}))
 
-(defn list-members-in-aggregate
-  [aggregate-name]
+(defn list-members
+  [finder]
   (adapt-results {:props     [:aggregate-name :screen-name :member-id :member-twitter-id]
                   :finder    (fn [get-models]
-                               (let [_ get-models]
-                                 (find-members-by-aggregate aggregate-name)))
+                               (let [_ (get-models)]
+                                 (finder)))
                   :formatter (get-member-formatter :screen-name :member-twitter-id)}))
+
+(defn list-members-in-aggregate
+  [aggregate-name]
+  (list-members #(find-members-by-aggregate aggregate-name)))
+
+(defn list-members-which-subscriptions-have-been-collected
+  []
+  (list-members #(find-members-which-subscriptions-have-been-collected)))
+
+(defn list-members-in-lists-of-subscriber-having-screen-name
+  [screen-name]
+  (list-members #(find-members-in-lists-of-subscriber-having-screen-name screen-name)))
+
+(defn list-members-subscribing-to-lists
+  []
+  (list-members #(find-members-subscribing-to-lists)))
+
+(defn list-subscriptions-of-member-having-screen-name
+  [screen-name]
+  (list-members #(find-subscriptions-of-member-having-screen-name screen-name)))
 
 (defn get-member-description
   [screen-name]

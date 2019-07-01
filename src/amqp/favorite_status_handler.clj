@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.member]
         [amqp.handling-errors]
         [twitter.api-client]
         [twitter.favorited-status]))

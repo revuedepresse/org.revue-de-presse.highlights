@@ -8,7 +8,9 @@
             [repository.analysis.publication-frequency :as publication-frequency]
             [repository.archived-status :as archived-status]
             [repository.keyword :as keyword]
+            [repository.member :as member]
             [repository.member-identity :as member-identity]
+            [repository.member-subscription :as member-subscription]
             [repository.highlight :as highlight]
             [repository.status :as status]
             [repository.status-aggregate :as status-aggregate]
@@ -22,9 +24,6 @@
 
 (declare archive-database-connection database-connection database-read-connection
          tokens
-         users members
-         subscriptions subscribees
-         member-subscriptions member-subscribees
          liked-status)
 
 (defn get-liked-status-model
@@ -58,99 +57,6 @@
                   :consumer_secret
                   :frozen_until))
   tokens)
-
-(defn get-user-model
-  [connection]
-  ; It seems that duplicates are required to express the relationships
-  ; @see https://github.com/korma/Korma/issues/281
-  (db/defentity users
-                (db/pk :usr_id)
-                (db/table :weaving_user)
-                (db/database connection)
-                (db/entity-fields
-                  :usr_id
-                  :usr_twitter_username
-                  :usr_twitter_id
-                  :usr_email
-                  :not_found
-                  :protected
-                  :suspended))
-  users)
-
-(defn get-members-model
-  [connection]
-  (db/defentity members
-                (db/pk :usr_id)
-                (db/table :weaving_user)
-                (db/database connection)
-                (db/entity-fields
-                  :usr_id
-                  :usr_twitter_username
-                  :usr_twitter_id
-                  :not_found
-                  :protected
-                  :suspended
-                  :usr_status
-                  :description
-                  :url
-                  :last_status_publication_date
-                  :max_like_id
-                  :min_like_id
-                  :total_subscribees
-                  :total_subscriptions))
-  members)
-
-(defn get-subscriptions-model
-  [connection]
-  (db/defentity subscriptions
-                (db/pk :usr_id)
-                (db/table :weaving_user)
-                (db/database connection)
-                (db/entity-fields
-                  :usr_id
-                  :usr_twitter_username
-                  :usr_twitter_id
-                  :not_found
-                  :protected
-                  :suspended))
-  subscriptions)
-
-(defn get-subscribees-model
-  [connection]
-  (db/defentity subscribees
-                (db/pk :usr_id)
-                (db/table :weaving_user)
-                (db/database connection)
-                (db/entity-fields
-                  :usr_id
-                  :usr_twitter_username
-                  :usr_twitter_id
-                  :not_found
-                  :protected
-                  :suspended))
-  subscribees)
-
-(defn get-member-subscriptions-model
-  [connection]
-  (db/defentity member-subscriptions
-                (db/pk :id)
-                (db/table :member_subscription)
-                (db/database connection)
-                (db/entity-fields :member_id :subscription_id)
-                (db/has-one members {:fk :usr_id})
-                (db/has-one subscriptions {:fk :usr_id}))
-  member-subscriptions)
-
-(defn get-member-subscribees-model
-  [connection]
-  (db/defentity member-subscribees
-                (db/pk :id)
-                (db/table :member_subscribee)
-                (db/database connection)
-                (db/entity-fields :member_id :subscribee_id)
-                (db/has-one members {:fk :usr_id})
-                (db/has-one subscribees {:fk :usr_id}))
-  member-subscribees)
 
 (defn prepare-connection
   [config & [{is-archive-connection :is-archive-connection
@@ -189,22 +95,22 @@
      :hashtag               (keyword/get-keyword-model connection)
      :keyword               (keyword/get-keyword-model connection)
      :liked-status          (get-liked-status-model connection)
-     :members               (get-members-model connection)
-     :member                (get-members-model connection)
+     :members               (member/get-member-model connection)
+     :member                (member/get-member-model connection)
      :member-identity       (member-identity/get-member-identity-model connection)
-     :member-subscribees    (get-member-subscribees-model connection)
-     :member-subscriptions  (get-member-subscriptions-model connection)
+     :member-subscribees    (member-subscription/get-member-subscribees-model connection)
+     :member-subscriptions  (member-subscription/get-member-subscriptions-model connection)
      :publication-frequency (publication-frequency/get-publication-frequency-model connection)
      :sample                (sample/get-sample-model connection)
-     :subscribees           (get-subscribees-model connection)
+     :subscribees           (member-subscription/get-subscribees-model connection)
      :status                (status/get-status-model connection)
      :status-aggregate      (status-aggregate/get-status-aggregate-model connection)
      :status-identity       (status-identity/get-status-identity-model connection)
      :status-popularity     (status-popularity/get-status-popularity-model connection)
-     :subscriptions         (get-subscriptions-model connection)
+     :subscriptions         (member-subscription/get-subscriptions-model connection)
      :timely-status         (timely-status/get-timely-status-model connection)
      :tokens                (get-token-model connection)
-     :users                 (get-user-model connection)
+     :users                 (member/get-user-model connection)
      :connection            connection}))
 
 (defn get-entity-manager
@@ -304,13 +210,6 @@
         results (db/exec-raw [select-members-query params] :results)]
     results))
 
-(defn count-members
-  "Count the total number of members"
-  []
-  (let [results (db/exec-raw [(str "SELECT count(usr_id) AS total_members "
-                                   "FROM weaving_user m")] :results)]
-    (:total_members (first results))))
-
 (defn find-single-statuses-per-member
   "Find a single status for each member"
   [start page-length & [fetch-archives]]
@@ -400,64 +299,6 @@
                              :last_status_publication_date max-status-publication-date})
              (db/where {:usr_id member-id})))
 
-(defn find-member-by-twitter-id
-  "Find a member by her / his twitter id"
-  [id members]
-  (->
-    (db/select* members)
-    (db/fields [:usr_id :id]
-               [:usr_twitter_id :twitter-id]
-               [:usr_twitter_username :screen-name])
-    (db/where {:usr_twitter_id id})
-    (db/select)))
-
-(defn find-member-by-screen-name
-  "Find a member by her / his username"
-  [screen-name members]
-  (->
-    (db/select* members)
-    (db/fields [:usr_id :id]
-               [:usr_id :member-id]
-               [:usr_twitter_id :twitter-id]
-               [:usr_twitter_id :member-twitter-id]
-               [:usr_twitter_username :screen-name]
-               [:description :description]
-               [:min_status_id :min-status-id]
-               [:max_status_id :max-status-id]
-               [:min_like_id :min-favorite-status-id]
-               [:max_like_id :max-favorite-status-id])
-    (db/where {:usr_twitter_username screen-name})
-    (db/order :usr_twitter_username "ASC")
-    (db/select)))
-
-(defn select-members
-  [members]
-  (-> (db/select* members)
-      (db/fields [:usr_id :id]
-                 [:usr_twitter_id :twitter-id]
-                 [:description :description]
-                 [:usr_twitter_username :screen_name]
-                 [:usr_twitter_username :screen-name])))
-
-(defn find-member-by-id
-  "Find a member by her / his Twitter id"
-  [twitter-id members]
-  (let [matching-members (-> (select-members members)
-                             (db/where {:usr_twitter_id twitter-id})
-                             (db/select))]
-    (first matching-members)))
-
-(defn find-members-having-ids
-  "Find members by their Twitter ids"
-  [twitter-ids members]
-  (let [ids (if twitter-ids twitter-ids '(0))
-        matching-members (-> (select-members members)
-                             (db/where {:usr_twitter_id [in ids]})
-                             (db/select))]
-    (if matching-members
-      matching-members
-      '())))
-
 (defn select-tokens
   [model]
   (->
@@ -497,39 +338,6 @@
                                          (db/select)))]
     first-available-token))
 
-(defn select-member-subscriptions
-  [model]
-  (-> (db/select* model)
-      (db/fields :id
-                 :member_id
-                 :subscription_id)))
-
-(defn find-member-subscriptions-by
-  "Find multiple member subscriptions"
-  ; @see https://clojure.org/guides/destructuring#_where_to_destructure
-  [{:keys [member-id subscriptions-ids]} model]
-  (let [ids (if subscriptions-ids subscriptions-ids '(0))]
-    (-> (select-member-subscriptions model)
-        (db/where (and (= :member_id member-id)
-                       (in :subscription_id ids)))
-        (db/select))))
-
-(defn select-member-subscribees
-  [model]
-  (-> (db/select* model)
-      (db/fields :id
-                 :member_id
-                 :subscribee_id)))
-
-(defn find-member-subscribees-by
-  "Find multiple member subscribees"
-  [{:keys [member-id subscribees-ids]} model]
-  (let [ids (if subscribees-ids subscribees-ids '(0))]
-    (-> (select-member-subscribees model)
-        (db/where (and (= :member_id member-id)
-                       (in :subscribee_id ids)))
-        (db/select))))
-
 (defn map-get-in
   "Return a map of values matching the provided key coerced to integers"
   ; @see https://stackoverflow.com/a/31846875/282073
@@ -544,171 +352,3 @@
   [matching-members ids]
   (let [matching-ids (map-get-in :twitter-id matching-members)]
     (clojure.set/difference (set ids) (set matching-ids))))
-
-(defn new-member-subscriptions
-  [member-subscriptions model]
-  (db/insert model (db/values member-subscriptions)))
-
-(defn new-member-subscribees
-  [member-subscribees model]
-  (db/insert model (db/values member-subscribees)))
-
-(defn screen-name-otherwise-twitter-id
-  [{is-protected :is-protected
-    is-suspended :is-suspended
-    is-not-found :is-not-found
-    screen-name  :screen-name
-    twitter-id   :twitter-id}]
-  (if (and
-        (or is-not-found is-protected is-suspended)
-        (not screen-name))
-    twitter-id
-    screen-name))
-
-(defn new-member
-  [member members]
-  (let [{id                  :id
-         twitter-id          :twitter-id
-         description         :description
-         url                 :url
-         total-subscribees   :total-subscribees
-         total-subscriptions :total-subscriptions
-         is-protected        :is-protected
-         is-suspended        :is-suspended
-         is-not-found        :is-not-found} member
-        member-screen-name (screen-name-otherwise-twitter-id member)]
-
-    (cond
-      (= 1 is-protected)
-      (log/info (str "About to cache protected member with twitter id #" twitter-id))
-      (= 1 is-not-found)
-      (log/info (str "About to cache not found member with twitter id #" twitter-id))
-      (= 1 is-suspended)
-      (log/info (str "About to cache suspended member with twitter id #" twitter-id))
-      :else
-      (log/info (str "About to cache member with twitter id #" twitter-id
-                     " and twitter screen mame \"" member-screen-name "\"")))
-
-    (try
-      (if id
-        (db/update members
-                   (db/set-fields {:not_found is-not-found
-                                   :suspended is-suspended
-                                   :protected is-protected})
-                   (db/where {:usr_id id}))
-        (db/insert members
-                   (db/values [{:usr_position_in_hierarchy 1 ; to discriminate test user from actual users
-                                :usr_twitter_id            twitter-id
-                                :usr_twitter_username      member-screen-name
-                                :usr_status                false
-                                :usr_email                 (str "@" member-screen-name)
-                                :description               description
-                                :url                       url
-                                :not_found                 is-not-found
-                                :suspended                 is-suspended
-                                :protected                 is-protected
-                                :total_subscribees         total-subscribees
-                                :total_subscriptions       total-subscriptions}])))
-      (catch Exception e (log/error (.getMessage e))))
-
-    (find-member-by-id twitter-id members)))
-
-(defn normalize-columns
-  [members]
-  (let [snake-cased-values (map snake-case-keys members)
-        members-values (map
-                         #(dissoc
-                            (assoc
-                              %
-                              :usr_position_in_hierarchy 1
-                              :usr_status false
-                              :usr_email (str "@" (:screen_name %))
-                              :usr_twitter_username (:screen_name %)
-                              :usr_twitter_id (:twitter_id %)
-                              :not_found (:is_not_found %)
-                              :protected (:is_protected %)
-                              :suspended (:is_suspended %))
-                            :screen_name
-                            :twitter_id
-                            :is_not_found
-                            :is_protected
-                            :is_suspended)
-                         snake-cased-values)
-        deduped-values (dedupe (sort-by #(:usr_twitter_id %) members-values))
-        twitter-ids (map #(:usr_twitter_id %) deduped-values)]
-    {:deduped-values deduped-values
-     :members-values members-values
-     :twitter-ids    twitter-ids}))
-
-(defn find-members-from-props
-  [members model]
-  (let [{members-values :members-values
-         twitter-ids    :twitter-ids} (normalize-columns members)]
-    (if (pos? (count members-values))
-      (find-members-having-ids twitter-ids model))
-    '()))
-
-(defn bulk-insert-new-members
-  [members model]
-  (let [{deduped-values :deduped-values
-         members-values :members-values
-         twitter-ids    :twitter-ids} (normalize-columns members)]
-    (if (pos? (count members-values))
-      (do
-        (try
-          (db/insert model (db/values deduped-values))
-          (catch Exception e (log/error (.getMessage e))))
-        (find-members-having-ids twitter-ids model))
-      '())))
-
-(defn create-member-subscription-values
-  [member-id]
-  (fn [subscription-id]
-    {:id              (uuid/to-string (uuid/v1))
-     :member_id       member-id
-     :subscription_id subscription-id}))
-
-(defn create-member-subscribee-values
-  [member-id]
-  (fn [subscribee-id]
-    {:id            (uuid/to-string (uuid/v1))
-     :member_id     member-id
-     :subscribee_id subscribee-id}))
-
-(defn ensure-subscriptions-exist-for-member-having-id
-  [{member-id                          :member-id
-    model                              :model
-    matching-subscriptions-members-ids :matching-members-ids}]
-  (let [existing-member-subscriptions (find-member-subscriptions-by {:member-id         member-id
-                                                                     :subscriptions-ids matching-subscriptions-members-ids}
-                                                                    model)
-        existing-member-subscriptions-ids (map #(:subscription_id %) existing-member-subscriptions)
-        member-subscriptions (clojure.set/difference (set matching-subscriptions-members-ids) (set existing-member-subscriptions-ids))
-        missing-member-subscriptions (map (create-member-subscription-values member-id) member-subscriptions)]
-
-    (when (pos? (count missing-member-subscriptions))
-      (log/info (str "About to ensure " (count missing-member-subscriptions)
-                     " subscriptions for member having id #" member-id " are recorded."))
-      (new-member-subscriptions missing-member-subscriptions model)
-      (log/info (str (count missing-member-subscriptions)
-                     " subscriptions have been recorded successfully")))))
-
-(defn ensure-subscribees-exist-for-member-having-id
-  [{member-id                        :member-id
-    model                            :model
-    matching-subscribees-members-ids :matching-members-ids}]
-  (let [existing-member-subscribees (find-member-subscribees-by {:member-id       member-id
-                                                                 :subscribees-ids matching-subscribees-members-ids}
-                                                                model)
-        existing-member-subscribees-ids (map #(:subscribee_id %) existing-member-subscribees)
-        member-subscribees (clojure.set/difference (set matching-subscribees-members-ids) (set existing-member-subscribees-ids))
-        missing-member-subscribees (map (create-member-subscribee-values member-id) member-subscribees)]
-
-    (when (pos? (count missing-member-subscribees))
-      (log/info (str "About to ensure " (count missing-member-subscribees)
-                     " subscribees for member having id #" member-id " are recorded."))
-      (new-member-subscribees missing-member-subscribees model)
-      (log/info (str (count missing-member-subscribees)
-                     " subscribees have been recorded successfully")))))
-
-

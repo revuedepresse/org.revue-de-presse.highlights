@@ -69,6 +69,11 @@
   (let [[reverse-order] args]
     (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
 
+(defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
+  [args]
+  (let [[reverse-order] args]
+    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
+
 (defn ^{:requires [:aggregate-name]} command-collect-timely-statuses-from-aggregate
   [args]
   (let [[aggregate-name] args]
@@ -103,6 +108,11 @@
   []
   (adaptor/list-aggregates))
 
+(defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
+  [args]
+  (let [[aggregate-name] args]
+    (adaptor/list-aggregate-statuses aggregate-name)))
+
 (defn ^{:requires []} command-list-keyword-aggregates
   []
   (adaptor/list-keyword-aggregates))
@@ -117,10 +127,21 @@
   (let [[screen-name] args]
     (adaptor/list-member-statuses screen-name)))
 
-(defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
-  [args]
-  (let [[aggregate-name] args]
-    (adaptor/list-aggregate-statuses aggregate-name)))
+(defn ^{:requires []} command-list-members-subscribing-to-lists
+  []
+  (adaptor/list-members-subscribing-to-lists))
+
+(defn ^{:requires []} command-list-members-which-subscriptions-have-been-collected
+  []
+  (adaptor/list-members-which-subscriptions-have-been-collected))
+
+(defn ^{:requires [:screen-name]} command-list-members-in-lists-of-subscriber-having-screen-name
+  [screen-name]
+  (adaptor/list-members-in-lists-of-subscriber-having-screen-name screen-name))
+
+(defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
+  [screen-name]
+  (adaptor/list-subscriptions-of-member-having-screen-name screen-name))
 
 (defn ^{:requires [:keyword]} command-list-statuses-containing-keyword
   [args]
@@ -204,10 +225,10 @@
              result-map nil]
         (navigation/print-menu-when print-menu)
         (let [ret (navigation/handle-input result-map)]
-              (when (some? ret)
-                (recur
-                  (first ret)
-                  (second ret))))))))
+          (when (some? ret)
+            (recur
+              (first ret)
+              (second ret))))))))
 
 (defn -main
   "Command dispatch application"

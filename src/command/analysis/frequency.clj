@@ -11,6 +11,7 @@
         [repository.aggregate]
         [repository.analysis.publication-frequency]
         [repository.analysis.sample]
+        [repository.member]
         [repository.status]))
 
 (defn inc-frequency-of-publication-for-day-of-week

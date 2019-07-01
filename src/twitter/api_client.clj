@@ -1,6 +1,5 @@
 (ns twitter.api-client
-  (:require [clojure.edn :as edn]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [clojure.tools.logging :as log]
             [environ.core :refer [env]]
             [http.async.client :as ac]
@@ -9,6 +8,7 @@
             [clj-time.local :as l]
             [clj-time.coerce :as c])
   (:use [repository.entity-manager]
+        [repository.member]
         [twitter.oauth]
         [twitter.callbacks]
         [twitter.callbacks.handlers]

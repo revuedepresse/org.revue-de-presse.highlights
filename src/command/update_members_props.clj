@@ -2,7 +2,8 @@
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log])
-  (:use [repository.entity-manager]))
+  (:use [repository.entity-manager]
+        [repository.member]))
 
 (defn extract-member-props
   [status]

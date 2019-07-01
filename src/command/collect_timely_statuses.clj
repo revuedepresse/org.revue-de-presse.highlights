@@ -8,6 +8,7 @@
     [amqp.status-handler]
     [repository.entity-manager]
     [repository.aggregate]
+    [repository.member]
     [repository.status]
     [repository.timely-status]
     [profiling.execution-time]

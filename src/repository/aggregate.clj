@@ -7,7 +7,7 @@
         [twitter.status-hash]
         [utils.string]))
 
-(declare aggregate)
+(declare aggregate aggregate-subscription member-aggregate-subscription)
 
 (defn get-aggregate-model
   [connection]
@@ -24,6 +24,68 @@
                   :screen_name
                   :list_id))
   aggregate)
+
+(defn get-aggregate-subscription-model
+  [connection]
+  (db/defentity aggregate-subscription
+                (db/table :aggregate_subscription)
+                (db/database connection)
+                (db/entity-fields
+                  :id
+                  :member_aggregate_subscription_id
+                  :subscription_id))
+  aggregate-subscription)
+
+(defn get-member-aggregate-subscription-model
+  [connection]
+  (db/defentity member-aggregate-subscription
+                (db/table :member_aggregate_subscription)
+                (db/database connection)
+                (db/entity-fields
+                  :id
+                  :member_id
+                  :list_name
+                  :list_id
+                  :document))
+  member-aggregate-subscription)
+
+(defn find-aggregate-by-id
+  "Find an aggregate by id"
+  [id model]
+  (->
+    (db/select* model)
+    (db/fields :id
+               :name
+               [:screen_name :screen-name])
+    (db/where {:id id})
+    (db/select)))
+
+(defn find-aggregate-by-name
+  "Find an aggregate by name"
+  ([name model]
+   (find-aggregate-by-name name false model))
+  ([name include-member-aggregates model]
+   (let [where {:name name}
+         where (if include-member-aggregates
+                 where
+                 (assoc where :screen_name nil))]
+     (->
+       (db/select* model)
+       (db/fields :id
+                  :name
+                  [:screen_name :screen-name])
+       (db/where where)
+       (db/select)))))
+
+(defn get-aggregate-by-id
+  [aggregate-id model error-message]
+  (let [matching-aggregates (find-aggregate-by-id aggregate-id model)
+        aggregate (if (pos? (count matching-aggregates)) (first matching-aggregates) nil)
+        _ (when (or
+                  (nil? aggregate)
+                  (nil? (:name aggregate)))
+            (throw (Exception. (str error-message))))]
+    aggregate))
 
 (defn find-all-aggregates
   "Find all aggregates sorted by name"
@@ -85,48 +147,38 @@
                 WHERE a.screen_name IS NOT NULL
                 AND a.name = ?
                 AND list_id IS NOT NULL
-                ORDER BY a.screen_name ASC
+                ORDER BY a.screen_name
               ")
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 
-(defn find-aggregate-by-id
-  "Find an aggregate by id"
-  [id model]
-  (->
-    (db/select* model)
-    (db/fields :id
-               :name
-               [:screen_name :screen-name])
-    (db/where {:id id})
-    (db/select)))
+(defn find-members-in-lists-of-subscriber-having-screen-name
+  "Find members in lists by the screen name of a subscriber"
+  [screen-name]
+  (let [query (str "
+                SELECT list_name, list_id
+                FROM member_aggregate_subscription
+                WHERE member_id IN (
+                    SELECT usr_id FROM weaving_user WHERE usr_twitter_username = ?
+                ) ORDER BY list_name
+              ")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))
 
-(defn find-aggregate-by-name
-  "Find an aggregate by name"
-  ([name model]
-   (find-aggregate-by-name name false model))
-  ([name include-member-aggregates model]
-   (let [where {:name name}
-         where (if include-member-aggregates
-                 where
-                 (assoc where :screen_name nil))]
-     (->
-       (db/select* model)
-       (db/fields :id
-                  :name
-                  [:screen_name :screen-name])
-       (db/where where)
-       (db/select)))))
-
-(defn get-aggregate-by-id
-  [aggregate-id model error-message]
-  (let [matching-aggregates (find-aggregate-by-id aggregate-id model)
-        aggregate (if (pos? (count matching-aggregates)) (first matching-aggregates) nil)
-        _ (when (or
-                  (nil? aggregate)
-                  (nil? (:name aggregate)))
-            (throw (Exception. (str error-message))))]
-    aggregate))
+(defn find-members-subscribing-to-lists
+  "Find members subscribing to lists"
+  []
+  (let [query (str "
+                SELECT DISTINCT usr_twitter_username AS `screen-name`,
+                usr_twitter_id AS `member-twitter-id`,
+                usr_id AS `member-id`
+                FROM member_aggregate_subscription
+                INNER JOIN weaving_user
+                ON usr_id = member_id
+                ORDER BY usr_twitter_username
+              ")
+        results (db/exec-raw [query] :results)]
+    results))
 
 (defn select-relationship-between-aggregate-and-status
   [model status-model]
@@ -248,18 +300,21 @@
 
 (defn get-member-aggregate
   [screen-name]
-  (let [query (str
-                "SELECT                                                                         "
-                "aggregate.id `aggregate-id`,                                                   "
-                "aggregate.name `aggregate-name`                                                "
-                "FROM                                                                           "
-                "weaving_user member,                                                           "
-                "weaving_aggregate aggregate                                                    "
-                "WHERE                                                                          "
-                "member.usr_twitter_username" (get-collation) "= aggregate.screen_name          "
-                "AND aggregate.screen_name IS NOT NULL                                          "
-                "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)           "
-                "AND member.usr_twitter_username = ?                                            ")
+  (let [query (str "
+                SELECT
+                aggregate.id `aggregate-id`,
+                aggregate.name `aggregate-name`
+                FROM
+                weaving_user member,
+                weaving_aggregate aggregate
+                WHERE
+                member.usr_twitter_username = aggregate.screen_name " (get-collation) "
+                AND aggregate.screen_name IS NOT NULL
+                AND aggregate.name = CONCAT(
+                  'user :: ', member.usr_twitter_username
+                )
+                AND member.usr_twitter_username = ?
+              ")
         results (exec-query [query [screen-name]] :results)]
     (first results)))
 

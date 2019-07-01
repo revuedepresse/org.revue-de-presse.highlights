@@ -3,6 +3,8 @@
             [clojure.tools.logging :as log]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [repository.entity-manager]
+        [repository.member]
+        [repository.member-subscription]
         [twitter.api-client]
         [twitter.member]))
 

@@ -52,7 +52,7 @@
                      (get % member-twitter-id)
                      ")")]
     (fn [m]
-      (right-padding (formatter m) 35))))
+      (right-padding (formatter m) 40))))
 
 (defn format-selection
   [{formatter :formatter

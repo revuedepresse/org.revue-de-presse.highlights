@@ -3,6 +3,7 @@
             [clj-time.format :as f])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.member]
         [amqp.handling-errors]
         [twitter.api-client]
         [twitter.date]

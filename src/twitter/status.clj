@@ -5,6 +5,7 @@
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.member]
         [repository.status]
         [twitter.api-client]
         [twitter.date]
