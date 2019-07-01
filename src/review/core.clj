@@ -136,12 +136,14 @@
   (adaptor/list-members-which-subscriptions-have-been-collected))
 
 (defn ^{:requires [:screen-name]} command-list-members-in-lists-of-subscriber-having-screen-name
-  [screen-name]
-  (adaptor/list-members-in-lists-of-subscriber-having-screen-name screen-name))
+  [args]
+  (let [[screen-name] args]
+    (adaptor/list-members-in-lists-of-subscriber-having-screen-name screen-name)))
 
 (defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
-  [screen-name]
-  (adaptor/list-subscriptions-of-member-having-screen-name screen-name))
+  [args]
+  (let [[screen-name] args]
+    (adaptor/list-subscriptions-of-member-having-screen-name screen-name)))
 
 (defn ^{:requires [:keyword]} command-list-statuses-containing-keyword
   [args]
