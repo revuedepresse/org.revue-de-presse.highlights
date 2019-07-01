@@ -110,14 +110,18 @@
 (defn find-subscriptions-of-member-having-screen-name
   [screen-name]
   (let [query (str "
-                SELECT DISTINCT subscription_id AS `member-id`,
-                usr_twitter_username AS `screen-name`,
-                usr_twitter_id AS `member-twitter-id`
+                SELECT DISTINCT ms.subscription_id AS `member-id`,
+                subscription.usr_twitter_username AS `screen-name`,
+                subscription.usr_twitter_id AS `member-twitter-id`
                 FROM member_subscription ms
                 INNER JOIN weaving_user m
-                ON usr_id = subscription_id
-                WHERE usr_twitter_username = ?
-                ORDER BY usr_twitter_username
+                ON (
+                  m.usr_twitter_username = ?
+                  AND ms.member_id = m.usr_id
+                )
+                INNER JOIN weaving_user subscription
+                ON subscription.usr_id = ms.subscription_id
+                ORDER BY subscription.usr_twitter_username
               ")
         results (db/exec-raw [query [screen-name]] :results)]
     results))
