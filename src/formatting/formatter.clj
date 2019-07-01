@@ -56,11 +56,14 @@
 
 (defn format-selection
   [{formatter :formatter
-    m         :map
+    i         :index
     k         :key
-    i         :index}]
+    m         :map
+    t         :total-items}]
   (str
-    (right-padding (str i ")") 5)
+    (right-padding
+      (str i ")")
+      (if (> t 999) 9 5))
     (if formatter
       (formatter m)
       (right-padding (get m k)))))

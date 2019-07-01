@@ -75,6 +75,7 @@
   (let [query (str "
                 SELECT
                 a.screen_name as `screen-name`,
+                a.list_id as `aggregate-twitter-id`,
                 mi.twitter_id as `member-twitter-id`,
                 mi.member_id as `member-id`,
                 a.name as `aggregate-name`
@@ -83,7 +84,9 @@
                 ON mi.screen_name = a.screen_name
                 WHERE a.screen_name IS NOT NULL
                 AND a.name = ?
-                ORDER BY a.screen_name ASC")
+                AND list_id IS NOT NULL
+                ORDER BY a.screen_name ASC
+              ")
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 

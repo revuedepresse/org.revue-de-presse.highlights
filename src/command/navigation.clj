@@ -98,10 +98,11 @@
 (defn transform-coll
   [f f-key single-requirement coll & [formatter]]
   (let [choices (map-indexed
-                  #(f {:formatter formatter
-                       :key       single-requirement
-                       :map       %2
-                       :index     (f-key %1)})
+                  #(f {:formatter   formatter
+                       :key         single-requirement
+                       :index       (f-key %1)
+                       :map         %2
+                       :total-items (count coll)})
                   coll)]
     choices))
 
