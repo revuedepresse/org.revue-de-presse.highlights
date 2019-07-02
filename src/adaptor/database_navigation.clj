@@ -4,6 +4,7 @@
         [repository.aggregate]
         [repository.entity-manager]
         [repository.keyword]
+        [repository.highlight]
         [repository.member]
         [repository.member-subscription]
         [repository.status]
@@ -53,6 +54,24 @@
                     :finder    finder
                     :formatter (get-keyword-formatter :keyword :occurrences)})))
 
+(defn list-highlights-since-a-month-ago
+  []
+  (let [finder (fn [get-models]
+                 (let [_ (get-models)]
+                   (find-highlights-since-a-month-ago)))]
+    (adapt-results {:props     [:aggregate-id :aggregate-name :screen-name
+                                :retweets :created-at
+                                :status-url :text]
+                    :finder    finder
+                    :formatter (get-highlight-formatter
+                                 :aggregate-id
+                                 :aggregate-name
+                                 :retweets
+                                 :created-at
+                                 :screen-name
+                                 :status-url
+                                 :text)})))
+
 (defn list-mentions-by-aggregate
   [aggregate-name]
   (list-keywords-by-aggregate aggregate-name find-mentions-by-aggregate-name))
@@ -99,9 +118,13 @@
   []
   (list-members #(find-members-which-subscriptions-have-been-collected)))
 
-(defn list-members-in-lists-of-subscriber-having-screen-name
+(defn list-aggregates-of-subscriber-having-screen-name
   [screen-name]
-  (list-members #(find-members-in-lists-of-subscriber-having-screen-name screen-name)))
+  (adapt-results {:props     [:list-name :list-twitter-id]
+                  :finder    (fn [get-models]
+                               (let [_ (get-models)]
+                                 (find-lists-of-subscriber-having-screen-name screen-name)))
+                  :formatter (get-indexed-prop-formatter :list-name :list-twitter-id)}))
 
 (defn list-members-subscribing-to-lists
   []

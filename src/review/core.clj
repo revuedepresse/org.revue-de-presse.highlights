@@ -10,7 +10,8 @@
             [command.save-highlights :as highlights]
             [command.collect-status-identities :as status-identities]
             [command.collect-timely-statuses :as timely-statuses]
-            [adaptor.database-navigation :as adaptor])
+            [adaptor.database-navigation :as adaptor]
+            [clojure.string :as string])
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
@@ -122,6 +123,10 @@
   (let [[screen-name] args]
     (adaptor/list-aggregates-containing-member screen-name)))
 
+(defn ^{:requires []} command-list-highlights-since-a-month-ago
+  []
+  (adaptor/list-highlights-since-a-month-ago))
+
 (defn ^{:requires [:screen-name]} command-list-member-statuses
   [args]
   (let [[screen-name] args]
@@ -135,10 +140,10 @@
   []
   (adaptor/list-members-which-subscriptions-have-been-collected))
 
-(defn ^{:requires [:screen-name]} command-list-members-in-lists-of-subscriber-having-screen-name
+(defn ^{:requires [:screen-name]} command-list-aggregates-of-subscriber-having-screen-name
   [args]
   (let [[screen-name] args]
-    (adaptor/list-members-in-lists-of-subscriber-having-screen-name screen-name)))
+    (adaptor/list-aggregates-of-subscriber-having-screen-name screen-name)))
 
 (defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
   [args]
@@ -226,6 +231,13 @@
       (loop [print-menu true
              result-map nil]
         (navigation/print-menu-when print-menu)
+        (when (and (pos? (count result-map))
+                   (some-> result-map :result first :status-url))
+          (println
+            (string/join "\n\n"
+                         (map
+                           (:formatter result-map)
+                           (:result result-map)))))
         (let [ret (navigation/handle-input result-map)]
           (when (some? ret)
             (recur

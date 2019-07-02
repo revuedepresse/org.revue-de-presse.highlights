@@ -27,6 +27,22 @@
                        ")")]
       (right-padding (formatter m) 35))))
 
+(defn get-highlight-formatter
+  [aggregate-id aggregate-name retweets created-at screen-name status-link text]
+  (fn [m]
+    (let [formatter #(str
+                       "From \""
+                       (get % aggregate-name)
+                       "\" (#"
+                       (get % aggregate-id)
+                       "), authored by @"
+                       (get % screen-name)
+                       " on the \"" (get % created-at) "\" "
+                       "with " (get % retweets) " retweets"
+                       "\n" (get % text)
+                       "\n" (get % status-link))]
+      (right-padding (formatter m) 200))))
+
 (defn get-status-formatter
   [screen-name text publication-date]
   (fn [m]

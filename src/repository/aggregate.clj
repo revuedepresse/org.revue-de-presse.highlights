@@ -152,11 +152,13 @@
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 
-(defn find-members-in-lists-of-subscriber-having-screen-name
+(defn find-lists-of-subscriber-having-screen-name
   "Find members in lists by the screen name of a subscriber"
   [screen-name]
   (let [query (str "
-                SELECT list_name, list_id
+                SELECT
+                list_name AS `list-name`,
+                list_id AS `list-twitter-id`
                 FROM member_aggregate_subscription
                 WHERE member_id IN (
                     SELECT usr_id FROM weaving_user WHERE usr_twitter_username = ?
@@ -333,3 +335,4 @@
               ")]
     (binding [*current-db* db]
       (exec-query [query [aggregate-name]] :results))))
+
