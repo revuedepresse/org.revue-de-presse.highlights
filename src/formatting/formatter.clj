@@ -43,6 +43,11 @@
                        "\n" (get % status-link))]
       (right-padding (formatter m) 200))))
 
+(defn get-letter-formatter
+  [letter]
+  (fn [m]
+    (right-padding (str (get m letter) ")") 4)))
+
 (defn get-status-formatter
   [screen-name text publication-date]
   (fn [m]

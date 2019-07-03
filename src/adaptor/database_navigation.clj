@@ -2,13 +2,15 @@
   (:require [environ.core :refer [env]])
   (:use [formatting.formatter]
         [repository.aggregate]
+        [repository.database-schema]
         [repository.entity-manager]
         [repository.keyword]
         [repository.highlight]
         [repository.member]
         [repository.member-subscription]
         [repository.status]
-        [repository.status-aggregate]))
+        [repository.status-aggregate]
+        [utils.string]))
 
 (defn adapt-results
   [{props :props finder :finder formatter :formatter}]
@@ -22,6 +24,12 @@
                   #(select-keys % props)
                   results)
      :formatter formatter}))
+
+(defn list-alphabet-letters
+  []
+  (adapt-results {:props     [:letter]
+                  :finder    (fn [_] (get-alphabet))
+                  :formatter (get-letter-formatter :letter)}))
 
 (defn list-aggregates
   [& [finder]]

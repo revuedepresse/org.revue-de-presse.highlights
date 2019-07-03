@@ -13,7 +13,8 @@
     [repository.timely-status]
     [profiling.execution-time]
     [twitter.date]
-    [twitter.status]))
+    [twitter.status]
+    [utils.string]))
 
 (declare build-relationships)
 
@@ -75,11 +76,13 @@
     statuses))
 
 (defn collect-timely-statuses-from-aggregates
-  [& [reverse-order]]
-  (let [alphabetic-characters (map char (range 97 123))
-        alphabet (if (some? reverse-order)
-                   (reverse alphabetic-characters)
-                   alphabetic-characters)
+  [letter & [reverse-order]]
+  (let [alphabetic-characters (map :letter (get-alphabet))
+        alphabet (if (some? letter)
+                   (apply list [letter])
+                   (if (some? reverse-order)
+                     (reverse alphabetic-characters)
+                     alphabetic-characters))
         entity-manager (get-entity-manager (:database env))
         _ (doall
             (map

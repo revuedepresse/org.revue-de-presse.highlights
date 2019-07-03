@@ -65,15 +65,10 @@
   (let [[screen-name] args]
     (timely-statuses/collect-timely-statuses-for-member-subscriptions screen-name)))
 
-(defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
+(defn ^{:requires [:letter]} command-collect-timely-statuses-from-aggregates
   [args]
-  (let [[reverse-order] args]
-    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
-
-(defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
-  [args]
-  (let [[reverse-order] args]
-    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
+  (let [[letter reverse-order] args]
+    (timely-statuses/collect-timely-statuses-from-aggregates letter reverse-order)))
 
 (defn ^{:requires [:aggregate-name]} command-collect-timely-statuses-from-aggregate
   [args]
@@ -104,6 +99,10 @@
   [args]
   (let [[aggregate-name] args]
     (keywords/generate-keywords-for-aggregates-sharing-name aggregate-name)))
+
+(defn ^{:requires []} command-list-alphabet-letters
+  []
+  (adaptor/list-alphabet-letters))
 
 (defn ^{:requires []} command-list-aggregates
   []
