@@ -3,6 +3,7 @@
             [korma.core :as db])
   (:use [korma.db]
         [repository.database-schema]
+        [repository.query-executor]
         [utils.string]))
 
 (declare timely-status)
@@ -217,5 +218,5 @@
                    AND (s.ust_id, a.id) NOT IN (
                     SELECT status_id, aggregate_id FROM timely_status
                    )")
-        count (db/exec-raw [query [aggregate-id]])]
+        count (exec-query [query [aggregate-id]])]
     (first count)))
