@@ -1,6 +1,6 @@
 (ns repository.aggregate
-  (:require [clojure.tools.logging :as log]
-            [korma.core :as db])
+  (:require [korma.core :as db]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [repository.query-executor]
@@ -184,13 +184,13 @@
 
 (defn select-relationship-between-aggregate-and-status
   [model status-model]
-  (let [status-id-col (get-column "ust_id" status-model)]
+  (let [twitter-status-id (get-column "ust_status_id" status-model)]
     (->
       (db/select* model)
       (db/fields [:status_id :status-id]
                  [:aggregate_id :aggregate-id]
-                 [status-id-col :twitter-id])
-      (db/join status-model (= status-id-col :status_id)))))
+                 [twitter-status-id :status-twitter-id])
+      (db/join status-model (= twitter-status-id :status_id)))))
 
 (defn find-relationships-between-aggregate-and-statuses-having-ids
   "Find relationships between an aggregate and statuses"
@@ -214,7 +214,8 @@
         (try
           (insert-query {:values snake-cased-values
                          :model  model})
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-relationships-between-aggregate-and-statuses-having-ids
           aggregate-id
           statuses-ids
@@ -272,7 +273,9 @@
 
 (defn get-aggregates-having-name-prefix
   [prefix]
-  (let [query (select-aggregates-where "LIKE ?" "AND a.screen_name IS NULL")
+  (let [query (select-aggregates-where
+                "LIKE ?"
+                "AND a.screen_name IS NULL")
         results (db/exec-raw [query [(str prefix "%")]] :results)]
     results))
 
@@ -320,3 +323,8 @@
     (binding [*current-db* db]
       (exec-query [query [aggregate-name]] :results))))
 
+(defn new-relationship
+  [aggregate-id]
+  (fn [status-id]
+    (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
+      relationship)))

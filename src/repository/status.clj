@@ -2,7 +2,7 @@
   (:require [korma.core :as db]
             [clojure.string :as string]
             [clojure.data.json :as json]
-            [clojure.tools.logging :as log])
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [utils.string]
         [twitter.status-hash]))
@@ -129,7 +129,8 @@
     (do
       (try
         (db/insert model (db/values values))
-        (catch Exception e (log/error (.getMessage e))))
+        (catch Exception e
+          (error-handler/log-error e)))
       (find-statuses-having-twitter-ids twitter-ids model))
     '()))
 

@@ -137,12 +137,6 @@
     (log/info (str "Found " (count favorited-status-authors) " ids of status authors"))
     favorited-status-authors))
 
-(defn new-relationship
-  [aggregate-id]
-  (fn [status-id]
-    (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
-      relationship)))
-1
 (defn is-subset-of-relationships-set
   [relationships-set]
   (fn [relationship]

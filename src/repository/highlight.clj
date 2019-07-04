@@ -1,6 +1,6 @@
 (ns repository.highlight
-  (:require [clojure.tools.logging :as log]
-            [korma.core :as db])
+  (:require [korma.core :as db]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
@@ -206,6 +206,7 @@
       (do
         (try
           (db/insert model (db/values snake-cased-values))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-highlights-having-ids ids model member-model status-model))
       '())))

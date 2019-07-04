@@ -2,7 +2,8 @@
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [utils.error-handler :as error-handler])
   (:use [adaptor.database-navigation]
         [repository.entity-manager]
         [repository.aggregate]
@@ -38,7 +39,8 @@
             keywords (explode #"\s+" status)
             associated-keywords (map (assoc-keyword all-keywords) keywords)]
         associated-keywords)
-      (catch Exception e (log/error (.getMessage e))))))
+      (catch Exception e
+        (error-handler/log-error e)))))
 
 (defn assoc-occurrences
   [[_ occurrences]]

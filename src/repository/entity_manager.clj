@@ -16,7 +16,8 @@
             [repository.status-aggregate :as status-aggregate]
             [repository.status-identity :as status-identity]
             [repository.status-popularity :as status-popularity]
-            [repository.timely-status :as timely-status])
+            [repository.timely-status :as timely-status]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]
@@ -270,7 +271,8 @@
         (try
           (db/insert model
                      (db/values liked-status-values))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-liked-statuses ids model status-model))
       '())))
 
@@ -345,7 +347,8 @@
   (let [coerce #(if (number? %) % (Long/parseLong %))
         get-val #(get-in % [k])
         get-coerced #(try (-> % get-val coerce)
-                          (catch Exception e (log/error (.getMessage e))))]
+                          (catch Exception e
+                            (error-handler/log-error e)))]
     (map get-coerced coll)))
 
 (defn deduce-ids-of-missing-members

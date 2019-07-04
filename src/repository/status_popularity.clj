@@ -1,7 +1,7 @@
 (ns repository.status-popularity
   (:require [korma.core :as db]
-            [clojure.tools.logging :as log]
-            [clj-uuid :as uuid])
+            [clj-uuid :as uuid]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [utils.string]))
 
@@ -75,6 +75,7 @@
       (do
         (try
           (db/insert model (db/values snake-cased-props))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-status-popularity-by-status-ids statuses-popularities-ids model))
       '())))

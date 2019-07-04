@@ -1,27 +1,29 @@
 (ns repository.query-executor
-  (:require [clojure.tools.logging :as log]
-            [korma.core :as db])
+  (:require [korma.core :as db]
+            [utils.error-handler :as error-handler])
   (:import (com.mysql.jdbc.exceptions.jdbc4 CommunicationsException)
-           (com.mysql.jdbc.exceptions.jdbc4 MySQLTransactionRollbackException)
+           (com.mysql.jdbc.exceptions.jdbc4 MySQLTransactionRollbackException MySQLIntegrityConstraintViolationException)
            (java.sql BatchUpdateException)))
 
 (defn guard-against-database-failure
   [f & [max-retries]]
-  (let [max-retries (when (some? max-retries)
+  (let [max-retries (if (some? max-retries)
                       max-retries
                       1)
         maybe-retry (when (> (dec max-retries) 0)
-                      (println (str
-                                 "About to retry transaction "
-                                 "(" max-retries " more times at most)."))
-                      (guard-against-database-failure f (dec max-retries)))]
+                      (fn []
+                        (println (str
+                                   "About to retry transaction "
+                                   "(" max-retries " more times at most)."))
+                        (guard-against-database-failure f (dec max-retries))))]
     (try (f)
          (catch Exception e
            (cond
-             (instance? CommunicationsException e) (println (str "Could not communicate with the database."))
+             (instance? MySQLIntegrityConstraintViolationException e) (println "Could not cope with integrity constraints.")
+             (instance? CommunicationsException e) (println "Could not communicate with the database.")
              (instance? BatchUpdateException e) (maybe-retry)
              (instance? MySQLTransactionRollbackException e) (maybe-retry)
-             :else (log/error (.getException e)))))))
+             :else (error-handler/log-error e))))))
 
 (defn exec-query
   [& args]
@@ -38,6 +40,6 @@
   [values model & [finder]]
   (try
     (db/insert model (db/values values))
-    (catch Exception e (log/error (.getMessage e))))
+    (catch Exception e (error-handler/log-error e)))
   (when (some? finder)
     (finder)))

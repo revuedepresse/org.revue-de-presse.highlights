@@ -2,7 +2,8 @@
   (:require
     [clj-time.coerce :as c]
     [clojure.tools.logging :as log]
-    [environ.core :refer [env]])
+    [environ.core :refer [env]]
+    [utils.error-handler :as error-handler])
   (:use
     [amqp.handling-errors]
     [amqp.status-handler]
@@ -24,7 +25,9 @@
     (profile #(-> list-spec process-lists))
     (profile #(-> list-spec build-relationships))
     (catch Exception e
-      (log/error (str "An error occurred with message " (.getMessage e))))))
+      (error-handler/log-error
+        e
+        "An error occurred with message "))))
 
 (defn parse-status-publication-date
   [aggregate]

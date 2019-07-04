@@ -1,6 +1,7 @@
 (ns amqp.list-handler
   (:require [clojure.data.json :as json]
             [clojure.tools.logging :as log]
+            [utils.error-handler :as error-handler]
             [langohr.basic :as lb]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [amqp.handling-errors]
@@ -21,9 +22,9 @@
 (defn pull-messages-from-lists-queue
   "Pull messages from a queue dedicated to status collection from lists"
   [options]
-  (let [{auto-ack :auto-ack
-         channel :channel
-         queue :queue
+  (let [{auto-ack       :auto-ack
+         channel        :channel
+         queue          :queue
          entity-manager :entity-manager} options
         new-message (wait-for-new-messages channel queue auto-ack)
         {:keys [delivery-tag]} (first new-message)
@@ -41,7 +42,9 @@
              :unavailable-aggregate-message error-unavailable-aggregate})
           (lb/ack channel delivery-tag))
         (catch Exception e
-          (log/error "An error occurred with message " (.getMessage e)))))))
+          (error-handler/log-error
+            e
+            "An error occurred with message: "))))))
 
 (defn pull-messages-from-status-queue
   "Pull messages from a queue dedicated to status collection"
@@ -66,4 +69,6 @@
              :unavailable-aggregate-message error-unavailable-aggregate})
           (lb/ack channel delivery-tag))
         (catch Exception e
-          (log/error "An error occurred with message " (.getMessage e)))))))
+          (error-handler/log-error
+            e
+            "An error occurred with message: "))))))

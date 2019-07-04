@@ -6,7 +6,8 @@
             [clj-time.format :as f]
             [clj-time.core :as t]
             [clj-time.local :as l]
-            [clj-time.coerce :as c])
+            [clj-time.coerce :as c]
+            [utils.error-handler :as error-handler])
   (:use [repository.entity-manager]
         [repository.member]
         [twitter.oauth]
@@ -251,8 +252,9 @@
   [headers]
   (def percentage (atom 1))
   (try (swap! percentage (constantly (ten-percent-of (Long/parseLong (:x-rate-limit-limit headers)))))
-       (catch Exception e (log/error (str "An error occurred when calculating "
-                                          "the 10 percent of the rate limit")))
+       (catch Exception e (error-handler/log-error e
+                                                   (str "An error occurred when calculating "
+                                                        "the 10 percent of the rate limit: ")))
        (finally @percentage)))
 
 (defn guard-against-api-rate-limit
@@ -274,7 +276,7 @@
         (if (some? tokens)
           (handle-rate-limit-exceeded-error "statuses/show/:id" tokens)
           (wait-for-15-minutes endpoint)))
-      (catch Exception e (log/error (.getMessage e))))))
+      (catch Exception e (error-handler/log-error e)))))
 
 (defn guard-against-exceptional-member
   [member model]
@@ -353,8 +355,7 @@
             (get-twitter-status-by-id status-id model))
           (string/includes? (.getMessage e) error-no-status)
           {:error error-no-status}
-          :else
-          (log/error (.getMessage e)))))))
+          :else (error-handler e))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -540,14 +541,29 @@
       tokens-model
       (str "a " context))))
 
+(defn try-getting-statuses
+  [status-getter endpoint]
+  (let [
+        response (try status-getter
+                      (catch Exception e
+                        (cond
+                          (string/ends-with?
+                            (.getMessage e) error-not-authorized) {:headers {:unauthorized true}
+                                                                   :body    '()})
+                        :else (error-handler/log-error e)))
+        headers (:headers response)
+        statuses (:body response)
+        _ (when (nil? (:unauthorized (:headers response)))
+            (guard-against-api-rate-limit headers endpoint))]
+    statuses))
+
 (defn get-statuses-of-member
   [opts token-model]
   (let [endpoint "statuses/user_timeline"
         call "call to \"statuses/user_timeline\""
         context (str "trying to make a " call)
         _ (find-next-token token-model endpoint context)
-        response (get-statuses-by-screen-name opts endpoint call token-model)
-        headers (:headers response)
-        favorites (:body response)]
-    (guard-against-api-rate-limit headers endpoint)
-    favorites))
+        status-getter #(get-statuses-by-screen-name opts endpoint call token-model)
+        statuses (try-getting-statuses status-getter endpoint)]
+    statuses))
+

@@ -11,7 +11,8 @@
             [command.collect-status-identities :as status-identities]
             [command.collect-timely-statuses :as timely-statuses]
             [adaptor.database-navigation :as adaptor]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
@@ -32,7 +33,7 @@
          :year         year
          :week         week})
       (catch Exception e
-        (log/error (.getMessage e))))))
+        (error-handler/log-error e)))))
 
 (defn ^{:requires [:queue :messages :consumers]} command-consume-amqp-messages
   [args]
@@ -45,8 +46,9 @@
                              (Long/parseLong consumers))]
     (try
       (consume-messages (keyword queue) total-messages parallel-consumers)
-      (catch Exception e (log/error
-                           (str "An error occurred with message: " (.getMessage e)))))))
+      (catch Exception e (error-handler/log-error
+                           e
+                           "An error occurred with message: ")))))
 
 (defn ^{:requires [:aggregate-id :week :year]} command-collect-status-identities-for
   [args]
@@ -249,6 +251,4 @@
   (try
     (execute-command (first args) (rest args))
     (catch Exception e
-      (log/error (.getMessage e))
-      (doall
-        (map println (.getStackTrace e))))))
+      (error-handler/log-error e))))

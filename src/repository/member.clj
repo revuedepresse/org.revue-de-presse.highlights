@@ -1,10 +1,10 @@
 (ns repository.member
   (:require [clojure.tools.logging :as log]
+            [utils.error-handler :as error-handler]
             [korma.core :as db])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
-
 
 (declare members users)
 
@@ -181,7 +181,8 @@
                                 :protected                 is-protected
                                 :total_subscribees         total-subscribees
                                 :total_subscriptions       total-subscriptions}])))
-      (catch Exception e (log/error (.getMessage e))))
+      (catch Exception e
+        (error-handler/log-error e)))
 
     (find-member-by-id twitter-id members)))
 
@@ -229,6 +230,7 @@
       (do
         (try
           (db/insert model (db/values deduped-values))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-members-having-ids twitter-ids model))
       '())))

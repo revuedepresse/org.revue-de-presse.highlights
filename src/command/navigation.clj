@@ -1,7 +1,8 @@
 (ns command.navigation
   (:require [clojure.tools.logging :as log]
             [environ.core :refer [env]]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [utils.error-handler :as error-handler])
   (:use [formatting.formatter]
         [repository.entity-manager]
         [repository.keyword]
@@ -251,7 +252,7 @@
   (try
     (apply f [args])
     (catch Exception e
-      (log/error (.getMessage e)))))
+      (error-handler/log-error e))))
 
 (defn find-ns-symbols-from
   [last-eval]
