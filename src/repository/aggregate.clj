@@ -212,7 +212,8 @@
     (if (pos? (count snake-cased-values))
       (do
         (try
-          (db/insert model (db/values snake-cased-values))
+          (insert-query {:values snake-cased-values
+                         :model  model})
           (catch Exception e (log/error (.getMessage e))))
         (find-relationships-between-aggregate-and-statuses-having-ids
           aggregate-id
@@ -258,31 +259,16 @@
       a.id as `aggregate-id`,
       a.name as `aggregate-name`,
       member.last_status_publication_date as `last-status-publication-date`
-      FROM (
-        SELECT
-        sa.aggregate_id,
-        GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
-        FROM weaving_status_aggregate sa
-        INNER JOIN weaving_status s
-        ON s.ust_id = sa.status_id
-        WHERE aggregate_id IN (
-            SELECT
-            a.id as `aggregate-id`
-            FROM weaving_aggregate a
-            WHERE 1
-            " additional-constraints "
-            AND a.name NOT LIKE 'user ::%'
-            AND a.name " pattern "
-        )
-        GROUP BY aggregate_id
-      ) selection
-      INNER JOIN weaving_user member
-      ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
-      AND member.protected = 0
-      AND member.suspended = 0
-      AND member.not_found = 0
+      FROM member_aggregate_subscription msub
       INNER JOIN weaving_aggregate a
-      ON a.id = selection.aggregate_id"))
+      ON list_name = name
+      " additional-constraints "
+      INNER JOIN aggregate_subscription asub
+      ON asub.member_aggregate_subscription_id = msub.id
+      INNER JOIN weaving_user member
+      ON member.usr_twitter_id = subscription_id
+      WHERE list_name " pattern "
+    "))
 
 (defn get-aggregates-having-name-prefix
   [prefix]
@@ -294,9 +280,7 @@
   [name]
   (let [query (select-aggregates-where
                 "= ?"
-                (str "
-                  AND a.screen_name = s.ust_full_name " (get-collation) "
-                  AND a.screen_name IS NOT NULL"))
+                (str "AND a.screen_name IS NOT NULL"))
         results (db/exec-raw [query [name]] :results)]
     results))
 
