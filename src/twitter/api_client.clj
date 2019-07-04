@@ -542,15 +542,20 @@
       (str "a " context))))
 
 (defn try-getting-statuses
-  [status-getter endpoint]
+  [status-getter endpoint opts]
   (let [
-        response (try status-getter
+        response (try (status-getter)
                       (catch Exception e
                         (cond
                           (string/ends-with?
-                            (.getMessage e) error-not-authorized) {:headers {:unauthorized true}
-                                                                   :body    '()})
-                        :else (error-handler/log-error e)))
+                            (.getMessage e) error-timeline-access-not-authorized)
+                          (do
+                            (log/info (str "Not authorized to access statuses of " (:screen-name opts)))
+                            {:headers {:unauthorized true}
+                             :body    '()})
+                          :else (error-handler/log-error
+                                  e
+                                  (str "Could not access statuses of " (:screen-name opts) ": ")))))
         headers (:headers response)
         statuses (:body response)
         _ (when (nil? (:unauthorized (:headers response)))
@@ -564,6 +569,6 @@
         context (str "trying to make a " call)
         _ (find-next-token token-model endpoint context)
         status-getter #(get-statuses-by-screen-name opts endpoint call token-model)
-        statuses (try-getting-statuses status-getter endpoint)]
+        statuses (try-getting-statuses status-getter endpoint opts)]
     statuses))
 
