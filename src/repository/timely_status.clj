@@ -1,6 +1,5 @@
 (ns repository.timely-status
-  (:require [clojure.string :as string]
-            [korma.core :as db])
+  (:require [korma.core :as db])
   (:use [korma.db]
         [repository.database-schema]
         [repository.query-executor]
@@ -92,6 +91,28 @@
                                        :publication-week publication-week
                                        :publication-year publication-year
                                        :are-archived     are-archived})))
+
+(defn find-timely-statuses-by-aggregate-and-publication-date
+  "Find the timely status statuses of a member published on a given day"
+  ; Relies on available timely statuses
+  ([aggregate-name]
+   (let [results (find-timely-statuses-by-aggregate-and-publication-date aggregate-name nil)]
+     results))
+  ([aggregate-name publication-date]
+   (let [base-query (str "
+                      SELECT
+                      ts.status_id as `status-id`
+                      FROM timely_status ts
+                      WHERE ts.aggregate_name = ?
+                    ")
+         query (if (nil? publication-date)
+                 (str base-query "AND DATE(now()) <= ts.publication_date_time ")
+                 (str base-query "AND ? = DATE(ts.publication_date_time) "))
+         params (if (nil? publication-date)
+                  [aggregate-name]
+                  [aggregate-name publication-date])
+         results (db/exec-raw [query params] :results)]
+     results)))
 
 (defn find-aggregate-having-publication-from-date
   "Find the distinct aggregates for which publications have been collected for a given date"

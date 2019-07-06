@@ -1,5 +1,6 @@
 (ns repository.highlight
   (:require [korma.core :as db]
+            [clojure.string :as string]
             [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
@@ -25,31 +26,24 @@
                   :total_retweets))
   highlight)
 
-(defn find-statuses-for-aggregate
+(defn find-statuses-by-ids
   "Find the statuses of a member published on a given day"
-  ; Relies on available timely statuses
-  ([aggregate-name]
-   (let [results (find-statuses-for-aggregate aggregate-name nil)]
-     results))
-  ([aggregate-name publication-date]
-   (let [base-query (str
-                      "SELECT s.ust_id as `status-id`,              "
-                      "m.usr_id as `member-id`,                     "
-                      "s.ust_api_document as `api-document`,        "
-                      "s.ust_created_at as `publication-date-time`  "
-                      "FROM timely_status ts                        "
-                      "INNER JOIN weaving_status s                  "
-                      "ON s.ust_id = ts.status_id                   "
-                      "INNER JOIN weaving_user m                    "
-                      "ON ts.member_name = m.usr_twitter_username   "
-                      "WHERE ts.aggregate_name = ?                  ")
-         query (if (nil? publication-date)
-                 (str base-query "AND DATE(now()) <= ts.publication_date_time")
-                 (str base-query "AND ? = DATE(ts.publication_date_time)"))
-         params (if (nil? publication-date)
-                  [aggregate-name]
-                  [aggregate-name publication-date])
-         results (db/exec-raw [query params] :results)]
+  ([ids]
+   (let [bindings (take (count ids) (iterate (constantly "?") "?"))
+         bindings (string/join "," bindings)
+         base-query (str "
+                      SELECT s.ust_id as `status-id`,
+                      m.usr_id as `member-id`,
+                      s.ust_api_document as `api-document`,
+                      s.ust_created_at as `publication-date-time`
+                      FROM timely_status ts
+                      LEFT JOIN weaving_status s
+                      ON s.ust_id = ts.status_id
+                      LEFT JOIN weaving_user m
+                      ON ts.member_name = m.usr_twitter_username
+                      WHERE ts.status_id IN (" bindings ")
+                    ")
+         results (db/exec-raw [base-query ids] :results)]
      results)))
 
 (defn find-highlights-for-aggregate-published-at
