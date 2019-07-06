@@ -225,7 +225,7 @@
 
 (defn execute-command
   [name args]
-  (let [s (symbol (str "review.core/command" name))
+  (let [s (symbol (str "review.core/command-" name))
         f (resolve s)]
     (if f
       (navigation/try-running-command f args)
