@@ -89,29 +89,30 @@
          (recur (inc partition-index)))))))
 
 (defn bulk-insert-highlights-from-statuses
-  [statuses-ids models]
+  [statuses-ids aggregate models]
   (let [statuses (find-statuses-by-ids statuses-ids)
         find #(find-highlights-having-ids
                 % (:highlight models) (:member models) (:status models))
         filtered-statuses (filter-out-known-statuses find statuses)
-        highlights-props (map (extract-highlight-props (first aggregate)) filtered-statuses)
+        highlights-props (map (extract-highlight-props aggregate) filtered-statuses)
         new-highlights (bulk-insert-new-highlights highlights-props (:highlight models) (:member models) (:status models))]
     (log/info (str "There are " (count new-highlights) " new highlights"))
     new-highlights))
 
 (defn save-highlights-from-date-for-aggregate
   [date aggregate]
-  (let [models (get-entity-manager (:database env))
+  (let [{aggregate-model :aggregate :as models} (get-entity-manager (:database env))
         aggregate-name (if aggregate
                          aggregate
                          (:press (edn/read-string (:aggregate env))))
+        aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
         statuses-ids (map
                        :status-id
                        (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date))
         statuses-ids-chunk (partition 100 statuses-ids)]
     (doall
       (pmap
-        #(bulk-insert-highlights-from-statuses % models)
+        #(bulk-insert-highlights-from-statuses % (first aggregate) models)
         statuses-ids-chunk))))
 
 (defn save-highlights
