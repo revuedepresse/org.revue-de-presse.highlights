@@ -36,6 +36,8 @@
         member-url-col (get-column "url" member-model)
         member-description-col (get-column "description" member-model)
         status-id-col (get-column "ust_id" status-model)
+        status-twitter-id-col (get-column "ust_status_id" status-model)
+        screen-name-col (get-column "ust_full_name" status-model)
         status-text-col (get-column "ust_text" status-model)
         member-id-col (get-column "usr_id" member-model)]
     (->
@@ -44,6 +46,9 @@
                  [status-api-document-col :status-api-document]
                  [member-url-col :member-url]
                  [status-text-col :status]
+                 [status-text-col :text]
+                 [status-twitter-id-col :status-twitter-id]
+                 [screen-name-col :screen-name]
                  [member-description-col :member-description]
                  [:occurrences :occurrences]
                  [:keyword :keyword]
@@ -51,6 +56,7 @@
                  [:aggregate_id :aggregate-id]
                  [:aggregate_name :aggregate-name]
                  [:status_id :status-id]
+                 [:publication_date_time :created-at]
                  [:publication_date_time :publication-date-time])
       (db/join member-model (= member-id-col :member_id))
       (db/join status-model (= status-id-col :status_id)))))
@@ -61,6 +67,19 @@
   (let [ids (if keywords-ids keywords-ids '(0))
         matching-keywords (-> (select-keywords model member-model status-model)
                               (db/where {:id [in ids]})
+                              (db/select))]
+    (if matching-keywords
+      matching-keywords
+      '())))
+
+(defn find-statuses-containing-keyword
+  "Find statuses by keyword"
+  [keyword {model :keyword
+            member-model :member
+            status-model :status}]
+  (let [matching-keywords (-> (select-keywords model member-model status-model)
+                              (db/where {:keyword keyword})
+                              (db/order :publication_date_time "DESC")
                               (db/select))]
     (if matching-keywords
       matching-keywords

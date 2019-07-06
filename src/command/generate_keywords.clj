@@ -2,8 +2,10 @@
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log]
-            [clojure.edn :as edn])
-  (:use [repository.entity-manager]
+            [clojure.edn :as edn]
+            [utils.error-handler :as error-handler])
+  (:use [adaptor.database-navigation]
+        [repository.entity-manager]
         [repository.aggregate]
         [repository.highlight]
         [repository.timely-status]
@@ -37,7 +39,8 @@
             keywords (explode #"\s+" status)
             associated-keywords (map (assoc-keyword all-keywords) keywords)]
         associated-keywords)
-      (catch Exception e (log/error (.getMessage e))))))
+      (catch Exception e
+        (error-handler/log-error e)))))
 
 (defn assoc-occurrences
   [[_ occurrences]]
@@ -88,21 +91,20 @@
                                                                            :year           year
                                                                            :aggregate-name press-aggregate-name
                                                                            :not-in         true
-                                                                           :models         models})
-         new-keywords (new-keywords-from-props
-                        highlights
-                        models
-                        (str "for \"" press-aggregate-name "\"")
-                        :find-keywords)
-         props (get-keywords-props)]
-     {:provides  props
-      :result    new-keywords
-      :formatter #(str
-                    (:keyword %)
-                    " for aggregate " (:aggregate-name %) " #" (:aggregate-id %)
-                    " and member #" (:member-id %)
-                    "(" (:occurrences %) ")"
-                    )})))
+                                                                           :models         models})]
+     (adapt-results {:props     (get-keywords-props)
+                     :finder    (fn [get-models]
+                                  (new-keywords-from-props
+                                    highlights
+                                    (get-models)
+                                    (str "for \"" press-aggregate-name "\"")
+                                    :find-keywords))
+                     :formatter #(str
+                                   (:keyword %)
+                                   " for aggregate " (:aggregate-name %) " #" (:aggregate-id %)
+                                   " and member #" (:member-id %)
+                                   "(" (:occurrences %) ")"
+                                   )}))))
 
 (defn generate-keywords-for-aggregate
   [param & [models timely-status-finder log-message-ending]]

@@ -5,6 +5,7 @@
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.member]
         [repository.status]
         [twitter.api-client]
         [twitter.date]
@@ -136,12 +137,6 @@
     (log/info (str "Found " (count favorited-status-authors) " ids of status authors"))
     favorited-status-authors))
 
-(defn new-relationship
-  [aggregate-id]
-  (fn [status-id]
-    (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
-      relationship)))
-1
 (defn is-subset-of-relationships-set
   [relationships-set]
   (fn [relationship]

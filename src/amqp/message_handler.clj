@@ -7,6 +7,7 @@
             [langohr.basic :as lb]
             [langohr.core :as rmq]
             [clojure.tools.logging :as log]
+            [utils.error-handler :as error-handler]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [twitter.favorited-status]
         [repository.entity-manager]
@@ -82,7 +83,9 @@
                          aggregate-id " could not be bound to an actual aggregate")
               (lb/ack channel delivery-tag))
             :else
-            (log/error (str "An error occurred with message " (.getMessage e)))))))))
+            (error-handler/log-error
+              e
+              "An error occurred with message ")))))))
 
 (defn consume-message
   [entity-manager rabbitmq channel queue & [message-index]]

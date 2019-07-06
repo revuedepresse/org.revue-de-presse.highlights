@@ -4,13 +4,14 @@
             [clj-time.format :as f]
             [clj-time.core :as time]
             [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
-            [environ.core :refer [env]])
+            [environ.core :refer [env]]
+            [utils.error-handler :as error-handler])
   (:use [twitter.date]
         [repository.entity-manager]
         [repository.aggregate]
         [repository.analysis.publication-frequency]
         [repository.analysis.sample]
+        [repository.member]
         [repository.status]))
 
 (defn inc-frequency-of-publication-for-day-of-week
@@ -37,7 +38,7 @@
     (try
       (reduce inc-frequency-of-publication-for-day-of-week per-day-of-week-frequency days-of-week)
       (catch Exception e
-        (log/error (.getMessage e))))))
+        (error-handler/log-error e)))))
 
 (defn get-publication-hour-frequency-analysis
   [statuses]
@@ -48,7 +49,7 @@
     (try
       (reduce inc-frequency-of-publication-for-hour-of-day per-hour-of-day-frequency hour-of-day)
       (catch Exception e
-        (log/error (.getMessage e))))))
+        (error-handler/log-error e)))))
 
 (defn analyze-frequency-of-status-publication
   [{frequency-analysis-getter :frequency-analysis-getter
@@ -125,7 +126,7 @@
                                                       :year        year
                                                       :week        week})
                  (catch Exception e
-                   (log/error (.getMessage e))))
+                   (error-handler/log-error e)))
               aggregates))]))
 
 (defn decode-publication-frequencies

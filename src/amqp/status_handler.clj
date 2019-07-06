@@ -3,6 +3,7 @@
             [clj-time.format :as f])
   (:use [repository.entity-manager]
         [repository.aggregate]
+        [repository.member]
         [amqp.handling-errors]
         [twitter.api-client]
         [twitter.date]
@@ -52,8 +53,11 @@
         last-status (first latest-statuses)
         latest-status-id (:id_str last-status)
         latest-status-publication-date (:created_at last-status)
-        mysql-formatted-publication-date (f/unparse mysql-date-formatter (f/parse date-formatter latest-status-publication-date))]
-    (update-status-related-props-for-member-having-id latest-status-id mysql-formatted-publication-date member-id member-model)))
+        mysql-formatted-publication-date (when (some? latest-status-publication-date)
+                                           (f/unparse mysql-date-formatter
+                                                      (f/parse date-formatter latest-status-publication-date)))]
+    (when (some? mysql-formatted-publication-date)
+      (update-status-related-props-for-member-having-id latest-status-id mysql-formatted-publication-date member-id member-model))))
 
 (defn process-lists
   [{screen-name                   :screen-name

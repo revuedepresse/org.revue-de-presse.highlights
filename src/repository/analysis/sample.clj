@@ -3,7 +3,7 @@
             [clj-time.local :as l]
             [clj-time.format :as f]
             [clj-uuid :as uuid]
-            [clojure.tools.logging :as log])
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]
@@ -92,6 +92,7 @@
       (do
         (try
           (db/insert model (db/values timestamped-props))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e))))
         (find-sample-by-ids samples-ids model member-model publication-frequency-model))
-      '())))
+      '()))

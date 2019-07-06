@@ -1,7 +1,7 @@
 (ns repository.analysis.publication-frequency
   (:require [korma.core :as db]
             [clj-uuid :as uuid]
-            [clojure.tools.logging :as log])
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
@@ -84,7 +84,7 @@
          member-model
          sample-model)
        (catch Exception e
-         (log/error (.getMessage e)))))))
+         (error-handler/log-error e))))))
 
 (defn find-publication-frequencies-by-ids
   [ids model member-model sample-model]
@@ -107,6 +107,7 @@
       (do
         (try
           (db/insert model (db/values snake-cased-props))
-          (catch Exception e (log/error (.getMessage e))))
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-publication-frequencies-by-ids publication-frequencies-ids model member-model sample-model))
       '())))

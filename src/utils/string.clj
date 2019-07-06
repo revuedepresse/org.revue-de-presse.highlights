@@ -7,7 +7,7 @@
 
 (defn replace-underscore-with-dash
   [[k v]]
-  (let [key-value [(keyword (string/replace (name k) #"-" "_") ) v]]
+  (let [key-value [(keyword (string/replace (name k) #"-" "_")) v]]
     key-value))
 
 (defn snake-case-keys
@@ -30,3 +30,7 @@
         props-having-converted-keys (->> (map prefixer m)
                                          (into {}))]
     props-having-converted-keys))
+
+(defn get-alphabet
+  []
+  (map #(assoc {} :letter (char %)) (range 97 123)))

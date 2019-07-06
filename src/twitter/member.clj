@@ -1,6 +1,7 @@
 (ns twitter.member
   (:require [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
+        [repository.member]
         [twitter.api-client]))
 
 (def ^:dynamic *twitter-member-enabled-logging* false)

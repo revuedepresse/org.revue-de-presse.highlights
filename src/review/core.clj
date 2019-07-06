@@ -10,7 +10,9 @@
             [command.save-highlights :as highlights]
             [command.collect-status-identities :as status-identities]
             [command.collect-timely-statuses :as timely-statuses]
-            [adaptor.database-navigation :as adaptor])
+            [adaptor.database-navigation :as adaptor]
+            [clojure.string :as string]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [twitter.api-client]
         [amqp.message-handler]
@@ -31,7 +33,7 @@
          :year         year
          :week         week})
       (catch Exception e
-        (log/error (.getMessage e))))))
+        (error-handler/log-error e)))))
 
 (defn ^{:requires [:queue :messages :consumers]} command-consume-amqp-messages
   [args]
@@ -44,8 +46,9 @@
                              (Long/parseLong consumers))]
     (try
       (consume-messages (keyword queue) total-messages parallel-consumers)
-      (catch Exception e (log/error
-                           (str "An error occurred with message: " (.getMessage e)))))))
+      (catch Exception e (error-handler/log-error
+                           e
+                           "An error occurred with message: ")))))
 
 (defn ^{:requires [:aggregate-id :week :year]} command-collect-status-identities-for
   [args]
@@ -64,10 +67,10 @@
   (let [[screen-name] args]
     (timely-statuses/collect-timely-statuses-for-member-subscriptions screen-name)))
 
-(defn ^{:requires [:reverse-order]} command-collect-timely-statuses-from-aggregates
+(defn ^{:requires [:letter]} command-collect-timely-statuses-from-aggregates
   [args]
-  (let [[reverse-order] args]
-    (timely-statuses/collect-timely-statuses-from-aggregates reverse-order)))
+  (let [[letter reverse-order] args]
+    (timely-statuses/collect-timely-statuses-from-aggregates letter reverse-order)))
 
 (defn ^{:requires [:aggregate-name]} command-collect-timely-statuses-from-aggregate
   [args]
@@ -99,24 +102,59 @@
   (let [[aggregate-name] args]
     (keywords/generate-keywords-for-aggregates-sharing-name aggregate-name)))
 
+(defn ^{:requires []} command-list-alphabet-letters
+  []
+  (adaptor/list-alphabet-letters))
+
 (defn ^{:requires []} command-list-aggregates
   []
   (adaptor/list-aggregates))
+
+(defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
+  [args]
+  (let [[aggregate-name] args]
+    (adaptor/list-aggregate-statuses aggregate-name)))
+
+(defn ^{:requires []} command-list-keyword-aggregates
+  []
+  (adaptor/list-keyword-aggregates))
 
 (defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
   [args]
   (let [[screen-name] args]
     (adaptor/list-aggregates-containing-member screen-name)))
 
+(defn ^{:requires []} command-list-highlights-since-a-month-ago
+  []
+  (adaptor/list-highlights-since-a-month-ago))
+
 (defn ^{:requires [:screen-name]} command-list-member-statuses
   [args]
   (let [[screen-name] args]
     (adaptor/list-member-statuses screen-name)))
 
-(defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
+(defn ^{:requires []} command-list-members-subscribing-to-lists
+  []
+  (adaptor/list-members-subscribing-to-lists))
+
+(defn ^{:requires []} command-list-members-which-subscriptions-have-been-collected
+  []
+  (adaptor/list-members-which-subscriptions-have-been-collected))
+
+(defn ^{:requires [:screen-name]} command-list-aggregates-of-subscriber-having-screen-name
   [args]
-  (let [[aggregate-name] args]
-    (adaptor/list-aggregate-statuses aggregate-name)))
+  (let [[screen-name] args]
+    (adaptor/list-aggregates-of-subscriber-having-screen-name screen-name)))
+
+(defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
+  [args]
+  (let [[screen-name] args]
+    (adaptor/list-subscriptions-of-member-having-screen-name screen-name)))
+
+(defn ^{:requires [:keyword]} command-list-statuses-containing-keyword
+  [args]
+  (let [[keyword] args]
+    (adaptor/list-statuses-containing-keyword keyword)))
 
 (defn ^{:requires [:aggregate-name]} command-list-keywords-by-aggregate
   [args]
@@ -174,30 +212,7 @@
 
 (defn ^{:requires [:any]} command-show-latest-evaluation
   [& args]
-  (let [coll (if (and
-                   (some? args)
-                   (pos? (count args)))
-               (:result (first args))
-               '())
-        formatter (if (some? coll)
-                    (fn [m]
-                      (str
-                        (clojure.string/join
-                          "\n"
-                          (map
-                            #(str (name %) ": " (get m %))
-                            (sort (keys (first coll))))
-                          )
-                        "\n"))
-                    identity)]
-    (navigation/print-formatted-string
-      formatter
-      coll
-      {:no-wrap false
-       :sep     "------------------"})
-    (if (some? coll)
-      args
-      {:result '()})))
+  (adaptor/render-latest-result-map args))
 
 (defn ^{:requires []} command-update-members-descriptions-urls
   []
@@ -210,32 +225,25 @@
 
 (defn execute-command
   [name args]
-  (let [s (symbol (str "review.core/command" name))
+  (let [s (symbol (str "review.core/command-" name))
         f (resolve s)]
     (if f
       (navigation/try-running-command f args)
       (loop [print-menu true
              result-map nil]
         (navigation/print-menu-when print-menu)
-        (let [ns-commands (navigation/find-ns-symbols result-map)
-              input (if (navigation/should-quit-from-last-result result-map)
-                      "q"
-                      (read-line))]
-          (cond
-            (= input "q") (println "bye")
-            (= input "h") (do
-                            (navigation/print-help ns-commands)
-                            (recur false nil))
-            (navigation/is-valid-command-index input (count ns-commands)) (do
-                                                                            (recur
-                                                                              false
-                                                                              (navigation/run-command-indexed-at
-                                                                                (Long/parseLong input)
-                                                                                ns-commands
-                                                                                result-map)))
-            :else (do
-                    (println (str "\nInvalid command: \"" input "\""))
-                    (recur false result-map))))))))
+        (when (and (pos? (count result-map))
+                   (some-> result-map :result first :status-url))
+          (println
+            (string/join "\n\n"
+                         (map
+                           (:formatter result-map)
+                           (:result result-map)))))
+        (let [ret (navigation/handle-input result-map)]
+          (when (some? ret)
+            (recur
+              (first ret)
+              (second ret))))))))
 
 (defn -main
   "Command dispatch application"
@@ -243,5 +251,4 @@
   (try
     (execute-command (first args) (rest args))
     (catch Exception e
-      (log/error (.getMessage e)))))
-
+      (error-handler/log-error e))))

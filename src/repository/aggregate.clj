@@ -1,13 +1,13 @@
 (ns repository.aggregate
-  (:require [clojure.tools.logging :as log]
-            [korma.core :as db])
+  (:require [korma.core :as db]
+            [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
         [repository.query-executor]
         [twitter.status-hash]
         [utils.string]))
 
-(declare aggregate)
+(declare aggregate aggregate-subscription member-aggregate-subscription)
 
 (defn get-aggregate-model
   [connection]
@@ -25,52 +25,29 @@
                   :list_id))
   aggregate)
 
-(defn find-all-aggregates
-  "Find all aggregates sorted by name"
-  []
-  (let [query (str "
-                SELECT
-                DISTINCT name as `aggregate-name`,
-                id as `aggregate-id`
-                FROM weaving_aggregate
-                WHERE screen_name IS NULL
-                AND name NOT LIKE 'user ::%'
-                ORDER BY name ASC")
-        results (db/exec-raw [query] :results)]
-    results))
+(defn get-aggregate-subscription-model
+  [connection]
+  (db/defentity aggregate-subscription
+                (db/table :aggregate_subscription)
+                (db/database connection)
+                (db/entity-fields
+                  :id
+                  :member_aggregate_subscription_id
+                  :subscription_id))
+  aggregate-subscription)
 
-(defn find-aggregates-enlisting-member
-  "Find aggregates enlisting member"
-  [screen-name]
-  (let [query (str "
-                SELECT
-                DISTINCT name as `aggregate-name`,
-                id as `aggregate-id`
-                FROM weaving_aggregate
-                WHERE screen_name IS NOT NULL
-                AND name NOT LIKE 'user ::%'
-                AND screen_name = ?
-                ORDER BY name ASC")
-        results (db/exec-raw [query [screen-name]] :results)]
-    results))
-
-(defn find-members-by-aggregate
-  "Find all aggregates sorted by name"
-  [aggregate-name]
-  (let [query (str "
-                SELECT
-                a.screen_name as `screen-name`,
-                mi.twitter_id as `member-twitter-id`,
-                mi.member_id as `member-id`,
-                a.name as `aggregate-name`
-                FROM weaving_aggregate a
-                INNER JOIN member_identity mi
-                ON mi.screen_name = a.screen_name
-                WHERE a.screen_name IS NOT NULL
-                AND a.name = ?
-                ORDER BY a.screen_name ASC")
-        results (db/exec-raw [query [aggregate-name]] :results)]
-    results))
+(defn get-member-aggregate-subscription-model
+  [connection]
+  (db/defentity member-aggregate-subscription
+                (db/table :member_aggregate_subscription)
+                (db/database connection)
+                (db/entity-fields
+                  :id
+                  :member_id
+                  :list_name
+                  :list_id
+                  :document))
+  member-aggregate-subscription)
 
 (defn find-aggregate-by-id
   "Find an aggregate by id"
@@ -110,15 +87,110 @@
             (throw (Exception. (str error-message))))]
     aggregate))
 
+(defn find-all-aggregates
+  "Find all aggregates sorted by name"
+  []
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NULL
+                AND name NOT LIKE 'user ::%'
+                ORDER BY name ASC")
+        results (db/exec-raw [query] :results)]
+    results))
+
+(defn find-aggregates-enlisting-member
+  "Find aggregates enlisting member"
+  [screen-name]
+  (let [query (str "
+                SELECT
+                DISTINCT name as `aggregate-name`,
+                id as `aggregate-id`
+                FROM weaving_aggregate
+                WHERE screen_name IS NOT NULL
+                AND name NOT LIKE 'user ::%'
+                AND screen_name = ?
+                ORDER BY name ASC")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))
+
+(defn find-keyword-aggregates
+  "Find aggregates for which there are keywords"
+  []
+  (let [query (str "
+                SELECT
+                a.id as `aggregate-id`,
+                a.name as `aggregate-name`
+                FROM weaving_aggregate a
+                WHERE name NOT LIKE 'user ::%'
+                AND screen_name IS NULL
+                AND name IN (SELECT DISTINCT aggregate_name FROM keyword)
+              ")
+        results (db/exec-raw [query] :results)]
+    results))
+
+(defn find-members-by-aggregate
+  "Find all aggregates sorted by name"
+  [aggregate-name]
+  (let [query (str "
+                SELECT
+                a.screen_name as `screen-name`,
+                a.list_id as `aggregate-twitter-id`,
+                mi.twitter_id as `member-twitter-id`,
+                mi.member_id as `member-id`,
+                a.name as `aggregate-name`
+                FROM weaving_aggregate a
+                INNER JOIN member_identity mi
+                ON mi.screen_name = a.screen_name
+                WHERE a.screen_name IS NOT NULL
+                AND a.name = ?
+                AND list_id IS NOT NULL
+                ORDER BY a.screen_name
+              ")
+        results (db/exec-raw [query [aggregate-name]] :results)]
+    results))
+
+(defn find-lists-of-subscriber-having-screen-name
+  "Find members in lists by the screen name of a subscriber"
+  [screen-name]
+  (let [query (str "
+                SELECT
+                list_name AS `list-name`,
+                list_id AS `list-twitter-id`
+                FROM member_aggregate_subscription
+                WHERE member_id IN (
+                    SELECT usr_id FROM weaving_user WHERE usr_twitter_username = ?
+                ) ORDER BY list_name
+              ")
+        results (db/exec-raw [query [screen-name]] :results)]
+    results))
+
+(defn find-members-subscribing-to-lists
+  "Find members subscribing to lists"
+  []
+  (let [query (str "
+                SELECT DISTINCT usr_twitter_username AS `screen-name`,
+                usr_twitter_id AS `member-twitter-id`,
+                usr_id AS `member-id`
+                FROM member_aggregate_subscription
+                INNER JOIN weaving_user
+                ON usr_id = member_id
+                ORDER BY usr_twitter_username
+              ")
+        results (db/exec-raw [query] :results)]
+    results))
+
 (defn select-relationship-between-aggregate-and-status
   [model status-model]
-  (let [status-id-col (get-column "ust_id" status-model)]
+  (let [twitter-status-id (get-column "ust_status_id" status-model)]
     (->
       (db/select* model)
       (db/fields [:status_id :status-id]
                  [:aggregate_id :aggregate-id]
-                 [status-id-col :twitter-id])
-      (db/join status-model (= status-id-col :status_id)))))
+                 [twitter-status-id :status-twitter-id])
+      (db/join status-model (= twitter-status-id :status_id)))))
 
 (defn find-relationships-between-aggregate-and-statuses-having-ids
   "Find relationships between an aggregate and statuses"
@@ -140,8 +212,10 @@
     (if (pos? (count snake-cased-values))
       (do
         (try
-          (db/insert model (db/values snake-cased-values))
-          (catch Exception e (log/error (.getMessage e))))
+          (insert-query {:values snake-cased-values
+                         :model  model})
+          (catch Exception e
+            (error-handler/log-error e)))
         (find-relationships-between-aggregate-and-statuses-having-ids
           aggregate-id
           statuses-ids
@@ -186,35 +260,22 @@
       a.id as `aggregate-id`,
       a.name as `aggregate-name`,
       member.last_status_publication_date as `last-status-publication-date`
-      FROM (
-        SELECT
-        sa.aggregate_id,
-        GROUP_CONCAT(DISTINCT s.ust_full_name SEPARATOR ',') as member_names
-        FROM weaving_status_aggregate sa
-        INNER JOIN weaving_status s
-        ON s.ust_id = sa.status_id
-        WHERE aggregate_id IN (
-            SELECT
-            a.id as `aggregate-id`
-            FROM weaving_aggregate a
-            WHERE 1
-            " additional-constraints "
-            AND a.name NOT LIKE 'user ::%'
-            AND a.name " pattern "
-        )
-        GROUP BY aggregate_id
-      ) selection
-      INNER JOIN weaving_user member
-      ON FIND_IN_SET(member.usr_twitter_username, selection.member_names)
-      AND member.protected = 0
-      AND member.suspended = 0
-      AND member.not_found = 0
+      FROM member_aggregate_subscription msub
       INNER JOIN weaving_aggregate a
-      ON a.id = selection.aggregate_id"))
+      ON list_name = name
+      " additional-constraints "
+      INNER JOIN aggregate_subscription asub
+      ON asub.member_aggregate_subscription_id = msub.id
+      INNER JOIN weaving_user member
+      ON member.usr_twitter_id = subscription_id
+      WHERE list_name " pattern "
+    "))
 
 (defn get-aggregates-having-name-prefix
   [prefix]
-  (let [query (select-aggregates-where "LIKE ?" "AND a.screen_name IS NULL")
+  (let [query (select-aggregates-where
+                "LIKE ?"
+                "AND a.screen_name IS NULL")
         results (db/exec-raw [query [(str prefix "%")]] :results)]
     results))
 
@@ -222,26 +283,27 @@
   [name]
   (let [query (select-aggregates-where
                 "= ?"
-                (str "
-                  AND a.screen_name = s.ust_full_name " (get-collation) "
-                  AND a.screen_name IS NOT NULL"))
+                (str "AND a.screen_name IS NOT NULL"))
         results (db/exec-raw [query [name]] :results)]
     results))
 
 (defn get-member-aggregate
   [screen-name]
-  (let [query (str
-                "SELECT                                                                         "
-                "aggregate.id `aggregate-id`,                                                   "
-                "aggregate.name `aggregate-name`                                                "
-                "FROM                                                                           "
-                "weaving_user member,                                                           "
-                "weaving_aggregate aggregate                                                    "
-                "WHERE                                                                          "
-                "member.usr_twitter_username" (get-collation) "= aggregate.screen_name          "
-                "AND aggregate.screen_name IS NOT NULL                                          "
-                "AND aggregate.name = CONCAT('user :: ', member.usr_twitter_username)           "
-                "AND member.usr_twitter_username = ?                                            ")
+  (let [query (str "
+                SELECT
+                aggregate.id `aggregate-id`,
+                aggregate.name `aggregate-name`
+                FROM
+                weaving_user member,
+                weaving_aggregate aggregate
+                WHERE
+                member.usr_twitter_username = aggregate.screen_name " (get-collation) "
+                AND aggregate.screen_name IS NOT NULL
+                AND aggregate.name = CONCAT(
+                  'user :: ', member.usr_twitter_username
+                )
+                AND member.usr_twitter_username = ?
+              ")
         results (exec-query [query [screen-name]] :results)]
     (first results)))
 
@@ -260,3 +322,9 @@
               ")]
     (binding [*current-db* db]
       (exec-query [query [aggregate-name]] :results))))
+
+(defn new-relationship
+  [aggregate-id]
+  (fn [status-id]
+    (let [relationship {:status-id status-id :aggregate-id aggregate-id}]
+      relationship)))

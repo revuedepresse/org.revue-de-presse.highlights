@@ -7,7 +7,8 @@
     [clojure.data.json :as json]
     [environ.core :refer [env]]
     [clj-time.core :as time]
-    [repository.status-identity :as status-identity])
+    [repository.status-identity :as status-identity]
+    [utils.error-handler :as error-handler])
   (:use
     [repository.aggregate]
     [twitter.date]
@@ -46,7 +47,7 @@
         aggregate-member-identities (try
                                       (status-identity/find-by-aggregate-id aggregate-id week year db)
                                       (catch Exception e
-                                        (log/error (.getMessage e))))
+                                        (error-handler/log-error e)))
         props (doall
                 (pmap assoc-missing-props aggregate-member-identities))]
     props))
