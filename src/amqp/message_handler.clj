@@ -74,14 +74,12 @@
           (lb/ack channel delivery-tag))
         (catch Exception e
           (cond
-            (= (.getMessage e) error-mismatching-favorites-cols-length)
-            (log/error "Likes of \"" screen-name "\" related to aggregate #"
-                       aggregate-id " could not be processed")
-            (= (.getMessage e) error-unavailable-aggregate)
-            (do
-              (log/error "Likes of \"" screen-name "\" related to aggregate #"
-                         aggregate-id " could not be bound to an actual aggregate")
-              (lb/ack channel delivery-tag))
+            (= (.getMessage e) error-mismatching-favorites-cols-length) (log/error "Likes of \"" screen-name "\" related to aggregate #"
+                                                                                   aggregate-id " could not be processed")
+            (= (.getMessage e) error-unavailable-aggregate) (do
+                                                              (log/error "Likes of \"" screen-name "\" related to aggregate #"
+                                                                         aggregate-id " could not be bound to an actual aggregate")
+                                                              (lb/ack channel delivery-tag))
             :else
             (error-handler/log-error
               e
@@ -93,16 +91,11 @@
                       :entity-manager entity-manager
                       :channel        channel}]
     (cond
-      (= queue :likes)
-      (pull-messages-from-likes-queue queue-params)
-      (= queue :lists)
-      (pull-messages-from-lists-queue (assoc queue-params :queue (:queue-likes rabbitmq)))
-      (= queue :status)
-      (pull-messages-from-status-queue (assoc queue-params :queue (:queue-status rabbitmq)))
-      (= queue :network)
-      (pull-messages-from-network-queue (assoc queue-params :queue (:queue-network rabbitmq)))
-      :else
-      (println (str "Unknown queue name, please select one of the following: lists, likes or network")))
+      (= queue :likes) (pull-messages-from-likes-queue (assoc queue-params :queue (:queue-likes rabbitmq)))
+      (= queue :lists) (pull-messages-from-lists-queue (assoc queue-params :queue (:queue-lists rabbitmq)))
+      (= queue :status) (pull-messages-from-status-queue (assoc queue-params :queue (:queue-status rabbitmq)))
+      (= queue :network) (pull-messages-from-network-queue (assoc queue-params :queue (:queue-network rabbitmq)))
+      :else (println (str "Unknown queue name, please select one of the following: lists, likes or network")))
     (when message-index
       (log/info (str "Consumed message #" message-index)))))
 
@@ -122,11 +115,11 @@
       (loop [messages-to-consume (if total-messages total-messages 0)]
         (when (> messages-to-consume 0)
           (if single-message-consumption
-            (consume-message entity-manager rabbitmq channel queue))
-          (doall
-            (pmap
-              #(consume-message entity-manager rabbitmq channel queue %)
-              (take total-messages (iterate inc 1))))
+            (consume-message entity-manager rabbitmq channel queue)
+            (doall
+              (pmap
+                #(consume-message entity-manager rabbitmq channel queue %)
+                (take total-messages (iterate inc 1)))))
           (recur (next-total messages-to-consume)))))
     (Thread/sleep 1000)
     (disconnect-from-amqp-server channel connection)))
