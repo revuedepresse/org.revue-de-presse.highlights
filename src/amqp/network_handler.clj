@@ -90,7 +90,7 @@
       (process-subscriptions member-id screen-name member-subscriptions tokens members subscribees-processor)
       (subscribees-processor)
       (catch Exception e
-        (when (= (.getMessage e) error-not-authorized)
+        (when (= (.getMessage e) error-unauthorized-friends-ids-access)
           (guard-against-exceptional-member {:id member-id
                                              :screen_name screen-name
                                              :twitter-id twitter-id

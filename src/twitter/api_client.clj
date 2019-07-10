@@ -30,8 +30,9 @@
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
-(def error-timeline-access-not-authorized "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
-(def error-not-authorized "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
+(def error-unauthorized-user-timeline-statuses-access "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
+(def error-unauthorized-friends-ids-access "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
+(def error-unauthorized-favorites-list-access "Twitter responded to request '/1.1/favorites/list.json' with error 401: Not authorized.")
 (def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
@@ -149,16 +150,14 @@
            (catch Exception e
              (log/warn (.getMessage e))
              (cond
-               (= (.getMessage e) error-not-authorized)
-               (throw (Exception. (str error-not-authorized)))
-               (= (.getMessage e) error-timeline-access-not-authorized)
-               (throw (Exception. (str error-timeline-access-not-authorized)))
-               (= endpoint "application/rate-limit-status")
-               (do
-                 (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
-                 (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
-                   (handle-rate-limit-exceeded-error endpoint token-model)
-                   (try-calling-api call endpoint token-model context)))))))))
+               (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
+               (= (.getMessage e) error-unauthorized-user-timeline-statuses-access) (throw (Exception. (str error-unauthorized-user-timeline-statuses-access)))
+               (= endpoint "application/rate-limit-status") (do
+                                                              (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
+                                                              (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
+                                                                (handle-rate-limit-exceeded-error endpoint token-model)
+                                                                (try-calling-api call endpoint token-model context)))))))))
 
 (defn get-rate-limit-status
   [model]
@@ -503,16 +502,48 @@
       tokens-model
       (str "a " context))))
 
+(defn try-getting-favorites
+  [status-getter endpoint opts]
+  (let [screen-name (:screen-name opts)
+        response (try (status-getter)
+                      (catch Exception e
+                        (cond
+                          (= (.getMessage e) error-rate-limit-exceeded) (do
+                                                                          (error-handler/log-error
+                                                                            e
+                                                                            (str
+                                                                              "Could not access favorites of \""
+                                                                              screen-name
+                                                                              "\" (exceeded rate limit): ")
+                                                                            :no-stack-trace)
+                                                                          {:headers {:exceeded-rate-limit true}
+                                                                           :body    '()})
+                          (string/ends-with?
+                            (.getMessage e) error-unauthorized-favorites-list-access) (do
+                                                                                        (log/info (str "Not authorized to favorites list of " screen-name))
+                                                                                        {:headers {:unauthorized true}
+                                                                                         :body    '()})
+                          :else (error-handler/log-error
+                                  e
+                                  (str "Could not access favorites of \"" screen-name "\": ")))))
+        headers (:headers response)
+        statuses (:body response)
+        _ (when (:exceeded-rate-limit (:headers response))
+            (wait-for-15-minutes endpoint))
+        _ (when (and
+                  (nil? (:exceeded-rate-limit (:headers response)))
+                  (nil? (:unauthorized (:headers response))))
+            (guard-against-api-rate-limit headers endpoint))]
+    statuses))
+
 (defn get-favorites-of-member
   [opts token-model]
   (let [endpoint "favorites/list"
         call "call to \"favorites/list\""
         context (str "trying to make a " call)
         _ (find-next-token token-model endpoint context)
-        response (get-favorites-by-screen-name opts endpoint call token-model)
-        headers (:headers response)
-        favorites (:body response)]
-    (guard-against-api-rate-limit headers endpoint)
+        favorites-getter #(get-favorites-by-screen-name opts endpoint call token-model)
+        favorites (try-getting-favorites favorites-getter endpoint opts)]
     favorites))
 
 (defn get-statuses-by-screen-name
@@ -548,7 +579,7 @@
                       (catch Exception e
                         (cond
                           (string/ends-with?
-                            (.getMessage e) error-timeline-access-not-authorized)
+                            (.getMessage e) error-unauthorized-user-timeline-statuses-access)
                           (do
                             (log/info (str "Not authorized to access statuses of " (:screen-name opts)))
                             {:headers {:unauthorized true}

@@ -2,10 +2,11 @@
   (:require [clojure.tools.logging :as log]))
 
 (defn log-error
-  [e & [prefix]]
+  [e & [prefix no-stack-trace]]
   (let [prefix (if (some? prefix)
                  prefix
                  "")]
     (log/error (str prefix (.getMessage e)))
-    (doall
-      (map println (.getStackTrace e)))))
+    (when-not no-stack-trace
+      (doall
+        (map println (.getStackTrace e))))))

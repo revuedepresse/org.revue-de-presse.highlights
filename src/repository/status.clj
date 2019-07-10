@@ -195,17 +195,18 @@
   [statuses model]
   (let [is-subset-of (fn [statuses-set]
                        (fn [status]
-                         (let [status-id (:status-twitter-id status)]
+                         (let [status-id (:status_id status)]
                            (clojure.set/subset? #{status-id} statuses-set))))
         snake-cased-values (map snake-case-keys statuses)
         statuses-props (map assoc-hash snake-cased-values)
         deduped-statuses (dedupe (sort-by #(:status_id %) statuses-props))
         statuses-hashes (map #(:hash %) deduped-statuses)
         existing-hashes (find-by-hashes statuses-hashes model)
-        new-status-props (filter
+        new-status-props (remove
                            (is-subset-of
                              (set (map #(:status-twitter-id %) existing-hashes)))
                            deduped-statuses)
+        new-status-props (dedupe (sort-by #(:hash %) new-status-props))
         prefixed-keys-values (map prefixed-keys new-status-props)
         twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
     (insert-values-before-selecting-from-ids prefixed-keys-values twitter-ids model)))
