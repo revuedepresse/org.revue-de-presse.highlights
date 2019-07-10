@@ -17,10 +17,10 @@
                 (db/database connection)
                 (db/entity-fields
                   :ust_id
-                  :ust_hash                 ; sha1(str ust_text  ust_status_id)
+                  :ust_hash                                 ; sha1(str ust_text  ust_status_id)
                   :ust_text
-                  :ust_full_name            ; twitter user screen name
-                  :ust_name                 ; twitter user full name
+                  :ust_full_name                            ; twitter user screen name
+                  :ust_name                                 ; twitter user full name
                   :ust_access_token
                   :ust_api_document
                   :ust_created_at
@@ -52,6 +52,24 @@
                               (db/where {column [in values]})
                               (db/group :ust_status_id)
                               (db/order :ust_created_at "DESC")
+                              (db/select))]
+    (if matching-statuses
+      matching-statuses
+      '())))
+
+(defn select-identifying-fields
+  [model]
+  (->
+    (db/select* model)
+    (db/fields [:ust_id :status-id]
+               [:ust_status_id :status-twitter-id])))
+
+(defn find-by-hashes
+  "Find statuses by hashes"
+  [hashes model]
+  (let [hashes (if hashes hashes '(0))
+        matching-statuses (-> (select-identifying-fields model)
+                              (db/where {:ust_hash [in hashes]})
                               (db/select))]
     (if matching-statuses
       matching-statuses
@@ -104,19 +122,19 @@
 (defn find-statuses-by-week-and-author
   [week year screen-name]
   (let [query (str
-          "SELECT ust_id AS id,                       "
-          "ust_hash AS hash,                          "
-          "ust_text AS text,                          "
-          "ust_full_name AS `screen-name`,            "
-          "ust_name AS `name`,                        "
-          "ust_access_token AS `access-token`,        "
-          "ust_api_document AS `document`,            "
-          "ust_created_at AS `created-at`,            "
-          "ust_status_id AS `twitter-id`              "
-          "FROM weaving_status                        "
-          "WHERE ust_full_name = ?                    "
-          "AND WEEK(ust_created_at) = ?               "
-          "AND YEAR(ust_created_at) = ?               ")
+                "SELECT ust_id AS id,                       "
+                "ust_hash AS hash,                          "
+                "ust_text AS text,                          "
+                "ust_full_name AS `screen-name`,            "
+                "ust_name AS `name`,                        "
+                "ust_access_token AS `access-token`,        "
+                "ust_api_document AS `document`,            "
+                "ust_created_at AS `created-at`,            "
+                "ust_status_id AS `twitter-id`              "
+                "FROM weaving_status                        "
+                "WHERE ust_full_name = ?                    "
+                "AND WEEK(ust_created_at) = ?               "
+                "AND YEAR(ust_created_at) = ?               ")
         params [screen-name week year]
         results (db/exec-raw [query params] :results)]
     (if (some? results)
@@ -140,44 +158,54 @@
         decoded-document (json/read-str raw-document)
         user (get decoded-document "user")
         avatar (get user "profile_image_url_https")]
-  (assoc status :ust_avatar avatar)))
+    (assoc status :ust_avatar avatar)))
 
 (defn is-subset-of
   [statuses-set]
   (fn [status]
     (let [status-id (:twitter-id status)]
-     (clojure.set/subset? #{status-id} statuses-set))))
+      (clojure.set/subset? #{status-id} statuses-set))))
 
 (defn bulk-unarchive-statuses
- [statuses model]
- (let [statuses-twitter-ids (map #(:twitter-id %) statuses)
-       existing-statuses (find-statuses-having-twitter-ids statuses-twitter-ids model)
-       existing-statuses-twitter-ids (map #(:twitter-id %) existing-statuses)
-       filtered-statuses (doall (remove (is-subset-of (set existing-statuses-twitter-ids)) statuses))
-       statuses-props (map #(dissoc %
-                                   :id
-                                   :ust_id
-                                   :screen-name
-                                   :access-token
-                                   :document
-                                   :name
-                                   :text
-                                   :hash
-                                   :created-at
-                                   :twitter-id) filtered-statuses)
-       statuses-props (map assoc-avatar statuses-props)
-       deduped-statuses (dedupe (sort-by #(:status_id %) statuses-props))
-       twitter-ids (map #(:ust_status_id %) deduped-statuses)
-       new-statuses (insert-values-before-selecting-from-ids deduped-statuses twitter-ids model)]
-   (if (pos? (count new-statuses))
-     new-statuses
-     existing-statuses)))
+  [statuses model]
+  (let [statuses-twitter-ids (map #(:twitter-id %) statuses)
+        existing-statuses (find-statuses-having-twitter-ids statuses-twitter-ids model)
+        existing-statuses-twitter-ids (map #(:twitter-id %) existing-statuses)
+        filtered-statuses (doall (remove (is-subset-of (set existing-statuses-twitter-ids)) statuses))
+        statuses-props (map #(dissoc %
+                                     :id
+                                     :ust_id
+                                     :screen-name
+                                     :access-token
+                                     :document
+                                     :name
+                                     :text
+                                     :hash
+                                     :created-at
+                                     :twitter-id) filtered-statuses)
+        statuses-props (map assoc-avatar statuses-props)
+        deduped-statuses (dedupe (sort-by #(:status_id %) statuses-props))
+        twitter-ids (map #(:ust_status_id %) deduped-statuses)
+        new-statuses (insert-values-before-selecting-from-ids deduped-statuses twitter-ids model)]
+    (if (pos? (count new-statuses))
+      new-statuses
+      existing-statuses)))
 
 (defn bulk-insert-new-statuses
   [statuses model]
-  (let [snake-cased-values (map snake-case-keys statuses)
-        statuses-values (map assoc-hash snake-cased-values)
-        deduped-statuses (dedupe (sort-by #(:status_id %) statuses-values))
-        prefixed-keys-values (map prefixed-keys deduped-statuses)
+  (let [is-subset-of (fn [statuses-set]
+                       (fn [status]
+                         (let [status-id (:status-twitter-id status)]
+                           (clojure.set/subset? #{status-id} statuses-set))))
+        snake-cased-values (map snake-case-keys statuses)
+        statuses-props (map assoc-hash snake-cased-values)
+        deduped-statuses (dedupe (sort-by #(:status_id %) statuses-props))
+        statuses-hashes (map #(:hash %) deduped-statuses)
+        existing-hashes (find-by-hashes statuses-hashes model)
+        new-status-props (filter
+                           (is-subset-of
+                             (set (map #(:status-twitter-id %) existing-hashes)))
+                           deduped-statuses)
+        prefixed-keys-values (map prefixed-keys new-status-props)
         twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
     (insert-values-before-selecting-from-ids prefixed-keys-values twitter-ids model)))

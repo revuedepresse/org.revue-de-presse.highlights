@@ -2,8 +2,10 @@
   (:require [clojure.data.json :as json]
             [clj-time.format :as f]
             [clj-time.coerce :as c]
-            [clojure.tools.logging :as log])
-  (:use [repository.entity-manager]
+            [clojure.tools.logging :as log]
+            [korma.core :as db])
+  (:use [korma.db]
+        [repository.entity-manager]
         [repository.aggregate]
         [repository.member]
         [repository.status]
