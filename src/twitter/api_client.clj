@@ -151,6 +151,7 @@
              (log/warn (.getMessage e))
              (cond
                (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (= (.getMessage e) error-page-not-found) (throw (Exception. (str error-page-not-found)))
                (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
                (= (.getMessage e) error-unauthorized-user-timeline-statuses-access) (throw (Exception. (str error-unauthorized-user-timeline-statuses-access)))
                (= endpoint "application/rate-limit-status") (do
@@ -572,24 +573,51 @@
       tokens-model
       (str "a " context))))
 
+(defn exception-message-ends-with?
+  [e substring]
+  ((.getMessage e)
+    string/ends-with? substring))
+
+(defn unauthorized-user-timeline-statuses-access-exception?
+  [e]
+  (exception-message-ends-with?
+    e
+    error-unauthorized-user-timeline-statuses-access))
+
+(defn page-not-found-exception?
+  [e]
+  (= (.getMessage e) error-page-not-found))
+
+(defn make-unauthorized-statuses-access-response
+  [screen-name]
+  (do
+    (log/info (str "Not authorized to access statuses of " screen-name))
+    {:headers {:unauthorized true}
+     :body    '()}))
+
+(defn make-not-found-statuses-response
+  [screen-name]
+  (do
+    (log/info (str "Could not find statuses of " screen-name))
+    {:headers {:not-found true}
+     :body    '()}))
+
 (defn try-getting-statuses
   [status-getter endpoint opts]
-  (let [
+  (let [screen-name (:screen-name opts)
         response (try (status-getter)
                       (catch Exception e
                         (cond
-                          (string/ends-with?
-                            (.getMessage e) error-unauthorized-user-timeline-statuses-access)
-                          (do
-                            (log/info (str "Not authorized to access statuses of " (:screen-name opts)))
-                            {:headers {:unauthorized true}
-                             :body    '()})
+                          (unauthorized-user-timeline-statuses-access-exception? e) (make-unauthorized-statuses-access-response screen-name)
+                          (page-not-found-exception? e) (make-not-found-statuses-response screen-name)
                           :else (error-handler/log-error
                                   e
-                                  (str "Could not access statuses of " (:screen-name opts) ": ")))))
+                                  (str "Could not access statuses of " screen-name ": ")))))
         headers (:headers response)
         statuses (:body response)
-        _ (when (nil? (:unauthorized (:headers response)))
+        _ (when (and
+                  (nil? (:not-found (:headers response)))
+                  (nil? (:unauthorized (:headers response))))
             (guard-against-api-rate-limit headers endpoint))]
     statuses))
 

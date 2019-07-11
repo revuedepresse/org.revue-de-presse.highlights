@@ -25,9 +25,11 @@
     (profile #(-> list-spec process-lists))
     (profile #(-> list-spec build-relationships))
     (catch Exception e
-      (error-handler/log-error
-        e
-        "An error occurred with message "))))
+      (cond
+        (= (.getMessage e) error-unavailable-aggregate) (log/info (str "Could not find aggregate #" (:aggregate-id list-spec)))
+        :else (error-handler/log-error
+                e
+                "An error occurred with message ")))))
 
 (defn parse-status-publication-date
   [aggregate]
