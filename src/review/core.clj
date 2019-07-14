@@ -185,12 +185,9 @@
   [args]
   (let [[date] args]
     (cond
-      (nil? date)
-      (highlights/save-today-highlights)
-      (= 0 (count args))
-      (highlights/save-highlights date)
-      :else
-      (apply highlights/save-highlights args))))
+      (nil? date) (highlights/save-today-highlights)
+      (= 0 (count args)) (highlights/save-highlights date)
+      :else (apply highlights/save-highlights args))))
 
 (defn ^{:requires [:date]} command-save-highlights-for-all-aggregates
   [args]

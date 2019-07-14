@@ -347,14 +347,13 @@
         (log/info (str "Fetched status having id #" status-id))
         response)
       (catch Exception e
-        (log/warn (.getMessage e))
+        (when (not= (.getMessage e) error-no-status)
+          (log/warn (.getMessage e)))
         (cond
-          (string/includes? (.getMessage e) error-rate-limit-exceeded)
-          (do
-            (handle-rate-limit-exceeded-error "statuses/show/:id" model)
-            (get-twitter-status-by-id status-id model))
-          (string/includes? (.getMessage e) error-no-status)
-          {:error error-no-status}
+          (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
+                                                                         (handle-rate-limit-exceeded-error "statuses/show/:id" model)
+                                                                         (get-twitter-status-by-id status-id model))
+          (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
           :else (error-handler e))))))
 
 (defn know-all-about-remaining-calls-and-limit
@@ -426,7 +425,7 @@
       (do
         (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model)
         (assoc (:body status) :id id))
-      nil)))
+      (log/info (str "Could not find status having id #" status-id)))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model]
