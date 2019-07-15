@@ -109,7 +109,9 @@
         statuses-ids (map
                        :status-id
                        (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date))
-        statuses-ids-chunk (partition 100 statuses-ids)]
+        ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
+        ; about the effect of passing step and pad arguments
+        statuses-ids-chunk (partition 100 100 [] statuses-ids)]
     (doall
       (pmap
         #(bulk-insert-highlights-from-statuses % (first aggregate) models)
