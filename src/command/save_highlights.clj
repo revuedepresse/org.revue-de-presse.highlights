@@ -113,6 +113,7 @@
         ; about the effect of passing step and pad arguments
         statuses-ids-chunk (partition 100 100 [] statuses-ids)]
     (doall
+      (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
       (pmap
         #(bulk-insert-highlights-from-statuses % (first aggregate) models)
         statuses-ids-chunk))))

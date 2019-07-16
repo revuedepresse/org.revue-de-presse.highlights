@@ -74,8 +74,9 @@ function run_command() {
     local success_message="${3}"
 
     project_dir_is_unavailable="$(require_project_directory)"
-    if [ "${project_dir_is_unavailable}" == "1" ];
+    if [ $? -eq 1 ];
     then
+        echo "${project_dir_is_unavailable}"
         return
     fi
 
