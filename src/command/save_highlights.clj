@@ -112,8 +112,8 @@
         ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
         ; about the effect of passing step and pad arguments
         statuses-ids-chunk (partition 100 100 [] statuses-ids)]
+    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
     (doall
-      (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
       (pmap
         #(bulk-insert-highlights-from-statuses % (first aggregate) models)
         statuses-ids-chunk))))
