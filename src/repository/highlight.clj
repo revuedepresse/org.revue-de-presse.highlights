@@ -37,7 +37,7 @@
                       s.ust_api_document as `api-document`,
                       s.ust_created_at as `publication-date-time`
                       FROM timely_status ts
-                      LEFT JOIN weaving_status s
+                      INNER JOIN weaving_status s
                       ON s.ust_id = ts.status_id
                       LEFT JOIN weaving_user m
                       ON ts.member_name = m.usr_twitter_username
@@ -131,9 +131,12 @@
   "Find highlights by their ids"
   [highlights-ids model member-model status-model]
   (let [ids (if highlights-ids highlights-ids '(0))
-        matching-statuses (-> (select-highlights model member-model status-model)
-                              (db/where {:status_id [in ids]})
-                              (db/select))]
+        matching-statuses (try
+                            (-> (select-highlights model member-model status-model)
+                                (db/where {:status_id [in ids]})
+                                (db/select))
+                            (catch Exception e
+                              (error-handler/log-error e)))]
     (if matching-statuses
       matching-statuses
       '())))

@@ -15,37 +15,43 @@
         [repository.status-popularity]
         [repository.timely-status]
         [twitter.date]
-        [twitter.status]))
+        [twitter.status]
+        [utils.error-handler :as error-handler]))
 
 (def highlights-date-formatter (f/formatter "yyyy-MM-dd"))
 
 (defn extract-highlight-props
   [aggregate]
   (fn [document]
-    (let [api-document (:api-document document)
-          decoded-document (json/read-str api-document)
-          retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
-                                          (get (get decoded-document "retweeted_status") "created_at")
-                                          nil)
-          highlight-props {:id                                (uuid/to-string (uuid/v1))
-                           :member-id                         (:member-id document)
-                           :status-id                         (:status-id document)
-                           :aggregate-id                      (:id aggregate)
-                           :aggregate-name                    (:name aggregate)
-                           :is-retweet                        (some? (get decoded-document "retweeted_status"))
-                           :publication-date-time             (:publication-date-time document)
-                           :retweeted-status-publication-date (if (some? retweet-publication-date-time)
-                                                                (f/unparse
-                                                                  mysql-date-formatter
-                                                                  (c/from-long
-                                                                    (c/to-long
-                                                                      (f/parse date-formatter retweet-publication-date-time))))
-                                                                nil)
-                           :total-retweets                    (get decoded-document "retweet_count")
-                           :total-favorites                   (get decoded-document "favorite_count")}]
-      (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
-                     " and status #" (:status-id highlight-props)))
-      highlight-props)))
+    (try
+      (let [api-document (:api-document document)
+            decoded-document (json/read-str api-document)
+            retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
+                                            (get (get decoded-document "retweeted_status") "created_at")
+                                            nil)
+            highlight-props {:id                                (uuid/to-string (uuid/v1))
+                             :member-id                         (:member-id document)
+                             :status-id                         (:status-id document)
+                             :aggregate-id                      (:id aggregate)
+                             :aggregate-name                    (:name aggregate)
+                             :is-retweet                        (some? (get decoded-document "retweeted_status"))
+                             :publication-date-time             (:publication-date-time document)
+                             :retweeted-status-publication-date (if (some? retweet-publication-date-time)
+                                                                  (f/unparse
+                                                                    mysql-date-formatter
+                                                                    (c/from-long
+                                                                      (c/to-long
+                                                                        (f/parse date-formatter retweet-publication-date-time))))
+                                                                  nil)
+                             :total-retweets                    (get decoded-document "retweet_count")
+                             :total-favorites                   (get decoded-document "favorite_count")}]
+        (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
+                       " and status #" (:status-id highlight-props)))
+        highlight-props)
+      (catch Exception e
+        (error-handler/log-error
+          e
+          "When extracting highlight props: ")))))
 
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
@@ -88,16 +94,30 @@
            (catch Exception e (log/info (str "Could not record popularity of highlights because of " (.getMessage e)))))
          (recur (inc partition-index)))))))
 
+(defn try-finding-highlights-by-status-ids
+  [models]
+  (fn [status-ids]
+    (try
+      (find-highlights-having-ids status-ids (:highlight models) (:member models) (:status models))
+      (catch Exception e
+        (error-handler/log-error e)))))
+
 (defn bulk-insert-highlights-from-statuses
   [statuses-ids aggregate models]
   (let [statuses (find-statuses-by-ids statuses-ids)
-        find #(find-highlights-having-ids
-                % (:highlight models) (:member models) (:status models))
-        filtered-statuses (filter-out-known-statuses find statuses)
+        filtered-statuses (filter-out-known-statuses (try-finding-highlights-by-status-ids models) statuses)
         highlights-props (map (extract-highlight-props aggregate) filtered-statuses)
         new-highlights (bulk-insert-new-highlights highlights-props (:highlight models) (:member models) (:status models))]
     (log/info (str "There are " (count new-highlights) " new highlights"))
     new-highlights))
+
+(defn try-insert-highlights-from-statuses
+  [aggregate models]
+  (fn [statuses-ids]
+    (try
+      (bulk-insert-highlights-from-statuses statuses-ids (first aggregate) models)
+      (catch Exception e
+        (error-handler/log-error e)))))
 
 (defn save-highlights-from-date-for-aggregate
   [date aggregate]
@@ -115,7 +135,7 @@
     (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
     (doall
       (pmap
-        #(bulk-insert-highlights-from-statuses % (first aggregate) models)
+        (try-insert-highlights-from-statuses aggregate-name models)
         statuses-ids-chunk))))
 
 (defn save-highlights

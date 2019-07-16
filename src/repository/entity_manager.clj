@@ -64,7 +64,10 @@
               is-read-connection    :is-read-connection}]]
   (let [db-params {:classname         "com.mysql.jdbc.Driver"
                    :subprotocol       "mysql"
-                   :subname           (str "//" (:host config) ":" (:port config) "/" (:name config))
+                   :subname           (str "//"
+                                           (:host config) ":" (:port config) "/"
+                                           ; @see https://stackoverflow.com/a/39095756/282073
+                                           (:name config) "?zeroDateTimeBehavior=convertToNull&autoReconnect=true")
                    :useUnicode        "yes"
                    :characterEncoding "UTF-8"
                    :characterSet      "utf8mb4"
