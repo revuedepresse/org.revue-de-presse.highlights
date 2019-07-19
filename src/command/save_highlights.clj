@@ -91,7 +91,8 @@
        (when (< partition-index total-partitions)
          (try
            (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
-           (catch Exception e (log/info (str "Could not record popularity of highlights because of " (.getMessage e)))))
+           (catch Exception e
+             (error-handler/log-error e (str "Could not record popularity of highlights: "))))
          (recur (inc partition-index)))))))
 
 (defn try-finding-highlights-by-status-ids
