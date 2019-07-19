@@ -48,7 +48,8 @@ function get_network_option() {
 
 function run_clojure_container() {
     local arguments="${COMMAND}"
-    local container_name_suffix="$(echo "${arguments}" | sha1sum  | awk '{print $1}')"
+    local prefix="$(pwd)"
+    local container_name_suffix="$(echo "${prefix}${arguments}" | sha1sum  | awk '{print $1}')"
     local container_name="$(get_container_name "${container_name_suffix}")"
 
     remove_clojure_container "${container_name_suffix}"
