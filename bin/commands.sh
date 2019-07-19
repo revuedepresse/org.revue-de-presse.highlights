@@ -15,7 +15,7 @@ function require_project_directory() {
 
 function get_image_name() {
     local image_name="$(echo `pwd` | sha1sum | tail -c12 | awk '{print $1}')"
-    echo "${image_name}"
+    echo "devobs-clojure-${image_name}"
 }
 
 function build_clojure_container() {
