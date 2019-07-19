@@ -13,8 +13,14 @@ function require_project_directory() {
     return 0
 }
 
+function get_image_name() {
+    local image_name="$(echo `pwd` | sha1sum | tail -c12 | awk '{print $1}')"
+    echo "${image_name}"
+}
+
 function build_clojure_container() {
-    docker build -t devobs-clojure .
+    local image_name=`get_image_name`
+    docker build -t "${image_name}" .
 }
 
 function get_container_name() {
@@ -60,10 +66,11 @@ function run_clojure_container() {
         interactive_mode_option=' -ti'
     fi
 
+    local image_name=`get_image_name`
     local network=`get_network_option`
     local command='docker run '"${interactive_mode_option}"' \
         --hostname devobs.clojure '"${network}"' \
-        --rm --name '"${container_name}"' devobs-clojure \
+        --rm --name '"${container_name}"' '"${image_name}"' \
         java -jar devobs-standalone.jar '"${arguments}"
     echo "About to run: \"${command}\""
     /bin/bash -c "${command}"
