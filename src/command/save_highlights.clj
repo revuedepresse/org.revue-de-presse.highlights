@@ -135,7 +135,7 @@
     (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
     (doall
       (pmap
-        (try-insert-highlights-from-statuses aggregate-name models)
+        (try-insert-highlights-from-statuses aggregate models)
         statuses-ids-chunk))))
 
 (defn save-highlights
