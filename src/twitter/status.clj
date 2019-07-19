@@ -2,8 +2,7 @@
   (:require [clojure.data.json :as json]
             [clj-time.format :as f]
             [clj-time.coerce :as c]
-            [clojure.tools.logging :as log]
-            [korma.core :as db])
+            [clojure.tools.logging :as log])
   (:use [korma.db]
         [repository.entity-manager]
         [repository.aggregate]
@@ -209,7 +208,8 @@
   [statuses tokens]
   (let [_ (find-next-token tokens "statuses/show/:id" "trying to call \"statuses/show\" with an id")
         remaining-calls (how-many-remaining-calls-for-statuses tokens)
-        total-statuses (count statuses)]
+        filtered-statuses (remove #(nil? (:status-id %)) statuses)
+        total-statuses (count filtered-statuses)]
 
     (if (pos? total-statuses)
       (log/info (str "About to fetch " total-statuses " statuse(s)."))
@@ -219,5 +219,5 @@
       (and
         (not (nil? remaining-calls))
         (< total-statuses remaining-calls))
-      (doall (pmap #(get-status-by-id % tokens) statuses))
-      (doall (map #(get-status-by-id % tokens) statuses)))))
+      (doall (pmap #(get-status-by-id % tokens) filtered-statuses))
+      (doall (map #(get-status-by-id % tokens) filtered-statuses)))))

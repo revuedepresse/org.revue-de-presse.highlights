@@ -29,6 +29,7 @@
 (def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
+(def error-missing-status-id "https://api.twitter.com/1.1/statuses/show/{:id}.json needs :id param to be supplied")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
 (def error-unauthorized-user-timeline-statuses-access "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
 (def error-unauthorized-friends-ids-access "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
@@ -335,26 +336,28 @@
                                              :total-subscriptions 0} member-model))))))
 
 (defn get-twitter-status-by-id
-  [status-id model]
-  (do
-    (try
-      (let [response (with-open [client (ac/create-client)]
-                       (statuses-show-id
-                         :client client
-                         :oauth-creds (twitter-credentials @next-token)
-                         :params {:id status-id}))]
-        (update-remaining-calls (:headers response) "statuses/show/:id")
-        (log/info (str "Fetched status having id #" status-id))
-        response)
-      (catch Exception e
-        (when (not= (.getMessage e) error-no-status)
-          (log/warn (.getMessage e)))
-        (cond
-          (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
-                                                                         (handle-rate-limit-exceeded-error "statuses/show/:id" model)
-                                                                         (get-twitter-status-by-id status-id model))
-          (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
-          :else (error-handler e))))))
+  [props model]
+  (let [status-id (:status-id props)]
+    (do
+      (try
+        (let [response (with-open [client (ac/create-client)]
+                         (statuses-show-id
+                           :client client
+                           :oauth-creds (twitter-credentials @next-token)
+                           :params {:id status-id}))]
+          (update-remaining-calls (:headers response) "statuses/show/:id")
+          (log/info (str "Fetched status having id #" status-id))
+          response)
+        (catch Exception e
+          (when (not= (.getMessage e) error-no-status)
+            (log/warn (.getMessage e)))
+          (cond
+            (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
+                                                                           (handle-rate-limit-exceeded-error "statuses/show/:id" model)
+                                                                           (get-twitter-status-by-id props model))
+            (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
+            (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
+            :else (error-handler e)))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -385,7 +388,7 @@
         twitter-user))))
 
 (defn status-by-prop
-  [status-id token-model context]
+  [props token-model context]
   (if
     (and
       (know-all-about-remaining-calls-and-limit)
@@ -393,8 +396,8 @@
     (do
       (freeze-current-token)
       (find-next-token token-model "statuses/show/:id" context)
-      (status-by-prop status-id token-model context))
-    (let [twitter-status (get-twitter-status-by-id status-id token-model)]
+      (status-by-prop props token-model context))
+    (let [twitter-status (get-twitter-status-by-id props token-model)]
       twitter-status)))
 
 (defn get-member-by-screen-name
@@ -416,7 +419,7 @@
 (defn get-status-by-id
   [{id        :id
     status-id :status-id} token-model]
-  (let [status (status-by-prop status-id token-model "a call to \"statuses/show\" with an id")
+  (let [status (status-by-prop {:status-id status-id :id id} token-model "a call to \"statuses/show\" with an id")
         headers (:headers status)]
     (if
       (and
