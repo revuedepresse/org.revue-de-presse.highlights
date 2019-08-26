@@ -529,11 +529,11 @@
         headers (:headers response)
         statuses (:body response)
         _ (when (and
-                  (nil? statuses)
+                  (zero? (count statuses))
                   (:exceeded-rate-limit (:headers response)))
             (wait-for-15-minutes endpoint))
         _ (when (and
-                  (nil? statuses)
+                  (zero? (count statuses))
                   (nil? (:exceeded-rate-limit (:headers response)))
                   (nil? (:unauthorized (:headers response))))
             (guard-against-api-rate-limit headers endpoint))]
