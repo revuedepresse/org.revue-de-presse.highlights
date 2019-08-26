@@ -187,7 +187,7 @@
           (find-first-available-token-when endpoint context token-model)
           context)
         (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint)
-                                                              @call-limits))))
+                                                             @call-limits))))
       (set-next-token next-token-candidate context))))
 
 (defn how-many-remaining-calls-for
@@ -489,12 +489,9 @@
                      :trim-user        0
                      :tweet-mode       "extended"}
         params (cond
-                 (not (nil? (:since-id opts)))
-                 (assoc base-params :since-id (:since-id opts))
-                 (not (nil? (:max-id opts)))
-                 (assoc base-params :max-id (:max-id opts))
-                 :else
-                 base-params)]
+                 (not (nil? (:since-id opts))) (assoc base-params :since-id (:since-id opts))
+                 (not (nil? (:max-id opts))) (assoc base-params :max-id (:max-id opts))
+                 :else base-params)]
 
     (try-calling-api
       #(favorites-list
@@ -531,9 +528,12 @@
                                   (str "Could not access favorites of \"" screen-name "\": ")))))
         headers (:headers response)
         statuses (:body response)
-        _ (when (:exceeded-rate-limit (:headers response))
+        _ (when (and
+                  (nil? statuses)
+                  (:exceeded-rate-limit (:headers response)))
             (wait-for-15-minutes endpoint))
         _ (when (and
+                  (nil? statuses)
                   (nil? (:exceeded-rate-limit (:headers response)))
                   (nil? (:unauthorized (:headers response))))
             (guard-against-api-rate-limit headers endpoint))]
@@ -578,7 +578,7 @@
 (defn exception-message-ends-with?
   [e substring]
   ((.getMessage e)
-    string/ends-with? substring))
+   string/ends-with? substring))
 
 (defn unauthorized-user-timeline-statuses-access-exception?
   [e]
