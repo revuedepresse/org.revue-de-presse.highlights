@@ -14,27 +14,39 @@ function require_project_directory() {
 }
 
 function get_image_name() {
-    local image_name="$(echo `pwd` | sha1sum | tail -c12 | awk '{print $1}')"
-    echo "devobs-clojure-${image_name}"
+    local image_name
+
+    local work_directory
+    work_directory="$(pwd)"
+
+    image_name="$(echo "${work_directory}" | sha1sum | tail -c12 | awk '{print $1}')"
+    echo "devobs-api-${image_name}"
 }
 
 function build_clojure_container() {
-    local image_name=`get_image_name`
+    local image_name
+    image_name=`get_image_name`
+
     docker build -t "${image_name}" .
 }
 
 function get_container_name() {
-    local suffix="${1}"
-    echo 'devobs-clojure-'"${suffix}"
+    local suffix
+    suffix="${1}"
+
+    echo 'devobs-api-'"${suffix}"
 }
 
 function remove_clojure_container {
-    local suffix="${1}"
-    local container_name="$(get_container_name "${suffix}")"
+    local suffix
+    suffix="${1}"
 
-    if [ `docker ps -a | grep "${container_name}" | grep -c ''` -gt 0 ];
+    local container_name
+    container_name="$(get_container_name "${suffix}")"
+
+    if [ "$(docker ps -a | grep "${container_name}" | grep -c '')" -gt 0 ];
     then
-        docker rm -f `docker ps -a | grep "${container_name}" | awk '{print $1}'`
+        docker rm -f "$(docker ps -a | grep "${container_name}" | awk '{print $1}')"
     fi
 }
 
@@ -43,6 +55,8 @@ function get_docker_network() {
 }
 
 function get_network_option() {
+    local network
+
     network='--network '`get_docker_network`' '
     if [ ! -z "${NO_DOCKER_NETWORK}" ];
     then
@@ -53,10 +67,17 @@ function get_network_option() {
 }
 
 function run_clojure_container() {
-    local arguments="${COMMAND}"
-    local prefix="$(pwd)"
-    local container_name_suffix="$(echo "${prefix}${arguments}" | sha1sum  | awk '{print $1}')"
-    local container_name="$(get_container_name "${container_name_suffix}")"
+    local arguments
+    arguments="${COMMAND}"
+
+    local prefix
+    prefix="$(pwd)"
+
+    local container_name_suffix=
+    container_name_suffix="$(echo "${prefix}${arguments}" | sha1sum  | awk '{print $1}')"
+
+    local container_name
+    container_name="$(get_container_name "${container_name_suffix}")"
 
     remove_clojure_container "${container_name_suffix}"
 
@@ -66,9 +87,14 @@ function run_clojure_container() {
         interactive_mode_option=' -ti'
     fi
 
-    local image_name=`get_image_name`
-    local network=`get_network_option`
-    local command='docker run '"${interactive_mode_option}"' \
+    local image_name
+    image_name=`get_image_name`
+
+    local network
+    network=`get_network_option`
+
+    local command
+    command='docker run '"${interactive_mode_option}"' \
         --hostname devobs.clojure '"${network}"' \
         --rm --name '"${container_name}"' '"${image_name}"' \
         java -jar devobs-standalone.jar '"${arguments}"
@@ -77,10 +103,16 @@ function run_clojure_container() {
 }
 
 function run_command() {
-    local command="${1}"
-    local before_message="${2}"
-    local success_message="${3}"
+    local command
+    command="${1}"
 
+    local before_message
+    before_message="${2}"
+
+    local success_message
+    success_message="${3}"
+
+    local project_dir_is_unavailable
     project_dir_is_unavailable="$(require_project_directory)"
     if [ $? -eq 1 ];
     then
@@ -88,9 +120,10 @@ function run_command() {
         return
     fi
 
-    local from="$CLJ_PROJECT_DIR"
+    local from
+    from="$CLJ_PROJECT_DIR"
     echo 'About to run command from "'"${from}"'"'
-    cd "${from}"
+    cd "${from}" || exit
 
     echo '-> About to run "'"${command}"'"'
 
@@ -104,26 +137,41 @@ function run_command() {
 }
 
 function refresh_highlights() {
-    local now="$(date)"
-    local before_message='Started to refresh highlights at '"${now}"
-    local success_message='Finished refreshing highlights at "'
-    local command='save-highlights '"$(date -I)"
+    local now
+    now="$(date)"
+
+    local before_message
+    before_message='Started to refresh highlights at '"${now}"
+
+    local success_message
+    success_message='Finished refreshing highlights at "'
+
+    local command
+    command='save-highlights '"$(date -I)"
+
     run_command "${command}" "${before_message}" "${success_message}"
 
-    local now="$(date)"
-    local before_message='Started to record popularity of highlights at '"${now}"
-    local success_message='Finished recording popularity of highlights at "'
-    local command='record-popularity-of-highlights '"$(date -I)"
+    now="$(date)"
+    before_message='Started to record popularity of highlights at '"${now}"
+    success_message='Finished recording popularity of highlights at "'
+    command='record-popularity-of-highlights '"$(date -I)"
+
     run_command "${command}" "${before_message}" "${success_message}"
 }
 
 function save_highlights_for_all_aggregates() {
-    local command="save-highlights-for-all-aggregates $(date -I)"
+    local command
+    command="save-highlights-for-all-aggregates $(date -I)"
 
-    local now="$(date)"
-    local before_message='Started to record popularity of tweets at '"${now}"
+    local now
+    now="$(date)"
 
-    local success_message='Finished saving highlights for all aggregates at "'
+    local before_message
+    before_message='Started to record popularity of tweets at '"${now}"
+
+    local success_message
+    success_message='Finished saving highlights for all aggregates at "'
+
     run_command "${command}" "${before_message}" "${success_message}"
 }
 
