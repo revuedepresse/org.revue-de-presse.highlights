@@ -1,8 +1,8 @@
-# Daily Press Review
+# DevObs
 
-[![CircleCI](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure.svg?style=svg)](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure)
+[![CircleCI](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure.svg?style=svg)](https://circleci.com/gh/thierrymarianne/devobs-workers)
 
-Easing observation of Twitter lists to publish a daily press review
+Easing observation of statuses from Twitter lists related to software development
 
 ## Dependencies
 
@@ -130,22 +130,11 @@ lein run collect-timely-statuses-from-aggregate aggregate_name
 ### How to collect statuses identities?
 
 ```
-lein run collect-status-identities-for-aggregates "news :: France"
+export AGGREGATE_NAME='__FILL_ME__'
+lein run collect-status-identities-for-aggregates "${AGGREGATE_NAME}"
 ```
 
 ## Tests
-
-There is no 100% (very far from it) code coverage as intended behaviors heavily depend on Twitter API...  
-OK, this is totally wrong (even though I didn't want to use actual tokens 
-in continuous integration to test the API as data may vary, accounts might get suspended, protected or deleted).
-
-However, previous implementations of mosts commands are available at 
-[github.com/thierrymarianne/daily-press-review](https://github.com/thierrymarianne/daily-press-review)
-and the commands outcomes being pretty much the same, I feel confident enough to carry changes regularly
-without worring about breaking everything.
-
-In order to worry less about breaking original intents (or breaking them wholeheartedly without worrying neither),
-more tests will be added with new commands.
 
 ```
 lein test
