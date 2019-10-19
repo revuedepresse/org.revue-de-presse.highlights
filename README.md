@@ -84,6 +84,11 @@ lein run record-popularity-of-highlights `date -I`
 lein run generate-keywords-from-statuses `date -I`
 ```
 
+```
+# Generate keywords from highlights for the first week of 2019
+lein run generate-keywords-from-statuses 2019 0
+```
+
 ## How to generate keywords for an aggregate
 
 ```

@@ -111,6 +111,7 @@
          params (if (nil? publication-date)
                   [aggregate-name]
                   [aggregate-name publication-date])
+         query (str query "GROUP BY ts.status_id")
          results (db/exec-raw [query params] :results)]
      results)))
 
