@@ -37,21 +37,14 @@ function get_container_name() {
     echo 'devobs-api-'"${suffix}"
 }
 
-function remove_clojure_container {
-    local suffix
-    suffix="${1}"
-
-    local container_name
-    container_name="$(get_container_name "${suffix}")"
-
-    if [ "$(docker ps -a | grep "${container_name}" | grep -c '')" -gt 0 ];
-    then
-        docker rm -f "$(docker ps -a | grep "${container_name}" | awk '{print $1}')"
-    fi
+function get_docker_network() {
+    echo 'devobs-api-network'
 }
 
-function get_docker_network() {
-    echo 'press-review-network'
+function create_network() {
+    local network
+    network=`get_docker_network`
+    /bin/bash -c 'docker network create '"${network}"
 }
 
 function get_network_option() {
@@ -64,6 +57,19 @@ function get_network_option() {
     fi
 
     echo "${network}";
+}
+
+function remove_clojure_container {
+    local suffix
+    suffix="${1}"
+
+    local container_name
+    container_name="$(get_container_name "${suffix}")"
+
+    if [ "$(docker ps -a | grep "${container_name}" | grep -c '')" -gt 0 ];
+    then
+        docker rm -f "$(docker ps -a | grep "${container_name}" | awk '{print $1}')"
+    fi
 }
 
 function run_clojure_container() {
