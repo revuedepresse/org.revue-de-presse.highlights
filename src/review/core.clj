@@ -85,12 +85,17 @@
 (defn ^{:requires [:date]} command-generate-keywords-from-statuses
   [args]
   (let [[date] args]
-    (if (> (count args) 1)
-      (keywords/generate-keywords-for-all-aggregates
-        date
-        {:week (Long/parseLong (first args))
-         :year (Long/parseLong (second args))})
-      (keywords/generate-keywords-for-all-aggregates date))))
+    (cond
+      (= (count args) 2) (keywords/generate-keywords-for-all-aggregates
+                           date
+                           {:week (Long/parseLong (first args))
+                            :year (Long/parseLong (second args))})
+      (= (count args) 3) (keywords/generate-keywords-for-all-aggregates
+                           date
+                           {:aggregate (Long/parseLong (first args))
+                            :week      (Long/parseLong (second args))
+                            :year      (Long/parseLong (nth args 2))})
+      :else (keywords/generate-keywords-for-all-aggregates date))))
 
 (defn ^{:requires [:aggregate-name]} command-generate-keywords-for-aggregate
   [args]

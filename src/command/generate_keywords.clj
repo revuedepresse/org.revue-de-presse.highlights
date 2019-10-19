@@ -83,13 +83,14 @@
 (defn generate-keywords-for-all-aggregates
   ([date]
    (generate-keywords-for-all-aggregates date {}))
-  ([date & [{week :week year :year}]]
-   (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
+  ([date & [{week :week year :year aggregate-name :aggregate}]]
+   (let [aggregate-name (when (nil? aggregate-name)
+                          (:press (edn/read-string (:aggregate env))))
          models (get-entity-manager (:database env))
          highlights (find-highlighted-statuses-for-aggregate-published-at {:date           date
                                                                            :week           week
                                                                            :year           year
-                                                                           :aggregate-name press-aggregate-name
+                                                                           :aggregate-name aggregate-name
                                                                            :not-in         true
                                                                            :models         models})]
      (adapt-results {:props     (get-keywords-props)
@@ -97,7 +98,7 @@
                                   (new-keywords-from-props
                                     highlights
                                     (get-models)
-                                    (str "for \"" press-aggregate-name "\"")
+                                    (str "for \"" aggregate-name "\"")
                                     :find-keywords))
                      :formatter #(str
                                    (:keyword %)
