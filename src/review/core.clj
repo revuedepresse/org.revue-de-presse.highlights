@@ -186,6 +186,11 @@
   (let [[date] args]
     (highlights/record-popularity-of-highlights date)))
 
+(defn ^{:requires [:date]} command-record-popularity-of-highlights-for-all-aggregates
+  [args]
+  (let [[date] args]
+    (highlights/record-popularity-of-highlights-for-all-aggregates date)))
+
 (defn ^{:requires [:date]} command-save-highlights
   [args]
   (let [[date] args]
