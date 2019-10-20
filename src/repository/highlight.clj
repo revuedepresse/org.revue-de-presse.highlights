@@ -2,6 +2,7 @@
   (:require [korma.core :as db]
             [clojure.string :as string]
             [utils.error-handler :as error-handler])
+  (:import (com.mysql.jdbc.exceptions.jdbc4 MySQLIntegrityConstraintViolationException))
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
@@ -43,6 +44,8 @@
                       ON ts.member_name = m.usr_twitter_username
                       WHERE ts.status_id IN (" bindings ")
                     ")
+         ; there could be multiple timely statuses
+         ; having similar statuses ids
          results (db/exec-raw [base-query ids] :results)]
      results)))
 
@@ -197,13 +200,23 @@
 
 (defn bulk-insert-new-highlights
   [highlights model member-model status-model]
-  (let [snake-cased-values (map snake-case-keys highlights)
+  (let [snake-cased-values (->>
+                             highlights
+                             (map snake-case-keys)
+                             (group-by #(:status_id %))
+                             vals
+                             (map first))
         ids (map #(:status_id %) snake-cased-values)]
     (if (pos? (count ids))
       (do
         (try
           (db/insert model (db/values snake-cased-values))
           (catch Exception e
-            (error-handler/log-error e)))
+            (cond
+              (instance? MySQLIntegrityConstraintViolationException e) (error-handler/log-error
+                                                                         e
+                                                                         "Could not cope with integrity constraints."
+                                                                         :no-stack-trace)
+              :else (error-handler/log-error e))))
         (find-highlights-having-ids ids model member-model status-model))
       '())))
