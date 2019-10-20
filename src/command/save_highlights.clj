@@ -95,6 +95,18 @@
              (error-handler/log-error e (str "Could not record popularity of highlights: "))))
          (recur (inc partition-index)))))))
 
+(defn record-popularity-of-highlights-for-all-aggregates
+  ([date]
+   ; opening database connection beforehand
+   (let [_ (get-entity-manager (:database env))
+         excluded-aggregate (:press (edn/read-string (:aggregate env)))]
+     (record-popularity-of-highlights-for-all-aggregates date excluded-aggregate)))
+  ([date excluded-aggregate]
+   (let [aggregates (find-aggregate-having-publication-from-date date excluded-aggregate)]
+     (->> aggregates
+          (map #(record-popularity-of-highlights date (:aggregate-name %)))
+          doall))))
+
 (defn try-finding-highlights-by-status-ids
   [models]
   (fn [status-ids]
@@ -133,7 +145,7 @@
         ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
         ; about the effect of passing step and pad arguments
         statuses-ids-chunk (partition 100 100 [] statuses-ids)]
-    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
+    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
     (doall
       (pmap
         (try-insert-highlights-from-statuses aggregate models)
