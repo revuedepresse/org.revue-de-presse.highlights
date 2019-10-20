@@ -66,13 +66,13 @@ lein run update-members-descriptions-urls
 lein run recommend-subscriptions twitter_handle
 ```
 
-## How to save highlights for all aggregates?
+### How to save highlights for all aggregates?
 
 ```
 lein run save-highlights-for-all-aggregates `date -I`
 ```
 
-## How to refresh highlights?
+### How to refresh highlights?
 
 ```
 # For default aggregate
@@ -84,7 +84,7 @@ lein run record-popularity-of-highlights `date -I`
 lein run record-popularity-of-highlights-for-all-aggregates `date -I`
 ```
 
-## How to generate keywords from statuses?
+### How to generate keywords from statuses?
 
 ```
 lein run generate-keywords-from-statuses `date -I`
@@ -95,13 +95,13 @@ lein run generate-keywords-from-statuses `date -I`
 lein run generate-keywords-from-statuses 2019 0
 ```
 
-## How to generate keywords for an aggregate
+### How to generate keywords for an aggregate
 
 ```
 lein run generate-keywords-for-aggregate aggregate_name
 ```
 
-## How to generate keywords for aggregates sharing a name
+### How to generate keywords for aggregates sharing a name
 
 ```
 lein run generate-keywords-for-aggregates-sharing-name aggregate_name
