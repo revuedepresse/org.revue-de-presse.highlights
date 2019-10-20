@@ -75,7 +75,13 @@ lein run save-highlights-for-all-aggregates `date -I`
 ## How to refresh highlights?
 
 ```
+# For default aggregate
 lein run record-popularity-of-highlights `date -I`
+```
+
+```
+# For all aggregate
+lein run record-popularity-of-highlights-for-all-aggregates `date -I`
 ```
 
 ## How to generate keywords from statuses?
