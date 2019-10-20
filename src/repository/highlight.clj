@@ -43,6 +43,7 @@
                       LEFT JOIN weaving_user m
                       ON ts.member_name = m.usr_twitter_username
                       WHERE ts.status_id IN (" bindings ")
+                      GROUP BY ts.status_id
                     ")
          ; there could be multiple timely statuses
          ; having similar statuses ids
