@@ -288,6 +288,29 @@
     (new-member member model)
     member))
 
+(defn page-not-found-exception?
+  [e]
+  (= (.getMessage e) error-page-not-found))
+
+(defn make-unauthorized-statuses-access-response
+  [screen-name]
+  (do
+    (log/info (str "Not authorized to access statuses of " screen-name))
+    {:headers {:unauthorized true}
+     :body    '()}))
+
+(defn make-not-found-statuses-response
+  ([screen-name]
+   (do
+     (log/info (str "Could not find statuses of " screen-name))
+     {:headers {:not-found true}
+      :body    '()}))
+  ([id status-id]
+   (do
+     (log/info (str "Could not find status having id #" id " and status-id #" status-id))
+     {:headers {:not-found true}
+      :body    '()})))
+
 (defn get-twitter-user-by-screen-name
   [screen-name]
   (let [response (with-open [client (ac/create-client)]
@@ -352,6 +375,9 @@
           (when (not= (.getMessage e) error-no-status)
             (log/warn (.getMessage e)))
           (cond
+            (page-not-found-exception? e) (make-not-found-statuses-response
+                                            (:id props)
+                                            (:status-id props))
             (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
                                                                            (handle-rate-limit-exceeded-error "statuses/show/:id" model)
                                                                            (get-twitter-status-by-id props model))
@@ -585,24 +611,6 @@
   (exception-message-ends-with?
     e
     error-unauthorized-user-timeline-statuses-access))
-
-(defn page-not-found-exception?
-  [e]
-  (= (.getMessage e) error-page-not-found))
-
-(defn make-unauthorized-statuses-access-response
-  [screen-name]
-  (do
-    (log/info (str "Not authorized to access statuses of " screen-name))
-    {:headers {:unauthorized true}
-     :body    '()}))
-
-(defn make-not-found-statuses-response
-  [screen-name]
-  (do
-    (log/info (str "Could not find statuses of " screen-name))
-    {:headers {:not-found true}
-     :body    '()}))
 
 (defn try-getting-statuses
   [status-getter endpoint opts]
