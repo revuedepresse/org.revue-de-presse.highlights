@@ -177,9 +177,14 @@
 
 (defn find-next-token
   [token-model endpoint context]
-  (let [next-token-candidate (if @next-token
+  (let [first-available-token (find-first-available-tokens token-model)
+        _ (when (nil? first-available-token)
+            (set-next-token
+              first-available-token
+              context))
+        next-token-candidate (if @next-token
                                @next-token
-                               (find-first-available-tokens token-model))
+                               first-available-token)
         it-is-frozen (is-token-candidate-frozen next-token-candidate)]
     (if it-is-frozen
       (do
@@ -222,7 +227,8 @@
         (not (nil? (:x-rate-limit-remaining headers))))
       (try
         (swap! remaining-calls #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-remaining headers))))
-        (catch Exception e (log/warn (.getMessage e))))
+        (catch Exception e
+          (log/warn (.getMessage e))))
       (when
         (and
           (nil? (get @call-limits endpoint-keyword))
