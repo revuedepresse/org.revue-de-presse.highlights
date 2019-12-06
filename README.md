@@ -70,6 +70,12 @@ lein run recommend-subscriptions twitter_handle
 lein run save-highlights-for-all-aggregates `date -I`
 ```
 
+### How to save highlights for an aggregate?
+
+```
+lein run save-highlights-for-main-aggregate `date -I`
+```
+
 ### How to refresh highlights?
 
 ```
@@ -80,6 +86,11 @@ lein run record-popularity-of-highlights `date -I`
 ```
 # For all aggregate
 lein run record-popularity-of-highlights-for-all-aggregates `date -I`
+```
+
+```
+# For a specific aggregate (press related aggregate for instance)
+lein run record-popularity-of-highlights-for-main-aggregate `date -I`
 ```
 
 ### How to generate keywords from statuses?
