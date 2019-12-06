@@ -117,18 +117,21 @@
 
 (defn find-aggregate-having-publication-from-date
   "Find the distinct aggregates for which publications have been collected for a given date"
-  ([date excluded-aggregate]
-   (let [query (str
-                 "SELECT DISTINCT aggregate_name as `aggregate-name`   "
-                 "FROM (                                               "
-                 "   SELECT aggregate_name FROM timely_status          "
-                 "   WHERE DATE(publication_date_time) = ?             "
-                 "   AND aggregate_name != (?)                         "
-                 "   GROUP BY aggregate_id                             "
-                 ") select_")
-         query (str query)
-         results (db/exec-raw [query [date excluded-aggregate]] :results)]
-     results)))
+  [date aggregate & [include-aggregate]]
+  (let [aggregate-clause (str (if (some? include-aggregate)
+                                "   AND aggregate_name = (?) "
+                                "   AND aggregate_name != (?) "))
+        query (str
+                "SELECT DISTINCT aggregate_name as `aggregate-name`   "
+                "FROM (                                               "
+                "   SELECT aggregate_name FROM timely_status          "
+                "   WHERE DATE(publication_date_time) = ?             "
+                aggregate-clause
+                "   GROUP BY aggregate_id                             "
+                ") select_")
+        query (str query)
+        results (db/exec-raw [query [date aggregate]] :results)]
+    results))
 
 (defn select-fields
   [model status-model member-model]
