@@ -11,6 +11,7 @@
             [command.collect-status-identities :as status-identities]
             [command.collect-timely-statuses :as timely-statuses]
             [adaptor.database-navigation :as adaptor]
+            [maintenance.migration :as migration]
             [clojure.string :as string]
             [utils.error-handler :as error-handler])
   (:use [korma.db]
@@ -239,6 +240,10 @@
   [args]
   (let [[label] args]
     (analysis-frequencies/who-publish-the-most-for-each-day-of-week label)))
+
+(defn ^{:requires []} command-migrate-all-status-to-publications
+  [args]
+  (migration/migrate-all-status-to-publications))
 
 (defn execute-command
   [name args]

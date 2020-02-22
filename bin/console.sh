@@ -25,7 +25,7 @@ function get_image_name() {
 
 function build_clojure_container() {
     local image_name
-    image_name=`get_image_name`
+    image_name=$(get_image_name)
 
     docker build -t "${image_name}" .
 }
@@ -43,14 +43,14 @@ function get_docker_network() {
 
 function create_network() {
     local network
-    network=`get_docker_network`
+    network=$(get_docker_network)
     /bin/bash -c 'docker network create '"${network}"
 }
 
 function get_network_option() {
     local network
 
-    network='--network '`get_docker_network`' '
+    network='--network '$(get_docker_network)' '
     if [ ! -z "${NO_DOCKER_NETWORK}" ];
     then
         network=''

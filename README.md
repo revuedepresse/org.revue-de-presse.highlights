@@ -149,6 +149,12 @@ lein run collect-timely-statuses-from-aggregates ":reverse-order"
 lein run collect-timely-statuses-from-aggregate aggregate_name
 ```
 
+### How to migrate all statuses to publications?
+
+```
+lein run migrate-all-status-to-publications
+```
+
 ### How to collect statuses identities?
 
 ```
