@@ -11,6 +11,7 @@
             [repository.member :as member]
             [repository.member-identity :as member-identity]
             [repository.member-subscription :as member-subscription]
+            [repository.publication :as publication]
             [repository.highlight :as highlight]
             [repository.status :as status]
             [repository.status-aggregate :as status-aggregate]
@@ -104,6 +105,7 @@
      :member-identity       (member-identity/get-member-identity-model connection)
      :member-subscribees    (member-subscription/get-member-subscribees-model connection)
      :member-subscriptions  (member-subscription/get-member-subscriptions-model connection)
+     :publication           (publication/get-publication-model connection)
      :publication-frequency (publication-frequency/get-publication-frequency-model connection)
      :sample                (sample/get-sample-model connection)
      :subscribees           (member-subscription/get-subscribees-model connection)
