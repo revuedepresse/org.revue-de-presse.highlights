@@ -40,6 +40,7 @@ function get_container_name() {
 function get_docker_network() {
     if [ -n "${NETWORK}" ]; then
         echo "${NETWORK}"
+        return
     fi
 
     echo 'devobs-api-network'
