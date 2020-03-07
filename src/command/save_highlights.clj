@@ -151,15 +151,17 @@
                          aggregate
                          (:press (edn/read-string (:aggregate env))))
         aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
-        statuses-ids (map
-                       :status-id
-                       (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date))
+        statuses-ids (doall
+                        (map
+                           :status-id
+                           (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date)))
         ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
         ; about the effect of passing step and pad arguments
-        statuses-ids-chunk (partition 100 100 [] statuses-ids)]
+        pad (take 100 (iterate (constantly nil) nil))
+        statuses-ids-chunk (partition 100 100 pad statuses-ids)]
     (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
     (doall
-      (pmap
+      (map
         (try-insert-highlights-from-statuses aggregate models)
         statuses-ids-chunk))))
 
