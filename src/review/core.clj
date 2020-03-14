@@ -98,6 +98,10 @@
                             :year      (Long/parseLong (nth args 2))})
       :else (keywords/generate-keywords-for-all-aggregates date))))
 
+(defn ^{:requires []} command-generate-keywords-for-last-week-publishers
+  [args]
+  (keywords/generate-keywords-for-last-week-publishers))
+
 (defn ^{:requires [:aggregate-name]} command-generate-keywords-for-aggregate
   [args]
   (let [[aggregate-name] args]
@@ -109,11 +113,11 @@
     (keywords/generate-keywords-for-aggregates-sharing-name aggregate-name)))
 
 (defn ^{:requires []} command-list-alphabet-letters
-  []
+  [args]
   (adaptor/list-alphabet-letters))
 
 (defn ^{:requires []} command-list-aggregates
-  []
+  [args]
   (adaptor/list-aggregates))
 
 (defn ^{:requires [:aggregate-name]} command-list-aggregate-statuses
@@ -122,7 +126,7 @@
     (adaptor/list-aggregate-statuses aggregate-name)))
 
 (defn ^{:requires []} command-list-keyword-aggregates
-  []
+  [args]
   (adaptor/list-keyword-aggregates))
 
 (defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
@@ -131,7 +135,7 @@
     (adaptor/list-aggregates-containing-member screen-name)))
 
 (defn ^{:requires []} command-list-highlights-since-a-month-ago
-  []
+  [args]
   (adaptor/list-highlights-since-a-month-ago))
 
 (defn ^{:requires [:screen-name]} command-list-member-statuses
@@ -140,11 +144,11 @@
     (adaptor/list-member-statuses screen-name)))
 
 (defn ^{:requires []} command-list-members-subscribing-to-lists
-  []
+  [args]
   (adaptor/list-members-subscribing-to-lists))
 
 (defn ^{:requires []} command-list-members-which-subscriptions-have-been-collected
-  []
+  [args]
   (adaptor/list-members-which-subscriptions-have-been-collected))
 
 (defn ^{:requires [:screen-name]} command-list-aggregates-of-subscriber-having-screen-name
@@ -233,7 +237,7 @@
   (adaptor/render-latest-result-map args))
 
 (defn ^{:requires []} command-update-members-descriptions-urls
-  []
+  [args]
   (members/update-members-descriptions-urls))
 
 (defn ^{:requires [:label]} command-who-publish-the-most-for-each-day-of-week

@@ -165,6 +165,33 @@
       matching-statuses
       '())))
 
+(defn find-last-week-timely-status
+  []
+  (let [query (str
+                "SELECT
+                ts.id,
+                s.ust_api_document as `status-api-document`,
+                e.member_id as `member-id`,
+                ts.member_name as `member-name`,
+                ts.aggregate_name as `aggregate-name`,
+                ts.status_id as `status-id`,
+                ts.publication_date_time as `publication-date-time`
+                FROM publication_batch_collected_event e
+                INNER JOIN weaving_user m
+                ON m.usr_id = e.member_id
+                AND DATEDIFF(NOW(), e.occurred_at) <= 7
+                INNER JOIN timely_status ts
+                ON member_name = m.usr_twitter_username
+                LEFT JOIN keyword k
+                ON k.status_id = ts.status_id
+                INNER JOIN weaving_status s
+                ON s.ust_id = ts.status_id                          
+                WHERE k.id IS NULL
+                LIMIT 10000;")
+        query (str query)
+        results (db/exec-raw [query []] :results)]
+    results))
+
 (defn find-timely-statuses-by-constraints
   "Find timely statuses by ids of statuses or constraints"
   ([constraints {model        :timely-status

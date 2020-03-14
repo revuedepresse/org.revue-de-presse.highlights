@@ -138,3 +138,13 @@
         _ (doall (pmap
                    #(generate-keywords-from-aggregate % find-timely-statuses-by-aggregate-id models)
                    aggregates))]))
+
+(defn generate-keywords-for-last-week-publishers
+  []
+  (let [models (get-entity-manager (:database env))]
+    (loop [timely-statuses (find-last-week-timely-status)]
+      (new-keywords-from-props
+        timely-statuses
+        models
+        (str "for last week publishers"))
+      (recur (find-last-week-timely-status)))))
