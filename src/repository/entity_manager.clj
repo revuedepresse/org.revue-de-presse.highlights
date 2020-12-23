@@ -63,17 +63,14 @@
 (defn prepare-connection
   [config & [{is-archive-connection :is-archive-connection
               is-read-connection    :is-read-connection}]]
-  (let [db-params {:classname         "com.mysql.jdbc.Driver"
-                   :subprotocol       "mysql"
+  (let [db-params {:classname         "org.postgresql.Driver"
+                   :subprotocol       "postgresql"
                    :subname           (str "//"
                                            (:host config) ":" (:port config) "/"
-                                           ; @see https://stackoverflow.com/a/39095756/282073
-                                           (:name config) "?zeroDateTimeBehavior=convertToNull&autoReconnect=true")
+                                           (:name config))
                    :useUnicode        "yes"
                    :characterEncoding "UTF-8"
-                   :characterSet      "utf8mb4"
-                   :collation         "utf8mb4_unicode_ci"
-                   :delimiters        "`"
+                   :delimiters        "\""
                    :useSSL            false
                    :user              (:user config)
                    :password          (:password config)
