@@ -2,7 +2,6 @@
   (:require [korma.core :as db]
             [clojure.string :as string]
             [utils.error-handler :as error-handler])
-  ;(:import (com.mysql.jdbc.exceptions.jdbc4 MySQLIntegrityConstraintViolationException))
   (:use [korma.db]
         [repository.database-schema]
         [utils.string]))
@@ -220,10 +219,6 @@
           (db/insert model (db/values snake-cased-values))
           (catch Exception e
             (cond
-              ;(instance? MySQLIntegrityConstraintViolationException e) (error-handler/log-error
-              ;                                                           e
-              ;                                                           "Could not cope with integrity constraints."
-              ;                                                           :no-stack-trace)
               :else (error-handler/log-error e))))
         (find-highlights-having-ids ids model member-model status-model))
       '())))

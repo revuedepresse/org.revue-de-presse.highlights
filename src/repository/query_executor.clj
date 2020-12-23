@@ -2,8 +2,6 @@
   (:require [korma.core :as db]
             [utils.error-handler :as error-handler])
   (:import
-           ;(com.mysql.jdbc.exceptions.jdbc4 CommunicationsException)
-           ;(com.mysql.jdbc.exceptions.jdbc4 MySQLTransactionRollbackException MySQLIntegrityConstraintViolationException)
            (java.sql BatchUpdateException)))
 
 (defn guard-against-database-failure
@@ -20,10 +18,7 @@
     (try (f)
          (catch Exception e
            (cond
-             ;(instance? MySQLIntegrityConstraintViolationException e) (println "Could not cope with integrity constraints.")
-             ;(instance? CommunicationsException e) (println "Could not communicate with the database.")
              (instance? BatchUpdateException e) (maybe-retry)
-             ;(instance? MySQLTransactionRollbackException e) (maybe-retry)
              :else (error-handler/log-error e))))))
 
 (defn exec-query
