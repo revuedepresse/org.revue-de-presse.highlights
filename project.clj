@@ -1,8 +1,8 @@
 (defproject review "0.1.0"
 
-  :description "Easing observation of Twitter lists to publish a daily press review https://twitter.com/revue_2_presse"
+  :description "Easing observation of statuses from Twitter lists related to software development"
 
-  :url "https://revue-de-press.weaving-the-web.org"
+  :url "https://github.com/thierrymarianne/devobs-worker"
 
   :license {:name "MIT"
             :url "https://opensource.org/licenses/MIT"}
