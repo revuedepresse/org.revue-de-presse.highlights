@@ -85,7 +85,7 @@
    (generate-keywords-for-all-aggregates date {}))
   ([date & [{week :week year :year aggregate-name :aggregate}]]
    (let [aggregate-name (when (nil? aggregate-name)
-                          (:press (edn/read-string (:aggregate env))))
+                          (:main (edn/read-string (:aggregate env))))
          models (get-entity-manager (:database env))
          highlights (find-highlighted-statuses-for-aggregate-published-at {:date           date
                                                                            :week           week
