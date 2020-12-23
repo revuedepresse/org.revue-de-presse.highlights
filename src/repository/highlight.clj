@@ -64,7 +64,7 @@
                 "AND t.aggregate_name = ?                         "
                 "INNER JOIN weaving_status s                      "
                 "ON s.ust_id = h.status_id                        "
-                "AND DATE(h.publication_date_time) = \"" date "\"")
+                "AND h.publication_date_time::timestamp::date = CAST(\"" date "\" AS DATE)")
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 
@@ -91,14 +91,14 @@
                    ON s.ust_id = h.status_id
                    AND h.aggregate_name not like 'user ::%'
                    AND h.total_retweets > 0
-                   AND DATE(h.publication_date_time) > DATE_SUB(now(), INTERVAL 1 MONTH)
+                   AND h.publication_date_time::timestamp::date > NOW() - '1 MONTH'::INTERVAL)
                    INNER JOIN member_identity m
                    ON m.member_id = h.member_id
                    WHERE h.id IN (
                        SELECT highlights_by_aggregate.id FROM (
                            SELECT id, MAX(total_retweets), aggregate_name
                            FROM highlight
-                           WHERE DATE(publication_date_time) > DATE_SUB(now(), INTERVAL 1 MONTH)
+                           WHERE publication_date_time::timestamp::date > NOW() - '1 MONTH'::INTERVAL)
                            GROUP BY aggregate_name
                       ) highlights_by_aggregate
                    )
@@ -178,9 +178,9 @@
                              (some? year))
         restriction-by-date (if restricted-by-week
                               (str
-                                "AND WEEK(h.publication_date_time) = ? "
-                                "AND YEAR(h.publication_date_time) = ? ")
-                              (str "AND DATE(h.publication_date_time) = \"" date "\""))
+                                "AND EXTRACT(WEEK FROM h.publication_date_time) = ? "
+                                "AND EXTRACT(YEAR FROM h.publication_date_time) = ? ")
+                              (str "AND h.publication_date_time::timestamp::date = CAST(\"" date "\" AS DATE)"))
         query (str
                 "SELECT                                           "
                 "h.id                                             "

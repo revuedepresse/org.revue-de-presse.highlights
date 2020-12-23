@@ -106,8 +106,8 @@
                       WHERE ts.aggregate_name = ?
                     ")
          query (if (nil? publication-date)
-                 (str base-query "AND DATE(now()) <= ts.publication_date_time ")
-                 (str base-query "AND ? = DATE(ts.publication_date_time) "))
+                 (str base-query "AND NOW()::date <= ts.publication_date_time::timestamp::date ")
+                 (str base-query "AND CAST(? AS DATE) = ts.publication_date_time::timestamp::date "))
          params (if (nil? publication-date)
                   [aggregate-name]
                   [aggregate-name publication-date])
@@ -125,9 +125,9 @@
                 "SELECT DISTINCT aggregate_name as \"aggregate-name\"   "
                 "FROM (                                               "
                 "   SELECT aggregate_name FROM timely_status          "
-                "   WHERE DATE(publication_date_time) = ?             "
+                "   WHERE publication_date_time::date = CAST(? as date)  "
                 aggregate-clause
-                "   GROUP BY aggregate_id                             "
+                "   GROUP BY aggregate_id, aggregate_name             "
                 ") select_")
         query (str query)
         results (db/exec-raw [query [date aggregate]] :results)]
@@ -254,11 +254,11 @@
                    a.name AS aggregate_name,
                    s.ust_created_at AS publication_date_time,
                    CASE
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 5 MINUTE) THEN 0
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 10 MINUTE) THEN 1
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 30 MINUTE) THEN 2
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 DAY) THEN 3
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 WEEK) THEN 4
+                   WHEN s.ust_created_at > NOW() - '5 MINUTES'::INTERVAL THEN 0
+                   WHEN s.ust_created_at > NOW() - '10 MINUTES'::INTERVAL THEN 1
+                   WHEN s.ust_created_at > NOW() - '30 MINUTES'::INTERVAL THEN 2
+                   WHEN s.ust_created_at > NOW() - '1 DAY'::INTERVAL THEN 3
+                   WHEN s.ust_created_at > NOW() - '1 WEEK'::INTERVAL THEN 4
                    ELSE 5
                    END AS time_range
                    FROM weaving_aggregate AS a
