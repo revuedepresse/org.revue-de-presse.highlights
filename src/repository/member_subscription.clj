@@ -96,9 +96,9 @@
 (defn find-members-which-subscriptions-have-been-collected
   []
   (let [query (str "
-                SELECT DISTINCT member_id AS `member-id`,
-                usr_twitter_username AS `screen-name`,
-                usr_twitter_id AS `member-twitter-id`
+                SELECT DISTINCT member_id AS \"member-id\",
+                usr_twitter_username AS \"screen-name\",
+                usr_twitter_id AS \"member-twitter-id\"
                 FROM member_subscription ms
                 INNER JOIN weaving_user m
                 ON usr_id = member_id
@@ -110,9 +110,9 @@
 (defn find-subscriptions-of-member-having-screen-name
   [screen-name]
   (let [query (str "
-                SELECT DISTINCT ms.subscription_id AS `member-id`,
-                subscription.usr_twitter_username AS `screen-name`,
-                subscription.usr_twitter_id AS `member-twitter-id`
+                SELECT DISTINCT ms.subscription_id AS \"member-id\",
+                subscription.usr_twitter_username AS \"screen-name\",
+                subscription.usr_twitter_id AS \"member-twitter-id\"
                 FROM member_subscription ms
                 INNER JOIN weaving_user m
                 ON (

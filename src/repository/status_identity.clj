@@ -45,11 +45,11 @@
   [aggregate-id week year db]
   (let [query (str "
                 SELECT
-                UUID() as `id`,
-                m.id AS `member-identity`,
-                s.ust_api_document AS `status-api-document`,
-                s.ust_created_at AS `publication-date-time`,
-                s.ust_id AS `status-id`
+                UUID() as \"id\",
+                m.id AS \"member-identity\",
+                s.ust_api_document AS \"status-api-document\",
+                s.ust_created_at AS \"publication-date-time\",
+                s.ust_id AS \"status-id\"
                 FROM weaving_status_aggregate sa
                 INNER JOIN weaving_aggregate a
                 ON sa.aggregate_id = a.id
@@ -58,7 +58,7 @@
                   sa.status_id = s.ust_id
                   AND WEEK(s.ust_created_at) = ?
                   AND YEAR(s.ust_created_at) = ?
-                  AND a.screen_name = s.ust_full_name COLLATE utf8mb4_unicode_ci
+                  AND a.screen_name = s.ust_full_name
                   AND s.ust_status_id " (get-collation) " NOT IN (
                     SELECT twitter_id FROM status_identity
                   )
@@ -79,7 +79,7 @@
   [aggregate-id week year db]
   (let [query (str "
                 SELECT
-                COUNT(*) AS `total-statuses`
+                COUNT(*) AS \"total-statuses\"
                 FROM weaving_status_aggregate sa
                 INNER JOIN weaving_aggregate a
                 ON sa.aggregate_id = a.id
@@ -125,9 +125,9 @@
   [aggregate-id db]
   (let [query (str "
                 SELECT
-                YEAR(s.ust_created_at) as `since-year`,
-                WEEK(s.ust_created_at) as `since-week`,
-                s.ust_id as `status-id`
+                YEAR(s.ust_created_at) as \"since-year\",
+                WEEK(s.ust_created_at) as \"since-week\",
+                s.ust_id as \"status-id\"
                 FROM weaving_status_aggregate sa
                 INNER JOIN weaving_aggregate a
                 ON sa.aggregate_id = a.id
