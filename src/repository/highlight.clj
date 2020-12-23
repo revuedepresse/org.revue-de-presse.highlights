@@ -33,10 +33,11 @@
    (let [bindings (take (count ids) (iterate (constantly "?") "?"))
          bindings (string/join "," bindings)
          base-query (str "
-                      SELECT s.ust_id as `status-id`,
-                      m.usr_id as `member-id`,
-                      s.ust_api_document as `api-document`,
-                      s.ust_created_at as `publication-date-time`
+                      SELECT
+                      s.ust_id as \"status-id\",
+                      m.usr_id as \"member-id\",
+                      s.ust_api_document as \"api-document\",
+                      s.ust_created_at as \"publication-date-time\"
                       FROM timely_status ts
                       INNER JOIN weaving_status s
                       ON s.ust_id = ts.status_id
@@ -56,7 +57,7 @@
   (let [query (str
                 "SELECT                                           "
                 "s.ust_id as id,                                  "
-                "s.ust_status_id as `status-id`                   "
+                "s.ust_status_id as \"status-id\"                   "
                 "FROM highlight h                                 "
                 "INNER JOIN timely_status t                       "
                 "ON t.status_id = h.status_id                     "
@@ -74,17 +75,17 @@
                 FROM (
                    SELECT
                        h.id,
-                       h.aggregate_id AS `aggregate-id`,
-                       h.aggregate_name AS `aggregate-name`,
-                       s.ust_full_name AS `screen-name`,
+                       h.aggregate_id AS \"aggregate-id\",
+                       h.aggregate_name AS \"aggregate-name\",
+                       s.ust_full_name AS \"screen-name\",
                        CONCAT(
                                'https://twitter.com/',
                                m.screen_name, '/status/',
                                s.ust_status_id
-                           ) AS `status-url`,
-                       s.ust_text AS `text`,
-                       h.total_retweets AS `retweets`,
-                       s.ust_created_at AS `created-at`
+                           ) AS \"status-url\",
+                       s.ust_text AS \"text\",
+                       h.total_retweets AS \"retweets\",
+                       s.ust_created_at AS \"created-at\"
                    FROM highlight h
                    INNER JOIN weaving_status s
                    ON s.ust_id = h.status_id

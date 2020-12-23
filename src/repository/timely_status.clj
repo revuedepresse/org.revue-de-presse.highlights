@@ -53,10 +53,10 @@
                                "")
          query (str
                  "SELECT                                           "
-                 "COUNT(*) `total-timely-statuses`,                "
+                 "COUNT(*) \"total-timely-statuses\",                "
                  "IF (COUNT(*) > 0,                                "
                  "    GROUP_CONCAT(s.ust_id),                      "
-                 "    \"\") `statuses-ids`                         "
+                 "    \"\") \"statuses-ids\"                         "
                  "FROM " table-name " s                            "
                  "INNER JOIN " join-table-name " sa                "
                  "ON sa.status_id = s.ust_id                       "
@@ -101,7 +101,7 @@
   ([aggregate-name publication-date]
    (let [base-query (str "
                       SELECT
-                      ts.status_id as `status-id`
+                      ts.status_id as \"status-id\"
                       FROM timely_status ts
                       WHERE ts.aggregate_name = ?
                     ")
@@ -122,7 +122,7 @@
                                 "   AND aggregate_name = (?) "
                                 "   AND aggregate_name != (?) "))
         query (str
-                "SELECT DISTINCT aggregate_name as `aggregate-name`   "
+                "SELECT DISTINCT aggregate_name as \"aggregate-name\"   "
                 "FROM (                                               "
                 "   SELECT aggregate_name FROM timely_status          "
                 "   WHERE DATE(publication_date_time) = ?             "
@@ -170,12 +170,12 @@
   (let [query (str
                 "SELECT
                 ts.id,
-                s.ust_api_document as `status-api-document`,
-                e.member_id as `member-id`,
-                ts.member_name as `member-name`,
-                ts.aggregate_name as `aggregate-name`,
-                ts.status_id as `status-id`,
-                ts.publication_date_time as `publication-date-time`
+                s.ust_api_document as \"status-api-document\",
+                e.member_id as \"member-id\",
+                ts.member_name as \"member-name\",
+                ts.aggregate_name as \"aggregate-name\",
+                ts.status_id as \"status-id\",
+                ts.publication_date_time as \"publication-date-time\"
                 FROM publication_batch_collected_event e
                 INNER JOIN weaving_user m
                 ON m.usr_id = e.member_id

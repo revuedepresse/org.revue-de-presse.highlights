@@ -12,7 +12,7 @@
                  [pandect "0.6.1"]
                  [environ "1.1.0"]
                  [com.novemberain/langohr "5.0.0" :exclusions [org.slf4j/slf4j-api]]
-                 [mysql/mysql-connector-java "5.1.47"]
+                 [org.postgresql/postgresql "42.2.18.jre7"]
                  [korma "0.4.0"]
                  [org.clojure/data.json "0.2.6"]
                  [twitter-api "1.8.0"]
