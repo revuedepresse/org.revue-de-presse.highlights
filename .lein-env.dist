@@ -32,6 +32,6 @@
     :queue-publications "update_me"
   }
   :aggregate {
-    :press          "update_me"
+    :main          "update_me"
   }
 }
