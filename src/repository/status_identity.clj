@@ -88,7 +88,7 @@
                     WEEK(s.ust_created_at) = ?
                     AND YEAR(s.ust_created_at) = ?
                     AND sa.status_id = s.ust_id
-                    AND a.screen_name = s.ust_full_name COLLATE utf8mb4_unicode_ci
+                    AND a.screen_name = s.ust_full_name
                     AND s.ust_status_id " (get-collation) " NOT IN (
                       SELECT twitter_id FROM status_identity
                     )
