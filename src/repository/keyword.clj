@@ -92,10 +92,10 @@
                 (first args)
                 100)
         query (str "
-          SELECT SUM(occurrences) as `occurrences`,
-          aggregate_id as `aggregate-id`,
-          aggregate_name as `aggregate-name`,
-          keyword as `keyword`
+          SELECT SUM(occurrences) as \"occurrences\",
+          aggregate_id as \"aggregate-id\",
+          aggregate_name as \"aggregate-name\",
+          keyword as \"keyword\"
           FROM keyword
           WHERE aggregate_name = ?
           AND LENGTH(keyword) > 3
@@ -115,10 +115,10 @@
                 (first args)
                 100)
         query (str "
-          SELECT SUM(occurrences) as `occurrences`,
-          aggregate_id as `aggregate-id`,
-          aggregate_name as `aggregate-name`,
-          keyword as `keyword`
+          SELECT SUM(occurrences) as \"occurrences\",
+          aggregate_id as \"aggregate-id\",
+          aggregate_name as \"aggregate-name\",
+          keyword as \"keyword\"
           FROM keyword
           WHERE aggregate_name = ?
           AND keyword LIKE \"@%\"

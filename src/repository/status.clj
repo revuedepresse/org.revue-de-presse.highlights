@@ -103,12 +103,12 @@
           SELECT ust_id AS id,
           ust_hash AS hash,
           ust_text AS text,
-          ust_full_name AS `screen-name`,
-          ust_name AS `name`,
-          ust_access_token AS `access-token`,
-          ust_api_document AS `document`,
-          ust_created_at AS `created-at`,
-          ust_status_id AS `twitter-id`
+          ust_full_name AS \"screen-name\",
+          ust_name AS \"name\",
+          ust_access_token AS \"access-token\",
+          ust_api_document AS \"document\",
+          ust_created_at AS \"created-at\",
+          ust_status_id AS \"twitter-id\"
           FROM weaving_status
           WHERE ust_full_name in (" more-bindings ")
           AND (ust_full_name, ust_id) NOT IN (
@@ -129,12 +129,12 @@
                 "SELECT ust_id AS id,                       "
                 "ust_hash AS hash,                          "
                 "ust_text AS text,                          "
-                "ust_full_name AS `screen-name`,            "
-                "ust_name AS `name`,                        "
-                "ust_access_token AS `access-token`,        "
-                "ust_api_document AS `document`,            "
-                "ust_created_at AS `created-at`,            "
-                "ust_status_id AS `twitter-id`              "
+                "ust_full_name AS \"screen-name\",            "
+                "ust_name AS \"name\",                        "
+                "ust_access_token AS \"access-token\",        "
+                "ust_api_document AS \"document\",            "
+                "ust_created_at AS \"created-at\",            "
+                "ust_status_id AS \"twitter-id\"              "
                 "FROM weaving_status                        "
                 "WHERE ust_full_name = ?                    "
                 "AND WEEK(ust_created_at) = ?               "

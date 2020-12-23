@@ -178,7 +178,7 @@
 
 ;; Add Index to temporary table
 ;
-; ALTER TABLE `tmp_subscriptions` ADD INDEX `id` (`usr_id`, `total_subscriptions`);
+; ALTER TABLE \"tmp_subscriptions\" ADD INDEX \"id\" (`usr_id`, \"total_subscriptions\");
 
 ;; Update member table
 ;
@@ -221,8 +221,8 @@
   [start page-length & [fetch-archives]]
   (let [table-name (if fetch-archives "weaving_archived_status" "weaving_status")
         results (db/exec-raw [(str "SELECT "
-                                   "s.ust_full_name AS `screen-name`, "
-                                   "s.ust_api_document AS `api-document`, "
+                                   "s.ust_full_name AS \"screen-name\", "
+                                   "s.ust_api_document AS \"api-document\", "
                                    "usr_id AS id "
                                    "FROM weaving_user m "
                                    "INNER JOIN " table-name " s "

@@ -92,8 +92,8 @@
   []
   (let [query (str "
                 SELECT
-                DISTINCT name as `aggregate-name`,
-                id as `aggregate-id`
+                DISTINCT name as \"aggregate-name\",
+                id as \"aggregate-id\"
                 FROM weaving_aggregate
                 WHERE screen_name IS NULL
                 AND name NOT LIKE 'user ::%'
@@ -106,8 +106,8 @@
   [screen-name]
   (let [query (str "
                 SELECT
-                DISTINCT name as `aggregate-name`,
-                id as `aggregate-id`
+                DISTINCT name as \"aggregate-name\",
+                id as \"aggregate-id\"
                 FROM weaving_aggregate
                 WHERE screen_name IS NOT NULL
                 AND name NOT LIKE 'user ::%'
@@ -121,8 +121,8 @@
   []
   (let [query (str "
                 SELECT
-                a.id as `aggregate-id`,
-                a.name as `aggregate-name`
+                a.id as \"aggregate-id\",
+                a.name as \"aggregate-name\"
                 FROM weaving_aggregate a
                 WHERE name NOT LIKE 'user ::%'
                 AND screen_name IS NULL
@@ -136,11 +136,11 @@
   [aggregate-name]
   (let [query (str "
                 SELECT
-                a.screen_name as `screen-name`,
-                a.list_id as `aggregate-twitter-id`,
-                mi.twitter_id as `member-twitter-id`,
-                mi.member_id as `member-id`,
-                a.name as `aggregate-name`
+                a.screen_name as \"screen-name\",
+                a.list_id as \"aggregate-twitter-id\",
+                mi.twitter_id as \"member-twitter-id\",
+                mi.member_id as \"member-id\",
+                a.name as \"aggregate-name\"
                 FROM weaving_aggregate a
                 INNER JOIN member_identity mi
                 ON mi.screen_name = a.screen_name
@@ -157,8 +157,8 @@
   [screen-name]
   (let [query (str "
                 SELECT
-                list_name AS `list-name`,
-                list_id AS `list-twitter-id`
+                list_name AS \"list-name\",
+                list_id AS \"list-twitter-id\"
                 FROM member_aggregate_subscription
                 WHERE member_id IN (
                     SELECT usr_id FROM weaving_user WHERE usr_twitter_username = ?
@@ -171,9 +171,9 @@
   "Find members subscribing to lists"
   []
   (let [query (str "
-                SELECT DISTINCT usr_twitter_username AS `screen-name`,
-                usr_twitter_id AS `member-twitter-id`,
-                usr_id AS `member-id`
+                SELECT DISTINCT usr_twitter_username AS \"screen-name\",
+                usr_twitter_id AS \"member-twitter-id\",
+                usr_id AS \"member-id\"
                 FROM member_aggregate_subscription
                 INNER JOIN weaving_user
                 ON usr_id = member_id
@@ -227,11 +227,11 @@
   [screen-name]
   (let [query (str
                 "SELECT                                                                      "
-                "aggregate.id `aggregate-id`,                                                "
-                "aggregate.name `aggregate-name`,                                            "
-                "aggregate.screen_name as `member-name`,                                     "
-                "aggregate.screen_name as `screen-name`,                                     "
-                "subscription.last_status_publication_date as `last-status-publication-date` "
+                "aggregate.id \"aggregate-id\",                                                "
+                "aggregate.name \"aggregate-name\",                                            "
+                "aggregate.screen_name as \"member-name\",                                     "
+                "aggregate.screen_name as \"screen-name\",                                     "
+                "subscription.last_status_publication_date as \"last-status-publication-date\" "
                 "FROM member_subscription member_subscription,                               "
                 "weaving_user member,                                                        "
                 "weaving_user subscription,                                                  "
@@ -254,12 +254,12 @@
   [pattern & [additional-constraints]]
   (str "
       SELECT
-      member.usr_id as `member-id`,
-      member.usr_twitter_username as `screen-name`,
-      member.usr_twitter_username as `member-name`,
-      a.id as `aggregate-id`,
-      a.name as `aggregate-name`,
-      member.last_status_publication_date as `last-status-publication-date`
+      member.usr_id as \"member-id\",
+      member.usr_twitter_username as \"screen-name\",
+      member.usr_twitter_username as \"member-name\",
+      a.id as \"aggregate-id\",
+      a.name as \"aggregate-name\",
+      member.last_status_publication_date as \"last-status-publication-date\"
       FROM member_aggregate_subscription msub
       INNER JOIN weaving_aggregate a
       ON list_name = name
@@ -291,8 +291,8 @@
   [screen-name]
   (let [query (str "
                 SELECT
-                aggregate.id `aggregate-id`,
-                aggregate.name `aggregate-name`
+                aggregate.id \"aggregate-id\",
+                aggregate.name \"aggregate-name\"
                 FROM
                 weaving_user member,
                 weaving_aggregate aggregate
@@ -311,9 +311,9 @@
   [aggregate-name db]
   (let [query (str "
                 SELECT
-                id as `aggregate-id`,
-                name as `aggregate-name`,
-                screen_name as `screen-name`
+                id as \"aggregate-id\",
+                name as \"aggregate-name\",
+                screen_name as \"screen-name\"
                 FROM weaving_aggregate a
                 WHERE
                 a.name = ?
