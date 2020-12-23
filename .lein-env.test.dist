@@ -24,15 +24,12 @@
     :port           "5432"
   }
   :rabbitmq {
-    :user           "update_me"
-    :password       "update_me"
-    :port           "update_me"
-    :host           "update_me"
-    :vhost          "update_me"
-    :queue-network  "update_me"
-    :queue-likes    "update_me"
-    :queue-lists    "update_me"
-    :queue-status   "update_me"
+    :user               "update_me"
+    :password           "update_me"
+    :port               "update_me"
+    :host               "update_me"
+    :vhost              "update_me"
+    :queue-publications "update_me"
   }
   :aggregate {
     :press          "update_me"

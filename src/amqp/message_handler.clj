@@ -93,7 +93,7 @@
     (cond
       (= queue :likes) (pull-messages-from-likes-queue (assoc queue-params :queue (:queue-likes rabbitmq)))
       (= queue :lists) (pull-messages-from-lists-queue (assoc queue-params :queue (:queue-lists rabbitmq)))
-      (= queue :status) (pull-messages-from-status-queue (assoc queue-params :queue (:queue-status rabbitmq)))
+      (= queue :status) (pull-messages-from-status-queue (assoc queue-params :queue (:queue-publications rabbitmq)))
       (= queue :network) (pull-messages-from-network-queue (assoc queue-params :queue (:queue-network rabbitmq)))
       :else (println (str "Unknown queue name, please select one of the following: lists, likes or network")))
     (when message-index
