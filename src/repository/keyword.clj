@@ -149,8 +149,7 @@
              status-model :status} & [find-keywords]]
   (let [snake-cased-values (map snake-case-keys keywords)
         identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:aggregate_name %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:aggregate_name %))))
                            snake-cased-values)
         ids (map #(:id %) identified-props)]
     (if (pos? (count ids))

@@ -98,8 +98,7 @@
 (defn bulk-insert-from-props
   [props model member-model sample-model]
   (let [identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:member-id %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:member-id %))))
                            props)
         snake-cased-props (map snake-case-keys identified-props)
         publication-frequencies-ids (pmap #(:id %) snake-cased-props)]

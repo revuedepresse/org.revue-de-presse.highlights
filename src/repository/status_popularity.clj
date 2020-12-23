@@ -62,8 +62,7 @@
 (defn bulk-insert-of-status-popularity-props
   [status-popularity-props checked-at model]
   (let [identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:status-id %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:status-id %))))
                            status-popularity-props)
         statuses-ids (map #(:status-id %) identified-props)
         existing-statuses (find-status-popularity-by-status-ids-and-date statuses-ids checked-at model)

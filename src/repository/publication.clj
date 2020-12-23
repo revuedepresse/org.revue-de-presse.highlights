@@ -73,8 +73,7 @@
 (defn bulk-insert-of-publication-props
   [publication-props model status-model]
   (let [identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:legacy_id %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:legacy_id %))))
                            publication-props)
         publication-hashes (doall (pmap :hash identified-props))
         status-ids (doall (pmap :legacy_id identified-props))

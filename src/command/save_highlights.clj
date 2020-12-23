@@ -29,7 +29,7 @@
             retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
                                             (get (get decoded-document "retweeted_status") "created_at")
                                             nil)
-            highlight-props {:id                                (uuid/to-string (uuid/v1))
+            highlight-props {:id                                (uuid/v1)
                              :member-id                         (:member-id document)
                              :status-id                         (:status-id document)
                              :aggregate-id                      (:id aggregate)

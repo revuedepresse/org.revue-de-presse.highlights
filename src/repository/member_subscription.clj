@@ -137,14 +137,14 @@
 (defn create-member-subscription-values
   [member-id]
   (fn [subscription-id]
-    {:id              (uuid/to-string (uuid/v1))
+    {:id              (uuid/v1)
      :member_id       member-id
      :subscription_id subscription-id}))
 
 (defn create-member-subscribee-values
   [member-id]
   (fn [subscribee-id]
-    {:id            (uuid/to-string (uuid/v1))
+    {:id            (uuid/v1)
      :member_id     member-id
      :subscribee_id subscribee-id}))
 
