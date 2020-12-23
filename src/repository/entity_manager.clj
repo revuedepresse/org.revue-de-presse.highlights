@@ -267,7 +267,7 @@
   (let [identified-liked-statuses (map #(assoc
                                           %
                                           :id
-                                          (uuid/to-string (uuid/v1)))
+                                          (uuid/v1))
                                        liked-statuses)
         liked-status-values (map snake-case-keys identified-liked-statuses)
         ids (map #(:id %) identified-liked-statuses)]

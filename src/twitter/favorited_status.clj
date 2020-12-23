@@ -18,7 +18,7 @@
 
 (defn get-favorite-status-ids
   [total-items]
-  (let [id {:id (uuid/to-string (uuid/v1))}]
+  (let [id {:id (uuid/v1)}]
     (take total-items (iterate (constantly id) id))))
 
 (defn get-aggregate-properties
