@@ -4,16 +4,15 @@ jobs:
   build:
     docker:
     - image: circleci/clojure:lein-2.7.1
-    # @see https://discuss.circleci.com/t/how-to-disable-mysql-strict-mode-in-circleci-2/13503
-    - image: mysql:5.7.16
+    - image: circleci/postgres:9.6-alpine
+      auth:
+        username: mydockerhub-user
+        password: $DOCKERHUB_PASSWORD  # context / project UI env-var reference
       environment:
-        MYSQL_ALLOW_EMPTY_PASSWORD: yes
-        MYSQL_DATABASE: test
-        MYSQL_ROOT_PASSWORD: ''
-      command:
-        mysqld --sql-mode=IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+        POSTGRES_USER: circleci-demo-go
+        POSTGRES_DB: circle_test
 
-    working_directory:    ~/press-review-clojure
+    working_directory:    ~/devobs-worker
 
     environment:
       LEIN_ROOT:          "true"
@@ -21,11 +20,6 @@ jobs:
 
     steps:
       - checkout
-
-      - run:
-          name: Install MySQL client
-          command: |
-            sudo apt update && sudo apt install -y mysql-client
 
       - restore_cache:
           keys:
@@ -38,14 +32,20 @@ jobs:
             cp .lein-env.test.dist .lein-env
 
       - run:
-          name: Wait for the database to be up and ready
+          name: Waiting for Postgres to be ready
           command: |
-            dockerize -wait tcp://127.0.0.1:3306 -timeout 120s
+            for i in `seq 1 10`;
+            do
+              nc -z localhost 5432 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for Postgres && exit 1
 
       - run:
           name: Create database
           command: |
-            mysql -uroot -h127.0.0.1 test < ~/press-review-clojure/build/schema.sql
+            # ..... ~/devobs-worker/build/schema.sql
 
       - run:
           name: Install dependencies
