@@ -1,7 +1,5 @@
 # revue-de-presse.org highlights
 
-Refresh daily highlights which can be found in press releases.
-
 ## Dependencies
 
 Install Leiningen by following [the official instructions](https://github.com/technomancy/leiningen)

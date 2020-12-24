@@ -1,4 +1,4 @@
-(defproject review "0.1.0"
+(defproject devobs "0.1.0"
 
   :description "Easing observation of statuses from Twitter lists related to software development"
 
@@ -28,4 +28,4 @@
 
   :resource-paths ["resources"]
 
-  :main review.core)
+  :main devobs.core)

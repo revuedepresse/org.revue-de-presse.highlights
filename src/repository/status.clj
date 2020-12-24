@@ -54,7 +54,19 @@
   (let [values (if values values '(0))
         matching-statuses (-> (select-statuses model)
                               (db/where {column [in values]})
-                              (db/group :ust_status_id)
+                              (db/group :ust_status_id
+                                        :ust_id
+                                        :ust_hash
+                                        :ust_avatar
+                                        :ust_text
+                                        :ust_full_name
+                                        :ust_name
+                                        :ust_access_token
+                                        :ust_api_document
+                                        :ust_created_at
+                                        :ust_status_id
+                                        :ust_status_id
+                                        :is_published)
                               (db/order :ust_created_at "DESC")
                               (db/select))]
     (if matching-statuses
@@ -137,8 +149,8 @@
                 "ust_status_id AS \"twitter-id\"              "
                 "FROM weaving_status                        "
                 "WHERE ust_full_name = ?                    "
-                "AND WEEK(ust_created_at) = ?               "
-                "AND YEAR(ust_created_at) = ?               ")
+                "AND EXTRACT(WEEK FROM ust_created_at) = ?               "
+                "AND EXTRACT(YEAR FROM ust_created_at) = ?               ")
         params [screen-name week year]
         results (db/exec-raw [query params] :results)]
     (if (some? results)
