@@ -18,6 +18,7 @@
             [repository.status-identity :as status-identity]
             [repository.status-popularity :as status-popularity]
             [repository.timely-status :as timely-status]
+            [repository.token :as token]
             [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
@@ -46,19 +47,6 @@
                   :aggregate_id
                   :aggregate_name))
   liked-status)
-
-(defn get-token-model
-  [connection]
-  (db/defentity tokens
-                (db/table :weaving_access_token)
-                (db/database connection)
-                (db/entity-fields
-                  :token
-                  :secret
-                  :consumer_key
-                  :consumer_secret
-                  :frozen_until))
-  tokens)
 
 (defn prepare-connection
   [config & [{is-archive-connection :is-archive-connection
@@ -112,7 +100,8 @@
      :status-popularity     (status-popularity/get-status-popularity-model connection)
      :subscriptions         (member-subscription/get-subscriptions-model connection)
      :timely-status         (timely-status/get-timely-status-model connection)
-     :tokens                (get-token-model connection)
+     :token                 (token/get-token-model connection)
+     :token-type            (token/get-token-type-model connection)
      :users                 (member/get-user-model connection)
      :connection            connection}))
 
@@ -139,6 +128,7 @@
     (log/info (str "There are " (inc total-subscription-ids) " unique subscriptions ids."))
     subscriptions-ids))
 
+; @deprecated until the query has been migrated for compatibility with postgresql
 (defn find-member-subscriptions
   "Find member subscription"
   [screen-name]
@@ -165,25 +155,7 @@
     {:member-subscriptions  subscriptions-ids
      :raw-subscriptions-ids raw-subscriptions-ids}))
 
-;; Create table containing total subscriptions per member
-;
-; CREATE TABLE tmp_subscriptions
-; SELECT u.usr_id,
-; COUNT(DISTINCT s.subscription_id) total_subscriptions
-; FROM member_subscription s, weaving_user u
-; WHERE u.usr_id = s.member_id GROUP BY member_id;
-
-;; Add Index to temporary table
-;
-; ALTER TABLE \"tmp_subscriptions\" ADD INDEX \"id\" (`usr_id`, \"total_subscriptions\");
-
-;; Update member table
-;
-; UPDATE weaving_user u, tmp_subscriptions t
-; SET u.total_subscriptions = t.total_subscriptions
-; WHERE t.usr_id = u.usr_id;
-; DROP table tmp_subscriptions;
-
+; @deprecated until the query has been migrated for compatibility with postgresql
 (defn find-members-closest-to-member-having-screen-name
   [total-subscriptions]
   (let [min-subscriptions (* 0.5 total-subscriptions)
@@ -302,45 +274,6 @@
              (db/set-fields {:max_status_id                max-status-id
                              :last_status_publication_date max-status-publication-date})
              (db/where {:usr_id member-id})))
-
-(defn select-tokens
-  [model]
-  (->
-    (db/select* model)
-    (db/fields [:consumer_key :consumer-key]
-               [:consumer_secret :consumer-secret]
-               [:frozen_until :frozen-until]
-               :token
-               :secret)))
-
-(defn freeze-token
-  [consumer-key]
-  (db/exec-raw [(str "UPDATE weaving_access_token "
-                     "SET frozen_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) "
-                     "WHERE consumer_key = ?") [consumer-key]]))
-
-(defn find-first-available-tokens
-  "Find a token which has not been frozen"
-  [model]
-  (first (-> (select-tokens model)
-             (db/where (and (= :type 1)
-                            (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                            (<= :frozen_until (db/sqlfn now))))
-             (db/select))))
-
-(defn find-first-available-tokens-other-than
-  "Find a token which has not been frozen"
-  [consumer-keys model]
-  (let [excluded-consumer-keys (if consumer-keys consumer-keys '("_"))
-        first-available-token (first (-> (select-tokens model)
-                                         (db/where (and
-                                                     (= :type 1)
-                                                     (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                                                     (not-in :consumer_key excluded-consumer-keys)
-                                                     (<= :frozen_until (db/sqlfn now))))
-                                         (db/order :frozen_until :ASC)
-                                         (db/select)))]
-    first-available-token))
 
 (defn map-get-in
   "Return a map of values matching the provided key coerced to integers"

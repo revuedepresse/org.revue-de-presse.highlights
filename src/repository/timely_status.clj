@@ -107,8 +107,8 @@
                       WHERE ts.aggregate_name = ?
                     ")
          query (if (nil? publication-date)
-                 (str base-query "AND NOW()::date <= ts.publication_date_time::timestamp::date ")
-                 (str base-query "AND CAST(? AS DATE) = ts.publication_date_time::timestamp::date "))
+                 (str base-query "AND NOW()::timestamp <= ts.publication_date_time::timestamp ")
+                 (str base-query "AND CAST(? AS timestamp) = ts.publication_date_time::timestamp "))
          params (if (nil? publication-date)
                   [aggregate-name]
                   [aggregate-name publication-date])
@@ -255,11 +255,11 @@
                    a.name AS aggregate_name,
                    s.ust_created_at AS publication_date_time,
                    CASE
-                   WHEN s.ust_created_at > NOW() - '5 MINUTES'::INTERVAL THEN 0
-                   WHEN s.ust_created_at > NOW() - '10 MINUTES'::INTERVAL THEN 1
-                   WHEN s.ust_created_at > NOW() - '30 MINUTES'::INTERVAL THEN 2
-                   WHEN s.ust_created_at > NOW() - '1 DAY'::INTERVAL THEN 3
-                   WHEN s.ust_created_at > NOW() - '1 WEEK'::INTERVAL THEN 4
+                   WHEN s.ust_created_at > NOW()::timestamp - '5 MINUTES'::INTERVAL THEN 0
+                   WHEN s.ust_created_at > NOW()::timestamp - '10 MINUTES'::INTERVAL THEN 1
+                   WHEN s.ust_created_at > NOW()::timestamp - '30 MINUTES'::INTERVAL THEN 2
+                   WHEN s.ust_created_at > NOW()::timestamp - '1 DAY'::INTERVAL THEN 3
+                   WHEN s.ust_created_at > NOW()::timestamp - '1 WEEK'::INTERVAL THEN 4
                    ELSE 5
                    END AS time_range
                    FROM weaving_aggregate AS a
