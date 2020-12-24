@@ -2,25 +2,25 @@
   :database {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "snapshots_test"
-    :user           "circleci-demo-go"
-    :password       "circle_test"
+    :name           "devobs_worker_test"
+    :user           "devobs_worker"
+    :password       "__password__"
     :port           "5432"
   }
   :database-read {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "snapshots_test"
-    :user           "circleci-demo-go"
-    :password       "circle_test"
+    :name           "devobs_worker_test"
+    :user           "devobs_worker"
+    :password       "__password__"
     :port           "5432"
   }
   :database-archive {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "snapshots_test"
-    :user           "circleci-demo-go"
-    :password       "circle_test"
+    :name           "devobs_worker_test"
+    :user           "devobs_worker"
+    :password       "__password__"
     :port           "5432"
   }
   :rabbitmq {

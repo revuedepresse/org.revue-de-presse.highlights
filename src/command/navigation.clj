@@ -25,7 +25,7 @@
       (keys (ns-publics namespace)))
     (filter
       #(meta-pred
-         (get-meta-for-command-in-namespace % "review.core")))
+         (get-meta-for-command-in-namespace % "devobs.core")))
     (sort)
     (map-indexed
       #(let [cmd-name (string/replace %2 prefix "")
@@ -196,7 +196,7 @@
   (let [command (:name (nth
                          ns-commands
                          (dec index)))
-        f (resolve (symbol (str "review.core/command-" command)))]
+        f (resolve (symbol (str "devobs.core/command-" command)))]
     (cond
       (and
         (has-requirements? f)
@@ -213,7 +213,7 @@
 (defn find-ns-symbols-without-args
   []
   (find-ns-symbols-having-prefix
-    'review.core
+    'devobs.core
     "command-"
     #(zero?
        (count
@@ -229,7 +229,7 @@
 (defn find-ns-symbols-requiring
   [provided-args]
   (find-ns-symbols-having-prefix
-    'review.core
+    'devobs.core
     "command-"
     #(are-requirements-fulfilled? (set (:requires %)) (set provided-args))))
 

@@ -56,8 +56,8 @@
                 INNER JOIN weaving_status s
                 ON (
                   sa.status_id = s.ust_id
-                  AND WEEK(s.ust_created_at) = ?
-                  AND YEAR(s.ust_created_at) = ?
+                  AND EXTRACT(WEEK FROM s.ust_created_at) = ?
+                  AND EXTRACT(YEAR FROM s.ust_created_at) = ?
                   AND a.screen_name = s.ust_full_name
                   AND s.ust_status_id " (get-collation) " NOT IN (
                     SELECT twitter_id FROM status_identity
@@ -85,8 +85,8 @@
                 ON sa.aggregate_id = a.id
                 INNER JOIN weaving_status s
                 ON (
-                    WEEK(s.ust_created_at) = ?
-                    AND YEAR(s.ust_created_at) = ?
+                    EXTRACT (WEEK FROM s.ust_created_at) = ?
+                    AND EXTRACT(YEAR FROM s.ust_created_at) = ?
                     AND sa.status_id = s.ust_id
                     AND a.screen_name = s.ust_full_name
                     AND s.ust_status_id " (get-collation) " NOT IN (
@@ -125,8 +125,8 @@
   [aggregate-id db]
   (let [query (str "
                 SELECT
-                YEAR(s.ust_created_at) as \"since-year\",
-                WEEK(s.ust_created_at) as \"since-week\",
+                EXTRACT(YEAR FROM s.ust_created_at) as \"since-year\",
+                EXTRACT(WEEK FROM s.ust_created_at) as \"since-week\",
                 s.ust_id as \"status-id\"
                 FROM weaving_status_aggregate sa
                 INNER JOIN weaving_aggregate a

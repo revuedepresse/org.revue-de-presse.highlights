@@ -1,6 +1,6 @@
 # DevObs
 
-[![CircleCI](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure.svg?style=svg)](https://circleci.com/gh/thierrymarianne/devobs-workers)
+[![CircleCI](https://circleci.com/gh/thierrymarianne/devobs-worker.svg?style=svg)](https://circleci.com/gh/thierrymarianne/devobs-worker)
 
 Easing observation of statuses from Twitter lists related to software development
 

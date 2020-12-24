@@ -49,14 +49,15 @@
                                        "AND a.id = ? "
                                        "")
          restriction-by-week (if publication-week
-                               "AND WEEK(s.ust_created_at) = ?"
+                               "AND EXTRACT(WEEK FROM s.ust_created_at) = ?"
                                "")
          query (str
                  "SELECT                                           "
-                 "COUNT(*) \"total-timely-statuses\",                "
-                 "IF (COUNT(*) > 0,                                "
-                 "    GROUP_CONCAT(s.ust_id),                      "
-                 "    \"\") \"statuses-ids\"                         "
+                 "COUNT(*) \"total-timely-statuses\",              "
+                 "COALESCE(                                        "
+                 "  array_to_string(array_agg(s.ust_id), ','),     "
+                 "  ''                                             "
+                 ") \"statuses-ids\"                               "
                  "FROM " table-name " s                            "
                  "INNER JOIN " join-table-name " sa                "
                  "ON sa.status_id = s.ust_id                       "
@@ -69,7 +70,7 @@
                  "  SELECT status_id, aggregate_id                 "
                  "  FROM timely_status                             "
                  ")                                                "
-                 "AND YEAR(s.ust_created_at) = ?                   "
+                 "AND EXTRACT(YEAR FROM s.ust_created_at) = ?                   "
                  restriction-by-aggregate-id
                  restriction-by-week)
          params [aggregate-name publication-year]
