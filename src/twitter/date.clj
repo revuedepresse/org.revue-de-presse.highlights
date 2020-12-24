@@ -6,14 +6,14 @@
   (:import java.util.Locale))
 
 (def date-formatter (f/with-locale (f/formatter "EEE MMM dd HH:mm:ss Z yyyy") Locale/ENGLISH))
-(def mysql-date-formatter (f/formatters :mysql))
+(def db-date-formatter (f/with-locale (f/formatter "EEE, dd MMM yyyy HH:mm:ss Z") Locale/ROOT))
 (def date-hour-formatter (f/formatters :date-hour))
 
 (defn get-date-properties
   [date]
   (let [parsed-publication-date (c/to-long (f/parse date-formatter date))]
     {:parsed-publication-date parsed-publication-date
-     :mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))}))
+     :mysql-formatted-publication-date (f/unparse db-date-formatter (c/from-long parsed-publication-date))}))
 
 (defn get-status-formatted-dates
   [status]

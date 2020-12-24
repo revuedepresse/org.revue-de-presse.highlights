@@ -17,7 +17,7 @@
 (defn assoc-publication-date
   [props]
   (let [mysql-formatted-publication-date (f/unparse
-                                           mysql-date-formatter
+                                           db-date-formatter
                                            (c/from-long (:publication-date-time props)))
         props-without-publication-date (dissoc props :publication-date-time)
         props-having-publication-date (assoc props-without-publication-date :publication-date-time mysql-formatted-publication-date)]

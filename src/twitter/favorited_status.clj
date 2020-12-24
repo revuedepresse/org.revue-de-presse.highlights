@@ -23,7 +23,7 @@
 
 (defn get-aggregate-properties
   [aggregate total-items]
-  (let [aggregate-properties {:aggregate-id (:id aggregate)
+  (let [aggregate-properties {:aggregate-id   (:id aggregate)
                               :aggregate-name (:name aggregate)}]
     (take total-items (iterate (constantly aggregate-properties) aggregate-properties))))
 
@@ -34,13 +34,13 @@
 
 (defn get-favorite-author-properties
   [favorite-author total-items]
-  (let [favorite-author-properties {:liked-by (:id favorite-author)
+  (let [favorite-author-properties {:liked-by             (:id favorite-author)
                                     :liked-by-member-name (:screen-name favorite-author)}]
     (take total-items (iterate (constantly favorite-author-properties) favorite-author-properties))))
 
 (defn get-favorited-status-author-properties
   [favorited-status-author]
-  (let [favorited-status-author-properties {:member-id (:id favorited-status-author)
+  (let [favorited-status-author-properties {:member-id   (:id favorited-status-author)
                                             :member-name (:screen-name favorited-status-author)}]
     favorited-status-author-properties))
 
@@ -88,12 +88,12 @@
           total-favorited-status-author-properties
           total-status-ids
           total-aggregate-properties)
-      {:columns {:id-col id-col
-                 :publication-date-cols publication-date-cols
-                 :aggregate-cols aggregate-cols
-                 :archive-col archive-col
-                 :favorited-status-col favorited-status-col
-                 :favorite-author-cols favorite-author-cols
+      {:columns {:id-col                       id-col
+                 :publication-date-cols        publication-date-cols
+                 :aggregate-cols               aggregate-cols
+                 :archive-col                  archive-col
+                 :favorited-status-col         favorited-status-col
+                 :favorite-author-cols         favorite-author-cols
                  :favorited-status-author-cols favorited-status-author-cols}}
       (throw (Exception. (str error-message))))))
 
@@ -107,29 +107,29 @@
    favorite-author-cols]
   (let [parsed-publication-date (:parsed-publication-date publication-date-cols)
         publication-date-time (:mysql-formatted-publication-date publication-date-cols)]
-    {:id (:id id-col)
-     :time-range (get-time-range parsed-publication-date)
+    {:id                    (:id id-col)
+     :time-range            (get-time-range parsed-publication-date)
      :publication-date-time publication-date-time
-     :is-archived-status (:is-archived-status archive-cols)
-     :aggregate-id (:aggregate-id aggregate-cols)
-     :aggregate-name (:aggregate-name aggregate-cols)
-     :status-id (:status-id favorited-status-col)
-     :liked-by (:liked-by favorite-author-cols)
-     :liked-by-member-name (:liked-by-member-name favorite-author-cols)
-     :member-id (:member-id favorited-status-author-cols)
-     :member-name (:member-name favorited-status-author-cols)}))
+     :is-archived-status    (:is-archived-status archive-cols)
+     :aggregate-id          (:aggregate-id aggregate-cols)
+     :aggregate-name        (:aggregate-name aggregate-cols)
+     :status-id             (:status-id favorited-status-col)
+     :liked-by              (:liked-by favorite-author-cols)
+     :liked-by-member-name  (:liked-by-member-name favorite-author-cols)
+     :member-id             (:member-id favorited-status-author-cols)
+     :member-name           (:member-name favorited-status-author-cols)}))
 
 (defn assoc-properties-of-non-empty-favorited-statuses
   [aggregate favorite-author favorites member-model status-model error-message]
   (let [total-favorites (count favorites)]
     (if (pos? total-favorites)
       (do
-        (let [{{id-col :id-col
-                publication-date-cols :publication-date-cols
-                aggregate-cols :aggregate-cols
-                archive-col :archive-col
-                favorited-status-col :favorited-status-col
-                favorite-author-cols :favorite-author-cols
+        (let [{{id-col                       :id-col
+                publication-date-cols        :publication-date-cols
+                aggregate-cols               :aggregate-cols
+                archive-col                  :archive-col
+                favorited-status-col         :favorited-status-col
+                favorite-author-cols         :favorite-author-cols
                 favorited-status-author-cols :favorited-status-author-cols}
                :columns} (assoc-properties-of-favorited-statuses favorites
                                                                  total-favorites
@@ -152,10 +152,11 @@
 
 (defn process-favorites
   [member favorites aggregate {liked-status-model :liked-status
-                               member-model :members
-                               status-model :status
-                               token-model :tokens} error-message]
-  (let [_ (preprocess-statuses favorites status-model member-model token-model)
+                               member-model       :members
+                               status-model       :status
+                               token-model        :token
+                               token-type-model   :token-type} error-message]
+  (let [_ (preprocess-statuses favorites status-model member-model token-model token-type-model)
         favorited-statuses-values (assoc-properties-of-non-empty-favorited-statuses
                                     aggregate
                                     member
@@ -164,4 +165,4 @@
                                     status-model
                                     error-message)
         new-favorites (new-liked-statuses favorited-statuses-values liked-status-model status-model)]
-    (log/info (str "There are " (count new-favorites ) " new favorites"))))
+    (log/info (str "There are " (count new-favorites) " new favorites"))))

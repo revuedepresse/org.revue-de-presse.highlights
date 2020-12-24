@@ -46,7 +46,7 @@
   (let [document (json/write-str status)
         token (:token @next-token)
         parsed-publication-date (c/to-long (f/parse date-formatter created-at))
-        mysql-formatted-publication-date (f/unparse mysql-date-formatter (c/from-long parsed-publication-date))
+        mysql-formatted-publication-date (f/unparse db-date-formatter (c/from-long parsed-publication-date))
         twitter-status {:text         text
                         :full-name    screen-name
                         :avatar       avatar
@@ -102,9 +102,9 @@
       (ensure-statuses-exist remaining-favorites model))))
 
 (defn preprocess-statuses
-  [statuses status-model member-model token-model]
+  [statuses status-model member-model token-model token-type-model]
   (when (pos? (count statuses))
-    (process-authors-of-statuses statuses member-model token-model)
+    (process-authors-of-statuses statuses member-model token-model token-type-model)
     (process-statuses statuses status-model)))
 
 (defn get-author-by-id
@@ -184,10 +184,11 @@
   "Ensure statuses and their authors are cached"
   [statuses screen-name aggregate {member-model           :members
                                    status-model           :status
-                                   token-model            :tokens
+                                   token-model            :token
+                                   token-type-model       :token-type
                                    status-aggregate-model :status-aggregate}]
   (if (pos? (count statuses))
-    (let [new-statuses (preprocess-statuses statuses status-model member-model token-model)
+    (let [new-statuses (preprocess-statuses statuses status-model member-model token-model token-type-model)
           {total-new-relationships :total-new-relationships
            new-relationships       :new-relationships} (new-relationships
                                                          aggregate
@@ -205,9 +206,9 @@
     '()))
 
 (defn fetch-statuses
-  [statuses tokens]
-  (let [_ (find-next-token tokens "statuses/show/:id" "trying to call \"statuses/show\" with an id")
-        remaining-calls (how-many-remaining-calls-for-statuses tokens)
+  [statuses token token-type]
+  (let [_ (find-next-token token token-type "statuses/show/:id" "trying to call \"statuses/show\" with an id")
+        remaining-calls (how-many-remaining-calls-for-statuses token token-type)
         filtered-statuses (remove #(nil? (:status-id %)) statuses)
         total-statuses (count filtered-statuses)]
 
@@ -219,5 +220,5 @@
       (and
         (not (nil? remaining-calls))
         (< total-statuses remaining-calls))
-      (doall (pmap #(get-status-by-id % tokens) filtered-statuses))
-      (doall (map #(get-status-by-id % tokens) filtered-statuses)))))
+      (doall (pmap #(get-status-by-id % token token-type) filtered-statuses))
+      (doall (map #(get-status-by-id % token token-type) filtered-statuses)))))

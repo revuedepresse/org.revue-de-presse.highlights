@@ -38,7 +38,7 @@
                              :publication-date-time             (:publication-date-time document)
                              :retweeted-status-publication-date (if (some? retweet-publication-date-time)
                                                                   (f/unparse
-                                                                    mysql-date-formatter
+                                                                    db-date-formatter
                                                                     (c/from-long
                                                                       (c/to-long
                                                                         (f/parse date-formatter retweet-publication-date-time))))
@@ -55,9 +55,10 @@
 
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
-                          tokens            :tokens}]
+                          token             :token
+                          token-type        :token-type}]
   (let [filtered-highlights (remove #(nil? %) highlights)
-        statuses (fetch-statuses filtered-highlights tokens)
+        statuses (fetch-statuses filtered-highlights token token-type)
         statuses (remove #(nil? %) statuses)
         status-popularity-props (doall
                                   (pmap
@@ -79,10 +80,8 @@
    (record-popularity-of-highlights date (:main (edn/read-string (:aggregate env)))))
   ([date aggregate-name]
    (let [models (get-entity-manager (:database env))
-         checked-at (f/unparse mysql-date-formatter
-                               (c/from-long
-                                 (c/to-long
-                                   (f/unparse date-hour-formatter (l/local-now)))))
+         checked-at (c/to-timestamp
+                      (f/unparse date-hour-formatter (l/local-now)))
          pad (take 300 (iterate (constantly nil) nil))
          highlights (find-highlights-for-aggregate-published-at date aggregate-name)
          highlights-partitions (partition 300 300 (vector pad) highlights)
@@ -152,9 +151,9 @@
                          (:main (edn/read-string (:aggregate env))))
         aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
         statuses-ids (doall
-                        (map
-                           :status-id
-                           (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date)))
+                       (map
+                         :status-id
+                         (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date)))
         ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
         ; about the effect of passing step and pad arguments
         pad (take 100 (iterate (constantly nil) nil))

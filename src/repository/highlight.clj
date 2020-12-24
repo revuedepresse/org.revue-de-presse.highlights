@@ -68,7 +68,7 @@
                 "AND t.aggregate_name = ?                         "
                 "INNER JOIN weaving_status s                      "
                 "ON s.ust_id = h.status_id                        "
-                "AND h.publication_date_time::timestamp::date = CAST(\"" date "\" AS DATE)")
+                "AND h.publication_date_time::date = CAST('" date "' AS DATE)")
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 
@@ -95,14 +95,14 @@
                    ON s.ust_id = h.status_id
                    AND h.aggregate_name not like 'user ::%'
                    AND h.total_retweets > 0
-                   AND h.publication_date_time::timestamp::date > NOW() - '1 MONTH'::INTERVAL)
+                   AND h.publication_date_time::timestamp > NOW()::timestamp - '1 MONTH'::INTERVAL)
                    INNER JOIN member_identity m
                    ON m.member_id = h.member_id
                    WHERE h.id IN (
                        SELECT highlights_by_aggregate.id FROM (
                            SELECT id, MAX(total_retweets), aggregate_name
                            FROM highlight
-                           WHERE publication_date_time::timestamp::date > NOW() - '1 MONTH'::INTERVAL)
+                           WHERE publication_date_time::timestamp > NOW()::timestamp - '1 MONTH'::INTERVAL)
                            GROUP BY aggregate_name
                       ) highlights_by_aggregate
                    )
@@ -184,7 +184,7 @@
                               (str
                                 "AND EXTRACT(WEEK FROM h.publication_date_time) = ? "
                                 "AND EXTRACT(YEAR FROM h.publication_date_time) = ? ")
-                              (str "AND h.publication_date_time::timestamp::date = CAST(\"" date "\" AS DATE)"))
+                              (str "AND h.publication_date_time::date = CAST('" date "' AS DATE)"))
         query (str
                 "SELECT                                           "
                 "h.id                                             "
