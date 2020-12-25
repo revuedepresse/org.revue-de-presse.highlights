@@ -37,11 +37,9 @@
                              :is-retweet                        (some? (get decoded-document "retweeted_status"))
                              :publication-date-time             (:publication-date-time document)
                              :retweeted-status-publication-date (if (some? retweet-publication-date-time)
-                                                                  (f/unparse
-                                                                    db-date-formatter
-                                                                    (c/from-long
-                                                                      (c/to-long
-                                                                        (f/parse date-formatter retweet-publication-date-time))))
+                                                                  (c/to-timestamp
+                                                                    (c/to-long
+                                                                      (f/parse date-formatter retweet-publication-date-time)))
                                                                   nil)
                              :total-retweets                    (get decoded-document "retweet_count")
                              :total-favorites                   (get decoded-document "favorite_count")}]

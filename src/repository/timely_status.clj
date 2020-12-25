@@ -107,8 +107,8 @@
                       WHERE ts.aggregate_name = ?
                     ")
          query (if (nil? publication-date)
-                 (str base-query "AND NOW()::timestamp <= ts.publication_date_time::timestamp ")
-                 (str base-query "AND CAST(? AS timestamp) = ts.publication_date_time::timestamp "))
+                 (str base-query "AND NOW()::date <= ts.publication_date_time::date ")
+                 (str base-query "AND CAST(? AS date) = ts.publication_date_time::date "))
          params (if (nil? publication-date)
                   [aggregate-name]
                   [aggregate-name publication-date])

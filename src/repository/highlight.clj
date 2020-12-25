@@ -95,14 +95,14 @@
                    ON s.ust_id = h.status_id
                    AND h.aggregate_name not like 'user ::%'
                    AND h.total_retweets > 0
-                   AND h.publication_date_time::timestamp > NOW()::timestamp - '1 MONTH'::INTERVAL)
+                   AND h.publication_date_time::date > NOW()::date - '1 MONTH'::INTERVAL)
                    INNER JOIN member_identity m
                    ON m.member_id = h.member_id
                    WHERE h.id IN (
                        SELECT highlights_by_aggregate.id FROM (
                            SELECT id, MAX(total_retweets), aggregate_name
                            FROM highlight
-                           WHERE publication_date_time::timestamp > NOW()::timestamp - '1 MONTH'::INTERVAL)
+                           WHERE publication_date_time::date > NOW()::date - '1 MONTH'::INTERVAL)
                            GROUP BY aggregate_name
                       ) highlights_by_aggregate
                    )
