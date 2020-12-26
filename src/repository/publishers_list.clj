@@ -1,4 +1,4 @@
-(ns repository.aggregate
+(ns repository.publishers-list
   (:require [korma.core :as db]
             [utils.error-handler :as error-handler])
   (:use [korma.db]
@@ -12,10 +12,11 @@
 (defn get-aggregate-model
   [connection]
   (db/defentity aggregate
-                (db/table :weaving_aggregate)
+                (db/table :publishers_list)
                 (db/database connection)
                 (db/entity-fields
                   :id
+                  :public_id
                   :name
                   :created_at
                   :locked
@@ -56,6 +57,7 @@
     (db/select* model)
     (db/fields :id
                :name
+               [:public_id :public-id]
                [:screen_name :screen-name])
     (db/where {:id id})
     (db/select)))
@@ -73,6 +75,7 @@
        (db/select* model)
        (db/fields :id
                   :name
+                  [:public_id :public-id]
                   [:screen_name :screen-name])
        (db/where where)
        (db/select)))))
@@ -93,8 +96,9 @@
   (let [query (str "
                 SELECT
                 DISTINCT name as \"aggregate-name\",
+                public_id as \"public-id\",
                 id as \"aggregate-id\"
-                FROM weaving_aggregate
+                FROM publishers_list
                 WHERE screen_name IS NULL
                 AND name NOT LIKE 'user ::%'
                 ORDER BY name ASC")
@@ -107,8 +111,9 @@
   (let [query (str "
                 SELECT
                 DISTINCT name as \"aggregate-name\",
+                public_id as \"public-id\",
                 id as \"aggregate-id\"
-                FROM weaving_aggregate
+                FROM publishers_list
                 WHERE screen_name IS NOT NULL
                 AND name NOT LIKE 'user ::%'
                 AND screen_name = ?
@@ -122,8 +127,9 @@
   (let [query (str "
                 SELECT
                 a.id as \"aggregate-id\",
+                a.public_id as \"public-id\",
                 a.name as \"aggregate-name\"
-                FROM weaving_aggregate a
+                FROM publishers_list a
                 WHERE name NOT LIKE 'user ::%'
                 AND screen_name IS NULL
                 AND name IN (SELECT DISTINCT aggregate_name FROM keyword)
@@ -140,8 +146,9 @@
                 a.list_id as \"aggregate-twitter-id\",
                 mi.twitter_id as \"member-twitter-id\",
                 mi.member_id as \"member-id\",
-                a.name as \"aggregate-name\"
-                FROM weaving_aggregate a
+                a.name as \"aggregate-name\",
+                a.public_id as \"aggregate-public-id\"
+                FROM publishers_list a
                 INNER JOIN member_identity mi
                 ON mi.screen_name = a.screen_name
                 WHERE a.screen_name IS NOT NULL
@@ -226,27 +233,28 @@
 (defn get-member-aggregates-by-screen-name
   [screen-name]
   (let [query (str
-                "SELECT                                                                      "
+                "SELECT                                                                        "
                 "aggregate.id \"aggregate-id\",                                                "
                 "aggregate.name \"aggregate-name\",                                            "
+                "aggregate.public_id \"aggregate-public-id\",                                  "
                 "aggregate.screen_name as \"member-name\",                                     "
                 "aggregate.screen_name as \"screen-name\",                                     "
                 "subscription.last_status_publication_date as \"last-status-publication-date\" "
-                "FROM member_subscription member_subscription,                               "
-                "weaving_user member,                                                        "
-                "weaving_user subscription,                                                  "
-                "weaving_aggregate aggregate                                                 "
-                "WHERE aggregate.screen_name = subscription.usr_twitter_username             "
-                "AND aggregate.name like 'user :: %'                                         "
-                "AND aggregate.screen_name IS NOT NULL                                       "
-                "AND member_subscription.member_id = member.usr_id                           "
-                "AND member_subscription.subscription_id = subscription.usr_id               "
-                "AND subscription.suspended = 0                                              "
-                "AND subscription.not_found = 0                                              "
-                "AND subscription.protected = 0                                              "
-                "AND member_subscription.has_been_cancelled = 0                              "
-                "AND member.usr_twitter_username = ?                                         "
-                "ORDER BY aggregate.name ASC                                                 ")
+                "FROM member_subscription member_subscription,                                 "
+                "weaving_user member,                                                          "
+                "weaving_user subscription,                                                    "
+                "publishers_list aggregate                                                     "
+                "WHERE aggregate.screen_name = subscription.usr_twitter_username               "
+                "AND aggregate.name like 'user :: %'                                           "
+                "AND aggregate.screen_name IS NOT NULL                                         "
+                "AND member_subscription.member_id = member.usr_id                             "
+                "AND member_subscription.subscription_id = subscription.usr_id                 "
+                "AND subscription.suspended = 0                                                "
+                "AND subscription.not_found = 0                                                "
+                "AND subscription.protected = 0                                                "
+                "AND member_subscription.has_been_cancelled = 0                                "
+                "AND member.usr_twitter_username = ?                                           "
+                "ORDER BY aggregate.name ASC                                                   ")
         results (db/exec-raw [query [screen-name]] :results)]
     results))
 
@@ -259,9 +267,10 @@
       member.usr_twitter_username as \"member-name\",
       a.id as \"aggregate-id\",
       a.name as \"aggregate-name\",
+      a.public_id as \"aggregate-public-id\",
       member.last_status_publication_date as \"last-status-publication-date\"
       FROM member_aggregate_subscription msub
-      INNER JOIN weaving_aggregate a
+      INNER JOIN publishers_list a
       ON list_name = name
       " additional-constraints "
       INNER JOIN aggregate_subscription asub
@@ -292,10 +301,11 @@
   (let [query (str "
                 SELECT
                 aggregate.id \"aggregate-id\",
+                aggregate.public_id \"aggregate-public-id\",
                 aggregate.name \"aggregate-name\"
                 FROM
                 weaving_user member,
-                weaving_aggregate aggregate
+                publishers_list aggregate
                 WHERE
                 member.usr_twitter_username = aggregate.screen_name " (get-collation) "
                 AND aggregate.screen_name IS NOT NULL
@@ -313,8 +323,9 @@
                 SELECT
                 id as \"aggregate-id\",
                 name as \"aggregate-name\",
+                public_id as \"aggregate-public-id\",
                 screen_name as \"screen-name\"
-                FROM weaving_aggregate a
+                FROM publishers_list a
                 WHERE
                 a.name = ?
                 AND a.list_id IS NOT NULL

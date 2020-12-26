@@ -3,7 +3,7 @@
             [clojure.edn :as edn]
             [environ.core :refer [env]])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.status]
         [repository.timely-status]
         [twitter.status]

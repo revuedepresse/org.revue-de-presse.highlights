@@ -2,7 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [clj-time.format :as f])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.member]
         [amqp.handling-errors]
         [twitter.api-client]

@@ -5,7 +5,7 @@
             [clojure.tools.logging :as log])
   (:use [korma.db]
         [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.member]
         [repository.status]
         [twitter.api-client]

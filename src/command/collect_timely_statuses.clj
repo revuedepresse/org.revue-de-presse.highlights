@@ -8,7 +8,7 @@
     [amqp.handling-errors]
     [amqp.status-handler]
     [repository.entity-manager]
-    [repository.aggregate]
+    [repository.publishers-list]
     [repository.member]
     [repository.status]
     [repository.timely-status]

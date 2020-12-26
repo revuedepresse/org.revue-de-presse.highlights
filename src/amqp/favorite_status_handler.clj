@@ -1,7 +1,7 @@
 (ns amqp.favorite-status-handler
   (:require [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.member]
         [amqp.handling-errors]
         [twitter.api-client]
