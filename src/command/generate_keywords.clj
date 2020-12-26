@@ -6,7 +6,7 @@
             [utils.error-handler :as error-handler])
   (:use [adaptor.database-navigation]
         [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.highlight]
         [repository.timely-status]
         [repository.keyword]

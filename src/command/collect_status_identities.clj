@@ -10,7 +10,7 @@
     [repository.status-identity :as status-identity]
     [utils.error-handler :as error-handler])
   (:use
-    [repository.aggregate]
+    [repository.publishers-list]
     [twitter.date]
     [repository.entity-manager]))
 

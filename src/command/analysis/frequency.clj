@@ -8,7 +8,7 @@
             [utils.error-handler :as error-handler])
   (:use [twitter.date]
         [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.analysis.publication-frequency]
         [repository.analysis.sample]
         [repository.member]

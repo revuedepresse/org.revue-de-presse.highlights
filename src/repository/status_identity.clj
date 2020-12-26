@@ -51,7 +51,7 @@
                 s.ust_created_at AS \"publication-date-time\",
                 s.ust_id AS \"status-id\"
                 FROM weaving_status_aggregate sa
-                INNER JOIN weaving_aggregate a
+                INNER JOIN publishers_list a
                 ON sa.aggregate_id = a.id
                 INNER JOIN weaving_status s
                 ON (
@@ -81,7 +81,7 @@
                 SELECT
                 COUNT(*) AS \"total-statuses\"
                 FROM weaving_status_aggregate sa
-                INNER JOIN weaving_aggregate a
+                INNER JOIN publishers_list a
                 ON sa.aggregate_id = a.id
                 INNER JOIN weaving_status s
                 ON (
@@ -129,7 +129,7 @@
                 EXTRACT(WEEK FROM s.ust_created_at) as \"since-week\",
                 s.ust_id as \"status-id\"
                 FROM weaving_status_aggregate sa
-                INNER JOIN weaving_aggregate a
+                INNER JOIN publishers_list a
                 ON sa.aggregate_id = a.id
                 INNER JOIN weaving_status s
                 ON sa.status_id = s.ust_id
@@ -138,7 +138,7 @@
                 AND s.ust_created_at IN (
                     SELECT MIN(s.ust_created_at)
                     FROM weaving_status_aggregate sa
-                    INNER JOIN weaving_aggregate a
+                    INNER JOIN publishers_list a
                     ON sa.aggregate_id = a.id
                     INNER JOIN weaving_status s
                     ON (

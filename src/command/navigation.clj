@@ -8,7 +8,7 @@
         [repository.keyword]
         [repository.status]
         [repository.status-aggregate]
-        [repository.aggregate]))
+        [repository.publishers-list]))
 
 (defn get-meta-for-command-in-namespace
   [command namespace]

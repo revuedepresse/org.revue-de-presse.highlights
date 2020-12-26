@@ -3,7 +3,7 @@
             [clojure.edn :as edn]
             [clojure.tools.logging :as log]
             [clj-uuid :as uuid]
-            [repository.aggregate :as aggregate]
+            [repository.publishers-list :as publishers-list]
             [repository.analysis.sample :as sample]
             [repository.analysis.publication-frequency :as publication-frequency]
             [repository.archived-status :as archived-status]
@@ -79,7 +79,7 @@
               is-read-connection    :is-read-connection}]]
   (let [connection (prepare-connection config {:is-archive-connection is-archive-connection
                                                :is-read-connection    is-read-connection})]
-    {:aggregate             (aggregate/get-aggregate-model connection)
+    {:aggregate             (publishers-list/get-aggregate-model connection)
      :archived-status       (archived-status/get-archived-status-model connection)
      :highlight             (highlight/get-highlight-model connection)
      :hashtag               (keyword/get-keyword-model connection)

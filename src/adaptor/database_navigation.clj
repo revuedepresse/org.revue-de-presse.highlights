@@ -1,7 +1,7 @@
 (ns adaptor.database-navigation
   (:require [environ.core :refer [env]])
   (:use [formatting.formatter]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.database-schema]
         [repository.entity-manager]
         [repository.keyword]

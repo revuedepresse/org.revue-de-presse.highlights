@@ -10,7 +10,7 @@
             [clj-time.format :as f]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.highlight]
         [repository.status-popularity]
         [repository.timely-status]

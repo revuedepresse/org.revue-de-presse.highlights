@@ -61,7 +61,7 @@
                  "FROM " table-name " s                            "
                  "INNER JOIN " join-table-name " sa                "
                  "ON sa.status_id = s.ust_id                       "
-                 "INNER JOIN weaving_aggregate a                   "
+                 "INNER JOIN publishers_list a                   "
                  "ON (a.id = sa.aggregate_id                       "
                  "AND a.screen_name = s.ust_full_name              "
                  "AND a.name = ?)                                  "
@@ -262,7 +262,7 @@
                    WHEN s.ust_created_at > NOW()::timestamp - '1 WEEK'::INTERVAL THEN 4
                    ELSE 5
                    END AS time_range
-                   FROM weaving_aggregate AS a
+                   FROM publishers_list AS a
                    INNER JOIN weaving_status_aggregate sa
                    ON sa.aggregate_id = a.id
                    INNER JOIN weaving_status AS s
