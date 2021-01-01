@@ -18,7 +18,7 @@
 
 (def ^:dynamic *api-client-enabled-logging* false)
 
-(def current-consumer-key (atom nil))
+(def current-access-token (atom nil))
 (def next-token (atom nil))
 
 (def call-limits (atom {}))
@@ -55,18 +55,18 @@
 
 (defn set-next-token
   "Set the next token by swapping the value of an atom
-  and declare the current consumer key related to this token"
+  and declare the current access token related to this token"
   [token context]
   (let [token-candidate token
-        consumer-key (:consumer-key token)]
+        token (:token token)]
     (swap! next-token (constantly token-candidate))         ; @see https://clojuredocs.org/clojure.core/constantly
-    (swap! current-consumer-key (constantly consumer-key))
+    (swap! current-access-token (constantly token))
     (when *api-client-enabled-logging*
-      (log/info (str "The next consumer key issued from " context " is about to be \"" (:consumer-key token) "\"")))
+      (log/info (str "The next access token issued from " context " is about to be \"" (:token token) "\"")))
     @next-token))
 
-(defn consumer-keys-of-frozen-tokens
-  "Return consumer keys of tokens which are frozen."
+(defn frozen-access-tokens
+  "Return access tokens which are frozen."
   []
   (let [now (l/local-now)]
     (if (nil? @frozen-tokens)
@@ -90,13 +90,13 @@
 
 (defn find-first-available-token-when
   [endpoint context token-model token-type-model]
-  (let [excluded-consumer-key @current-consumer-key
-        excluded-consumer-keys (consumer-keys-of-frozen-tokens)
-        token-candidate (find-first-available-tokens-other-than excluded-consumer-keys token-model token-type-model)
+  (let [excluded-access-token @current-access-token
+        excluded-access-tokens (frozen-access-tokens)
+        token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
         selected-token (find-token endpoint token-candidate context token-model token-type-model)]
     (when *api-client-enabled-logging*
-      (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
-                     (:consumer-key selected-token) "\" when " context)))
+      (log/info (str "About to replace access token \"" excluded-access-token "\" with \""
+                     (:token selected-token) "\" when " context)))
     selected-token))
 
 (defn format-date
@@ -106,7 +106,7 @@
 
 (defn is-token-candidate-frozen
   [token]
-  (let [unfrozen-at (get @frozen-tokens (keyword (:consumer-key token)))
+  (let [unfrozen-at (get @frozen-tokens (keyword (:token token)))
         now (l/local-now)
         formatted-now (format-date now)
         it-is-not (and
@@ -118,7 +118,7 @@
             *api-client-enabled-logging*
             (not (nil? unfrozen-at)))
       (log/info (str "Now being \"" formatted-now "\" \""
-                     (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
+                     (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
 (defn in-15-minutes
@@ -128,14 +128,14 @@
 (defn freeze-current-token
   []
   (let [later (in-15-minutes)]
-    (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
+    (swap! frozen-tokens #(assoc % (keyword @current-access-token) later))
     (when *api-client-enabled-logging*
-      (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later))))))
+      (log/info (str "\"" @current-access-token "\" should be available again at \"" (format-date later))))))
 
 (defn handle-rate-limit-exceeded-error
   [endpoint token-model token-type-model]
   (freeze-current-token)
-  (freeze-token @current-consumer-key)
+  (freeze-token @current-access-token)
   (find-next-token token-model token-type-model endpoint (str "a rate limited call to \"" endpoint "\""))
   (when (nil? @next-token)
     (wait-for-15-minutes endpoint)))
@@ -248,7 +248,7 @@
       (when limit
         (log/info (str "Rate limit at " limit " for \"" endpoint "\"")))
       (log/info (str remaining-calls " remaining calls for \"" endpoint
-                     "\" called with consumer key \"" @current-consumer-key "\"")))
+                     "\" called with access token \"" @current-access-token "\"")))
 
     (update-remaining-calls headers endpoint)))
 

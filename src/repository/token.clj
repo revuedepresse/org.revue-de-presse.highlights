@@ -51,10 +51,10 @@
                :secret)))
 
 (defn freeze-token
-  [consumer-key]
+  [token]
   (db/exec-raw [(str "UPDATE weaving_access_token "
                      "SET frozen_until = NOW()::timestamp + '15 MINUTES'::INTERVAL "
-                     "WHERE consumer_key = ?") [consumer-key]]))
+                     "WHERE token = ?") [token]]))
 
 (defn find-user-token-type
   "Find user token type"
@@ -76,14 +76,14 @@
 
 (defn find-first-available-tokens-other-than
   "Find a token which has not been frozen"
-  [consumer-keys model token-type-model]
+  [access-tokens model token-type-model]
   (let [user-token-type (find-user-token-type token-type-model)
-        excluded-consumer-keys (if consumer-keys consumer-keys '("_"))
+        excluded-access-tokens (if access-tokens access-tokens '("_"))
         first-available-token (first (-> (select-token model)
                                          (db/where (and
                                                      (= :type (:id user-token-type))
                                                      (not= (db/sqlfn coalesce :consumer_key "__no_consumer_key") "__no_consumer_key")
-                                                     (not-in :consumer_key excluded-consumer-keys)
+                                                     (not-in :token excluded-access-tokens)
                                                      (<= :frozen_until (db/sqlfn now))))
                                          (db/order :frozen_until :ASC)
                                          (db/select)))]
