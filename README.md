@@ -1,8 +1,6 @@
-# Daily Press Review
+# revue-de-presse.org highlights
 
-[![CircleCI](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure.svg?style=svg)](https://circleci.com/gh/thierrymarianne/daily-press-review-clojure)
-
-Easing observation of Twitter lists to publish a daily press review
+Refresh daily highlights which can be found in press releases.
 
 ## Dependencies
 
