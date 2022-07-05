@@ -2,24 +2,24 @@
   :database {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "highlights_snapshots_test"
-    :user           "highlights_snapshots"
+    :name           "highlights_revuedepresse_test"
+    :user           "highlights_revuedepresse"
     :password       "__password__"
     :port           "5433"
   }
   :database-read {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "highlights_snapshots_test"
-    :user           "highlights_snapshots"
+    :name           "highlights_revuedepresse_test"
+    :user           "highlights_revuedepresse"
     :password       "__password__"
     :port           "5433"
   }
   :database-archive {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "highlights_snapshots_test"
-    :user           "highlights_snapshots"
+    :name           "highlights_revuedepresse_test"
+    :user           "highlights_revuedepresse"
     :password       "__password__"
     :port           "5433"
   }
