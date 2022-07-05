@@ -8,7 +8,7 @@
             [utils.error-handler :as error-handler])
   (:use [twitter.date]
         [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.analysis.publication-frequency]
         [repository.analysis.sample]
         [repository.member]
@@ -98,7 +98,7 @@
                 :per-day-of-week            (json/write-str (:publication-frequencies per-day-of-week-frequencies))
                 :per-hour-of-day-percentage (json/write-str (:publication-frequencies-percentage per-hour-of-day-frequencies))
                 :per-day-of-week-percentage (json/write-str (:publication-frequencies-percentage per-day-of-week-frequencies))
-                :updated-at                 (f/unparse mysql-date-formatter (l/local-now))
+                :updated-at                 (f/unparse db-date-formatter (l/local-now))
                 :sample-id                  (:id sample)
                 :member-id                  (:id member)}]
         frequencies (bulk-insert-from-props

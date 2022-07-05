@@ -43,9 +43,11 @@
         '())))
   ([column values date model]
    (let [values (if values values '(0))
-         matching-records (-> (select-statuses-popularities model)
-                              (db/where {:checked_at date
-                                         column [in values]})
+         matching-records (->
+                            (select-statuses-popularities model)
+                              (db/where (and
+                                          (= :checked_at date)
+                                          {column [in values]}))
                               (db/select))]
      (if matching-records
        matching-records
@@ -62,16 +64,15 @@
 (defn bulk-insert-of-status-popularity-props
   [status-popularity-props checked-at model]
   (let [identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:status-id %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:status-id %))))
                            status-popularity-props)
         statuses-ids (map #(:status-id %) identified-props)
         existing-statuses (find-status-popularity-by-status-ids-and-date statuses-ids checked-at model)
-        existing-statuses-ids (map #(:status-id %) existing-statuses)
+        existing-statuses-ids (dedupe (map #(:status-id %) existing-statuses))
         new-records (remove #(clojure.set/subset? #{(:status-id %)} (set existing-statuses-ids)) identified-props)
         snake-cased-props (map snake-case-keys new-records)
         statuses-popularities-ids (pmap #(:id %) snake-cased-props)]
-    (if statuses-popularities-ids
+    (if (not-empty statuses-popularities-ids)
       (do
         (try
           (db/insert model (db/values snake-cased-props))

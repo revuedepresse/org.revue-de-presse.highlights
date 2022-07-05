@@ -49,18 +49,19 @@
                                        "AND a.id = ? "
                                        "")
          restriction-by-week (if publication-week
-                               "AND WEEK(s.ust_created_at) = ?"
+                               "AND EXTRACT(WEEK FROM s.ust_created_at) = ?"
                                "")
          query (str
                  "SELECT                                           "
-                 "COUNT(*) `total-timely-statuses`,                "
-                 "IF (COUNT(*) > 0,                                "
-                 "    GROUP_CONCAT(s.ust_id),                      "
-                 "    \"\") `statuses-ids`                         "
+                 "COUNT(*) \"total-timely-statuses\",              "
+                 "COALESCE(                                        "
+                 "  array_to_string(array_agg(s.ust_id), ','),     "
+                 "  ''                                             "
+                 ") \"statuses-ids\"                               "
                  "FROM " table-name " s                            "
                  "INNER JOIN " join-table-name " sa                "
                  "ON sa.status_id = s.ust_id                       "
-                 "INNER JOIN weaving_aggregate a                   "
+                 "INNER JOIN publishers_list a                   "
                  "ON (a.id = sa.aggregate_id                       "
                  "AND a.screen_name = s.ust_full_name              "
                  "AND a.name = ?)                                  "
@@ -69,7 +70,7 @@
                  "  SELECT status_id, aggregate_id                 "
                  "  FROM timely_status                             "
                  ")                                                "
-                 "AND YEAR(s.ust_created_at) = ?                   "
+                 "AND EXTRACT(YEAR FROM s.ust_created_at) = ?                   "
                  restriction-by-aggregate-id
                  restriction-by-week)
          params [aggregate-name publication-year]
@@ -101,33 +102,37 @@
   ([aggregate-name publication-date]
    (let [base-query (str "
                       SELECT
-                      ts.status_id as `status-id`
+                      ts.status_id as \"status-id\"
                       FROM timely_status ts
                       WHERE ts.aggregate_name = ?
                     ")
          query (if (nil? publication-date)
-                 (str base-query "AND DATE(now()) <= ts.publication_date_time ")
-                 (str base-query "AND ? = DATE(ts.publication_date_time) "))
+                 (str base-query "AND NOW()::date <= ts.publication_date_time::date ")
+                 (str base-query "AND CAST(? AS date) = ts.publication_date_time::date "))
          params (if (nil? publication-date)
                   [aggregate-name]
                   [aggregate-name publication-date])
+         query (str query "GROUP BY ts.status_id")
          results (db/exec-raw [query params] :results)]
      results)))
 
 (defn find-aggregate-having-publication-from-date
   "Find the distinct aggregates for which publications have been collected for a given date"
-  ([date excluded-aggregate]
-   (let [query (str
-                 "SELECT DISTINCT aggregate_name as `aggregate-name`   "
-                 "FROM (                                               "
-                 "   SELECT aggregate_name FROM timely_status          "
-                 "   WHERE DATE(publication_date_time) = ?             "
-                 "   AND aggregate_name != (?)                         "
-                 "   GROUP BY aggregate_id                             "
-                 ") select_")
-         query (str query)
-         results (db/exec-raw [query [date excluded-aggregate]] :results)]
-     results)))
+  [date aggregate & [include-aggregate]]
+  (let [aggregate-clause (str (if (some? include-aggregate)
+                                "   AND aggregate_name = (?) "
+                                "   AND aggregate_name != (?) "))
+        query (str
+                "SELECT DISTINCT aggregate_name as \"aggregate-name\"   "
+                "FROM (                                               "
+                "   SELECT aggregate_name FROM timely_status          "
+                "   WHERE publication_date_time::date = CAST(? as date)  "
+                aggregate-clause
+                "   GROUP BY aggregate_id, aggregate_name             "
+                ") select_")
+        query (str query)
+        results (db/exec-raw [query [date aggregate]] :results)]
+    results))
 
 (defn select-fields
   [model status-model member-model]
@@ -160,6 +165,33 @@
     (if matching-statuses
       matching-statuses
       '())))
+
+(defn find-last-week-timely-status
+  []
+  (let [query (str
+                "SELECT
+                ts.id,
+                s.ust_api_document as \"status-api-document\",
+                e.member_id as \"member-id\",
+                ts.member_name as \"member-name\",
+                ts.aggregate_name as \"aggregate-name\",
+                ts.status_id as \"status-id\",
+                ts.publication_date_time as \"publication-date-time\"
+                FROM publication_batch_collected_event e
+                INNER JOIN weaving_user m
+                ON m.usr_id = e.member_id
+                AND DATEDIFF(NOW(), e.occurred_at) <= 7
+                INNER JOIN timely_status ts
+                ON member_name = m.usr_twitter_username
+                LEFT JOIN keyword k
+                ON k.status_id = ts.status_id
+                INNER JOIN weaving_status s
+                ON s.ust_id = ts.status_id                          
+                WHERE k.id IS NULL
+                LIMIT 10000;")
+        query (str query)
+        results (db/exec-raw [query []] :results)]
+    results))
 
 (defn find-timely-statuses-by-constraints
   "Find timely statuses by ids of statuses or constraints"
@@ -223,14 +255,14 @@
                    a.name AS aggregate_name,
                    s.ust_created_at AS publication_date_time,
                    CASE
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 5 MINUTE) THEN 0
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 10 MINUTE) THEN 1
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 30 MINUTE) THEN 2
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 DAY) THEN 3
-                   WHEN s.ust_created_at > DATE_SUB(now(), INTERVAL 1 WEEK) THEN 4
+                   WHEN s.ust_created_at > NOW()::timestamp - '5 MINUTES'::INTERVAL THEN 0
+                   WHEN s.ust_created_at > NOW()::timestamp - '10 MINUTES'::INTERVAL THEN 1
+                   WHEN s.ust_created_at > NOW()::timestamp - '30 MINUTES'::INTERVAL THEN 2
+                   WHEN s.ust_created_at > NOW()::timestamp - '1 DAY'::INTERVAL THEN 3
+                   WHEN s.ust_created_at > NOW()::timestamp - '1 WEEK'::INTERVAL THEN 4
                    ELSE 5
                    END AS time_range
-                   FROM weaving_aggregate AS a
+                   FROM publishers_list AS a
                    INNER JOIN weaving_status_aggregate sa
                    ON sa.aggregate_id = a.id
                    INNER JOIN weaving_status AS s

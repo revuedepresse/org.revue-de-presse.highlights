@@ -6,7 +6,7 @@
             [utils.error-handler :as error-handler])
   (:use [adaptor.database-navigation]
         [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.highlight]
         [repository.timely-status]
         [repository.keyword]
@@ -83,13 +83,14 @@
 (defn generate-keywords-for-all-aggregates
   ([date]
    (generate-keywords-for-all-aggregates date {}))
-  ([date & [{week :week year :year}]]
-   (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
+  ([date & [{week :week year :year aggregate-name :aggregate}]]
+   (let [aggregate-name (when (nil? aggregate-name)
+                          (:main (edn/read-string (:aggregate env))))
          models (get-entity-manager (:database env))
          highlights (find-highlighted-statuses-for-aggregate-published-at {:date           date
                                                                            :week           week
                                                                            :year           year
-                                                                           :aggregate-name press-aggregate-name
+                                                                           :aggregate-name aggregate-name
                                                                            :not-in         true
                                                                            :models         models})]
      (adapt-results {:props     (get-keywords-props)
@@ -97,7 +98,7 @@
                                   (new-keywords-from-props
                                     highlights
                                     (get-models)
-                                    (str "for \"" press-aggregate-name "\"")
+                                    (str "for \"" aggregate-name "\"")
                                     :find-keywords))
                      :formatter #(str
                                    (:keyword %)
@@ -137,3 +138,13 @@
         _ (doall (pmap
                    #(generate-keywords-from-aggregate % find-timely-statuses-by-aggregate-id models)
                    aggregates))]))
+
+(defn generate-keywords-for-last-week-publishers
+  []
+  (let [models (get-entity-manager (:database env))]
+    (loop [timely-statuses (find-last-week-timely-status)]
+      (new-keywords-from-props
+        timely-statuses
+        models
+        (str "for last week publishers"))
+      (recur (find-last-week-timely-status)))))

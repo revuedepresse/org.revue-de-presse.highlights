@@ -3,7 +3,8 @@
             [clojure.string :as string]
             [clojure.data.json :as json]
             [utils.error-handler :as error-handler])
-  (:use [korma.db]
+  (:use [repository.database-schema]
+        [korma.db]
         [utils.string]
         [twitter.status-hash]))
 
@@ -23,6 +24,7 @@
                   :ust_name                                 ; twitter user full name
                   :ust_access_token
                   :ust_api_document
+                  :is_published
                   :ust_created_at
                   :ust_status_id))
   status)
@@ -34,6 +36,7 @@
     (db/fields [:ust_id :id]
                [:ust_id :status-id]
                [:ust_hash :hash]
+               [:ust_avatar :avatar-url]
                [:ust_text :text]
                [:ust_full_name :screen-name]
                [:ust_name :name]
@@ -41,7 +44,8 @@
                [:ust_api_document :document]
                [:ust_created_at :created-at]
                [:ust_status_id :status-twitter-id]
-               [:ust_status_id :twitter-id])))
+               [:ust_status_id :twitter-id]
+               [:is_published :is-published])))
 
 (defn find-statuses-having-column-matching-values
   "Find statuses which values of a given column
@@ -50,7 +54,19 @@
   (let [values (if values values '(0))
         matching-statuses (-> (select-statuses model)
                               (db/where {column [in values]})
-                              (db/group :ust_status_id)
+                              (db/group :ust_status_id
+                                        :ust_id
+                                        :ust_hash
+                                        :ust_avatar
+                                        :ust_text
+                                        :ust_full_name
+                                        :ust_name
+                                        :ust_access_token
+                                        :ust_api_document
+                                        :ust_created_at
+                                        :ust_status_id
+                                        :ust_status_id
+                                        :is_published)
                               (db/order :ust_created_at "DESC")
                               (db/select))]
     (if matching-statuses
@@ -99,12 +115,12 @@
           SELECT ust_id AS id,
           ust_hash AS hash,
           ust_text AS text,
-          ust_full_name AS `screen-name`,
-          ust_name AS `name`,
-          ust_access_token AS `access-token`,
-          ust_api_document AS `document`,
-          ust_created_at AS `created-at`,
-          ust_status_id AS `twitter-id`
+          ust_full_name AS \"screen-name\",
+          ust_name AS \"name\",
+          ust_access_token AS \"access-token\",
+          ust_api_document AS \"document\",
+          ust_created_at AS \"created-at\",
+          ust_status_id AS \"twitter-id\"
           FROM weaving_status
           WHERE ust_full_name in (" more-bindings ")
           AND (ust_full_name, ust_id) NOT IN (
@@ -125,16 +141,16 @@
                 "SELECT ust_id AS id,                       "
                 "ust_hash AS hash,                          "
                 "ust_text AS text,                          "
-                "ust_full_name AS `screen-name`,            "
-                "ust_name AS `name`,                        "
-                "ust_access_token AS `access-token`,        "
-                "ust_api_document AS `document`,            "
-                "ust_created_at AS `created-at`,            "
-                "ust_status_id AS `twitter-id`              "
+                "ust_full_name AS \"screen-name\",            "
+                "ust_name AS \"name\",                        "
+                "ust_access_token AS \"access-token\",        "
+                "ust_api_document AS \"document\",            "
+                "ust_created_at AS \"created-at\",            "
+                "ust_status_id AS \"twitter-id\"              "
                 "FROM weaving_status                        "
                 "WHERE ust_full_name = ?                    "
-                "AND WEEK(ust_created_at) = ?               "
-                "AND YEAR(ust_created_at) = ?               ")
+                "AND EXTRACT(WEEK FROM ust_created_at) = ?               "
+                "AND EXTRACT(YEAR FROM ust_created_at) = ?               ")
         params [screen-name week year]
         results (db/exec-raw [query params] :results)]
     (if (some? results)
@@ -210,3 +226,34 @@
         prefixed-keys-values (map prefixed-keys new-status-props)
         twitter-ids (map #(:ust_status_id %) prefixed-keys-values)]
     (insert-values-before-selecting-from-ids prefixed-keys-values twitter-ids model)))
+
+(defn filter-duplicates-by-status
+  []
+  (fn [[_ status]]
+    (> (count status) 1)))
+
+(defn find-unpublished-statuses
+  [model & [limit]]
+  (let [limit (if (some? limit)
+                limit
+                50000)
+        is-published-col (get-column "is_published" model)
+        matching-statuses (-> (select-statuses model)
+                              (db/where {is-published-col 0})
+                              (db/limit limit)
+                              (db/select))
+        grouped-status (group-by :status-twitter-id matching-statuses)
+        filtered-status (->> grouped-status
+                            (remove (filter-duplicates-by-status))
+                            vals
+                           (map first))]
+    (if (some? filtered-status)
+      filtered-status
+      '())))
+
+(defn update-status-having-ids
+  [status-ids model]
+  (db/update
+    model
+    (db/set-fields {:is_published 1})
+    (db/where {:ust_id [in status-ids]})))

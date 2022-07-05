@@ -60,14 +60,14 @@
   (doall (pmap assoc-twitter-user-properties twitter-users)))
 
 (defn get-twitter-user
-  [member-id tokens members]
+  [member-id tokens token-type-model members]
   (log/info (str "About to look up for member having Twitter id #" member-id))
-  (let [twitter-user (get-member-by-id member-id tokens members)]
+  (let [twitter-user (get-member-by-id member-id tokens token-type-model members)]
     twitter-user))
 
 (defn ensure-authors-of-status-exist
-  [statuses model token-model]
-  (let [remaining-calls (how-many-remaining-calls-showing-user token-model)
+  [statuses model token-model token-type-model]
+  (let [remaining-calls (how-many-remaining-calls-showing-user token-model token-type-model)
         authors-ids (map #(:id (:user %)) statuses)
         total-authors (count authors-ids)]
 
@@ -78,8 +78,8 @@
                               (and
                                 (not (nil? remaining-calls))
                                 (< total-authors remaining-calls))
-                              (pmap #(get-twitter-user % token-model model) authors-ids)
-                              (map #(get-twitter-user % token-model model) authors-ids))
+                              (pmap #(get-twitter-user % token-model token-type-model model) authors-ids)
+                              (map #(get-twitter-user % token-model token-type-model model) authors-ids))
               twitter-users-properties (assoc-properties-of-twitter-users twitter-users)
               deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
               new-members (bulk-insert-new-members deduplicated-users-properties model)]
@@ -91,22 +91,22 @@
 
 (defn process-authors-of-statuses
   "Remove authors of statuses whose characteristics have already been cached and ensure the other exist"
-  [favorites model token-model]
+  [favorites model token-model token-type-model]
   (let [missing-members-ids (get-missing-members-ids favorites model)
         missing-members (filter #(clojure.set/subset? #{(:id_str (:user %))} missing-members-ids) favorites)
-        _ (ensure-authors-of-status-exist missing-members model token-model)]))
+        _ (ensure-authors-of-status-exist missing-members model token-model token-type-model)]))
 
 (defn new-member-props-from-json
-  [member-id tokens members]
+  [member-id tokens token-types members]
   (when *twitter-member-enabled-logging*
     (log/info (str "About to look up for member having Twitter id #" member-id)))
-  (let [twitter-user (get-member-by-id member-id tokens members)
+  (let [twitter-user (get-member-by-id member-id tokens token-types members)
         member (save-member twitter-user members :only-props)]
     member))
 
 (defn ensure-members-exist
-  [members-ids tokens members register-member]
-  (let [remaining-calls (how-many-remaining-calls-showing-user tokens)
+  [members-ids tokens token-type members register-member]
+  (let [remaining-calls (how-many-remaining-calls-showing-user tokens token-type)
         total-members (count members-ids)]
 
     (if (pos? total-members)
@@ -116,5 +116,5 @@
     (if (and
           (not (nil? remaining-calls))
           (< total-members remaining-calls))
-      (doall (pmap #(register-member % tokens members) members-ids))
-      (doall (map #(register-member % tokens members) members-ids)))))
+      (doall (pmap #(register-member % tokens token-type members) members-ids))
+      (doall (map #(register-member % tokens token-type members) members-ids)))))

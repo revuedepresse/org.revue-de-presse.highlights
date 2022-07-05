@@ -10,6 +10,7 @@
             [utils.error-handler :as error-handler])
   (:use [repository.entity-manager]
         [repository.member]
+        [repository.token]
         [twitter.oauth]
         [twitter.callbacks]
         [twitter.callbacks.handlers]
@@ -17,7 +18,7 @@
 
 (def ^:dynamic *api-client-enabled-logging* false)
 
-(def current-consumer-key (atom nil))
+(def current-access-token (atom nil))
 (def next-token (atom nil))
 
 (def call-limits (atom {}))
@@ -54,18 +55,18 @@
 
 (defn set-next-token
   "Set the next token by swapping the value of an atom
-  and declare the current consumer key related to this token"
+  and declare the current access token related to this token"
   [token context]
   (let [token-candidate token
-        consumer-key (:consumer-key token)]
+        token (:token token)]
     (swap! next-token (constantly token-candidate))         ; @see https://clojuredocs.org/clojure.core/constantly
-    (swap! current-consumer-key (constantly consumer-key))
+    (swap! current-access-token (constantly token))
     (when *api-client-enabled-logging*
-      (log/info (str "The next consumer key issued from " context " is about to be \"" (:consumer-key token) "\"")))
+      (log/info (str "The next access token issued from " context " is about to be \"" (:token token) "\"")))
     @next-token))
 
-(defn consumer-keys-of-frozen-tokens
-  "Return consumer keys of tokens which are frozen."
+(defn frozen-access-tokens
+  "Return access tokens which are frozen."
   []
   (let [now (l/local-now)]
     (if (nil? @frozen-tokens)
@@ -77,25 +78,25 @@
   (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\""))
   (Thread/sleep (* 60 15 1000)))
 
-(defn select-token
-  [endpoint token-candidate context model]
+(defn find-token
+  [endpoint token-candidate context model token-type-model]
   (if (and
         (nil? token-candidate)
         (nil? @next-token))
     (do
       (wait-for-15-minutes endpoint)
-      (find-next-token model endpoint context))
+      (find-next-token model token-type-model endpoint context))
     (if (nil? token-candidate) @next-token token-candidate)))
 
 (defn find-first-available-token-when
-  [endpoint context model]
-  (let [excluded-consumer-key @current-consumer-key
-        excluded-consumer-keys (consumer-keys-of-frozen-tokens)
-        token-candidate (find-first-available-tokens-other-than excluded-consumer-keys model)
-        selected-token (select-token endpoint token-candidate context model)]
+  [endpoint context token-model token-type-model]
+  (let [excluded-access-token @current-access-token
+        excluded-access-tokens (frozen-access-tokens)
+        token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
+        selected-token (find-token endpoint token-candidate context token-model token-type-model)]
     (when *api-client-enabled-logging*
-      (log/info (str "About to replace consumer key \"" excluded-consumer-key "\" with \""
-                     (:consumer-key selected-token) "\" when " context)))
+      (log/info (str "About to replace access token \"" excluded-access-token "\" with \""
+                     (:token selected-token) "\" when " context)))
     selected-token))
 
 (defn format-date
@@ -105,7 +106,7 @@
 
 (defn is-token-candidate-frozen
   [token]
-  (let [unfrozen-at (get @frozen-tokens (keyword (:consumer-key token)))
+  (let [unfrozen-at (get @frozen-tokens (keyword (:token token)))
         now (l/local-now)
         formatted-now (format-date now)
         it-is-not (and
@@ -117,7 +118,7 @@
             *api-client-enabled-logging*
             (not (nil? unfrozen-at)))
       (log/info (str "Now being \"" formatted-now "\" \""
-                     (:consumer-key token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
+                     (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
 (defn in-15-minutes
@@ -127,20 +128,20 @@
 (defn freeze-current-token
   []
   (let [later (in-15-minutes)]
-    (swap! frozen-tokens #(assoc % (keyword @current-consumer-key) later))
+    (swap! frozen-tokens #(assoc % (keyword @current-access-token) later))
     (when *api-client-enabled-logging*
-      (log/info (str "\"" @current-consumer-key "\" should be available again at \"" (format-date later))))))
+      (log/info (str "\"" @current-access-token "\" should be available again at \"" (format-date later))))))
 
 (defn handle-rate-limit-exceeded-error
-  [endpoint token-model]
+  [endpoint token-model token-type-model]
   (freeze-current-token)
-  (freeze-token @current-consumer-key)
-  (find-next-token token-model endpoint (str "a rate limited call to \"" endpoint "\""))
+  (freeze-token @current-access-token)
+  (find-next-token token-model token-type-model endpoint (str "a rate limited call to \"" endpoint "\""))
   (when (nil? @next-token)
     (wait-for-15-minutes endpoint)))
 
 (defn try-calling-api
-  [call endpoint token-model context]
+  [call endpoint token-model token-type-model context]
   (let [excluded-until (get @endpoint-exclusion endpoint)
         now (l/local-now)]
     (when (or
@@ -158,11 +159,11 @@
                (= endpoint "application/rate-limit-status") (do
                                                               (swap! endpoint-exclusion #(assoc % endpoint (in-15-minutes)))
                                                               (when (string/includes? (.getMessage e) error-rate-limit-exceeded)
-                                                                (handle-rate-limit-exceeded-error endpoint token-model)
-                                                                (try-calling-api call endpoint token-model context)))))))))
+                                                                (handle-rate-limit-exceeded-error endpoint token-model token-type-model)
+                                                                (try-calling-api call endpoint token-model token-type-model context)))))))))
 
 (defn get-rate-limit-status
-  [model]
+  [model token-type-model]
   (let [resources "resources=favorites,statuses,users,lists,friends,friendships,followers"
         twitter-token (twitter-credentials @next-token)
         response (try-calling-api
@@ -171,38 +172,44 @@
                                                    :params {:resources resources})
                    "application/rate-limit-status"
                    model
+                   token-type-model
                    "a call to \"application/rate-limit-status\"")
         resources (:resources (:body response))]
     (swap! rate-limits (constantly resources))))
 
 (defn find-next-token
-  [token-model endpoint context]
-  (let [next-token-candidate (if @next-token
+  [token-model token-type-model endpoint context]
+  (let [first-available-token (find-first-available-token token-model token-type-model)
+        _ (when (nil? first-available-token)
+            (set-next-token
+              first-available-token
+              context))
+        next-token-candidate (if @next-token
                                @next-token
-                               (find-first-available-tokens token-model))
+                               first-available-token)
         it-is-frozen (is-token-candidate-frozen next-token-candidate)]
     (if it-is-frozen
       (do
         (set-next-token
-          (find-first-available-token-when endpoint context token-model)
+          (find-first-available-token-when endpoint context token-model token-type-model)
           context)
         (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint)
                                                              @call-limits))))
       (set-next-token next-token-candidate context))))
 
 (defn how-many-remaining-calls-for
-  [endpoint token-model]
+  [endpoint token-model token-type-model]
   (when (nil? (@remaining-calls (keyword endpoint)))
     (do
-      (get-rate-limit-status token-model)
+      (get-rate-limit-status token-model token-type-model)
       (swap! remaining-calls #(assoc % (keyword endpoint) (:limit (get (:users @rate-limits) (keyword "/users/show/:id")))))))
   (get @remaining-calls (keyword endpoint)))
 
 (defn how-many-remaining-calls-for-statuses
-  [token-model]
+  [token-model token-type-model]
   (when (nil? (@remaining-calls (keyword "statuses/show/:id")))
     (do
-      (get-rate-limit-status token-model)
+      (get-rate-limit-status token-model token-type-model)
       (swap! remaining-calls #(assoc
                                 %
                                 (keyword "statuses/show/:id")
@@ -210,8 +217,8 @@
   (get @remaining-calls (keyword "statuses/show/:id")))
 
 (defn how-many-remaining-calls-showing-user
-  [token-model]
-  (how-many-remaining-calls-for "users/show" token-model))
+  [token-model token-type-model]
+  (how-many-remaining-calls-for "users/show" token-model token-type-model))
 
 (defn update-remaining-calls
   [headers endpoint]
@@ -222,7 +229,8 @@
         (not (nil? (:x-rate-limit-remaining headers))))
       (try
         (swap! remaining-calls #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-remaining headers))))
-        (catch Exception e (log/warn (.getMessage e))))
+        (catch Exception e
+          (log/warn (.getMessage e))))
       (when
         (and
           (nil? (get @call-limits endpoint-keyword))
@@ -240,7 +248,7 @@
       (when limit
         (log/info (str "Rate limit at " limit " for \"" endpoint "\"")))
       (log/info (str remaining-calls " remaining calls for \"" endpoint
-                     "\" called with consumer key \"" @current-consumer-key "\"")))
+                     "\" called with access token \"" @current-access-token "\"")))
 
     (update-remaining-calls headers endpoint)))
 
@@ -260,7 +268,7 @@
 
 (defn guard-against-api-rate-limit
   "Wait for 15 min whenever a API rate limit is about to be reached"
-  [headers endpoint & [on-reached-api-limit tokens]]
+  [headers endpoint & [on-reached-api-limit token-model token-type-model]]
   (let [unavailable-rate-limit (nil? headers)
         percentage (ten-percent-of-limit headers)]
     (log-remaining-calls-for headers endpoint)
@@ -274,8 +282,8 @@
         (when
           (fn? on-reached-api-limit)
           (on-reached-api-limit))
-        (if (some? tokens)
-          (handle-rate-limit-exceeded-error "statuses/show/:id" tokens)
+        (if (some? token-model)
+          (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
           (wait-for-15-minutes endpoint)))
       (catch Exception e (error-handler/log-error e)))))
 
@@ -287,6 +295,29 @@
         (= 1 (:is-suspended member)))
     (new-member member model)
     member))
+
+(defn page-not-found-exception?
+  [e]
+  (= (.getMessage e) error-page-not-found))
+
+(defn make-unauthorized-statuses-access-response
+  [screen-name]
+  (do
+    (log/info (str "Not authorized to access statuses of " screen-name))
+    {:headers {:unauthorized true}
+     :body    '()}))
+
+(defn make-not-found-statuses-response
+  ([screen-name]
+   (do
+     (log/info (str "Could not find statuses of " screen-name))
+     {:headers {:not-found true}
+      :body    '()}))
+  ([id status-id]
+   (do
+     (log/info (str "Could not find status having id #" id " and status-id #" status-id))
+     {:headers {:not-found true}
+      :body    '()})))
 
 (defn get-twitter-user-by-screen-name
   [screen-name]
@@ -305,7 +336,7 @@
     response))
 
 (defn get-twitter-user-by-id-or-screen-name
-  [{screen-name :screen-name id :id} token-model member-model]
+  [{screen-name :screen-name id :id} token-model token-type-model member-model]
   (do
     (try
       (if (nil? id)
@@ -316,8 +347,8 @@
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
           (do
-            (handle-rate-limit-exceeded-error "users/show" token-model)
-            (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model member-model))
+            (handle-rate-limit-exceeded-error "users/show" token-model token-type-model)
+            (get-twitter-user-by-id-or-screen-name {screen-name :screen-name id :id} token-model token-type-model member-model))
           (string/includes? (.getMessage e) error-user-not-found)
           (guard-against-exceptional-member {:screen_name         screen-name
                                              :twitter-id          id
@@ -336,7 +367,7 @@
                                              :total-subscriptions 0} member-model))))))
 
 (defn get-twitter-status-by-id
-  [props model]
+  [props token-model token-type-model]
   (let [status-id (:status-id props)]
     (do
       (try
@@ -352,9 +383,12 @@
           (when (not= (.getMessage e) error-no-status)
             (log/warn (.getMessage e)))
           (cond
+            (page-not-found-exception? e) (make-not-found-statuses-response
+                                            (:id props)
+                                            (:status-id props))
             (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
-                                                                           (handle-rate-limit-exceeded-error "statuses/show/:id" model)
-                                                                           (get-twitter-status-by-id props model))
+                                                                           (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
+                                                                           (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (error-handler e)))))))
@@ -371,87 +405,88 @@
     (<= (:users/show @remaining-calls) ten-percent-of-call-limits)))
 
 (defn member-by-prop
-  [member token-model member-model context]
+  [member token-model token-type-model member-model context]
   (if
     (and
       (know-all-about-remaining-calls-and-limit)
       (is-rate-limit-exceeded))
     (do
       (freeze-current-token)
-      (find-next-token token-model "users/show" context)
-      (member-by-prop member token-model member-model context))
-    (let [twitter-user (get-twitter-user-by-id-or-screen-name member token-model member-model)]
+      (find-next-token token-model token-type-model "users/show" context)
+      (member-by-prop member token-model token-type-model member-model context))
+    (let [twitter-user (get-twitter-user-by-id-or-screen-name member token-model token-type-model member-model)]
       (if (nil? twitter-user)
         (do
-          (find-next-token token-model "users/show" context)
-          (member-by-prop member token-model member-model context))
+          (find-next-token token-model token-type-model "users/show" context)
+          (member-by-prop member token-model token-type-model member-model context))
         twitter-user))))
 
 (defn status-by-prop
-  [props token-model context]
+  [props token-model token-type-model context]
   (if
     (and
       (know-all-about-remaining-calls-and-limit)
       (is-rate-limit-exceeded))
     (do
       (freeze-current-token)
-      (find-next-token token-model "statuses/show/:id" context)
-      (status-by-prop props token-model context))
-    (let [twitter-status (get-twitter-status-by-id props token-model)]
+      (find-next-token token-model token-type-model "statuses/show/:id" context)
+      (status-by-prop props token-model token-type-model context))
+    (let [twitter-status (get-twitter-status-by-id props token-model token-type-model)]
       twitter-status)))
 
 (defn get-member-by-screen-name
-  [screen-name token-model member-model]
-  (let [_ (find-next-token token-model "users/show" "trying to call \"users/show\" with a screen name")
-        user (member-by-prop {:screen-name screen-name} token-model member-model "a call to \"users/show\" with a screen name")
+  [screen-name token-model token-type-model member-model]
+  (let [_ (find-next-token token-model token-type-model "users/show" "trying to call \"users/show\" with a screen name")
+        user (member-by-prop {:screen-name screen-name} token-model token-type-model member-model "a call to \"users/show\" with a screen name")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show")
     (:body user)))
 
 (defn get-member-by-id
-  [id token-model member-model]
-  (let [_ (find-next-token token-model "users/show" "trying to call \"users/show\" with an id")
-        user (member-by-prop {:id id} token-model member-model "a call to \"users/show\" with an id")
+  [id token-model token-type-model member-model]
+  (let [_ (find-next-token token-model token-type-model "users/show" "trying to call \"users/show\" with an id")
+        user (member-by-prop {:id id} token-model token-type-model member-model "a call to \"users/show\" with an id")
         headers (:headers user)]
     (guard-against-api-rate-limit headers "users/show")
     (:body user)))
 
 (defn get-status-by-id
   [{id        :id
-    status-id :status-id} token-model]
-  (let [status (status-by-prop {:status-id status-id :id id} token-model "a call to \"statuses/show\" with an id")
+    status-id :status-id} token-model token-type-model]
+  (let [status (status-by-prop {:status-id status-id :id id} token-model token-type-model "a call to \"statuses/show\" with an id")
         headers (:headers status)]
     (if
       (and
         (some? headers)
         (nil? (:error status)))
       (do
-        (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model)
+        (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
         (assoc (:body status) :id id))
       (log/info (str "Could not find status having id #" status-id)))))
 
 (defn get-id-of-member-having-username
-  [screen-name member-model token-model]
+  [screen-name member-model token-model token-type-model]
   (let [matching-members (find-member-by-screen-name screen-name member-model)
         member (if matching-members
                  (first matching-members)
-                 (get-member-by-screen-name screen-name token-model member-model))]
+                 (get-member-by-screen-name screen-name token-model token-type-model member-model))]
     {:twitter-id (:twitter-id member)
      :id         (:id member)}))
 
 (defn get-subscriptions-by-screen-name
-  [screen-name tokens-model]
+  [screen-name token-model token-type-model]
   (try-calling-api
     #(friends-ids
        :client %
        :oauth-creds (twitter-credentials @next-token)
        :params {:screen-name screen-name})
     "friends/id"
-    tokens-model
+    token-model
+    token-type-model
     "a call to \"friends/id\""))
 
 (defn get-subscribers-by-screen-name
-  [screen-name tokens-model]
+  [screen-name tokens-model token-type-model]
   (try-calling-api
     #(followers-ids
        :client %
@@ -459,28 +494,29 @@
        :params {:screen-name screen-name})
     "followers/id"
     tokens-model
+    token-type-model
     "a call to \"followers/id\""))
 
 (defn get-subscriptions-of-member
-  [screen-name token-model on-reached-api-limit]
-  (let [_ (find-next-token token-model "users/show" "trying to make a call to \"friends/ids\"")
-        subscriptions (get-subscriptions-by-screen-name screen-name token-model)
+  [screen-name token-model token-type-model on-reached-api-limit]
+  (let [_ (find-next-token token-model token-type-model "users/show" "trying to make a call to \"friends/ids\"")
+        subscriptions (get-subscriptions-by-screen-name screen-name token-model token-type-model)
         headers (:headers subscriptions)
         friends (:body subscriptions)]
     (guard-against-api-rate-limit headers "friends/ids" on-reached-api-limit)
     (:ids friends)))
 
 (defn get-subscribees-of-member
-  [screen-name token-model]
-  (let [_ (find-next-token token-model "users/show" "trying to make a call to \"followers/ids\"")
-        subscribees (get-subscribers-by-screen-name screen-name token-model)
+  [screen-name token-model token-type-model]
+  (let [_ (find-next-token token-model token-type-model "users/show" "trying to make a call to \"followers/ids\"")
+        subscribees (get-subscribers-by-screen-name screen-name token-model token-type-model)
         headers (:headers subscribees)
         followers (:body subscribees)]
     (guard-against-api-rate-limit headers "followers/ids")
     (:ids followers)))
 
 (defn get-favorites-by-screen-name
-  [opts endpoint context tokens-model]
+  [opts endpoint context tokens-model token-type-model]
   (let [base-params {:count            200
                      :include-entities 1
                      :include-rts      1
@@ -500,6 +536,7 @@
          :params params)
       endpoint
       tokens-model
+      token-type-model
       (str "a " context))))
 
 (defn try-getting-favorites
@@ -540,17 +577,17 @@
     statuses))
 
 (defn get-favorites-of-member
-  [opts token-model]
+  [opts token-model token-type-model]
   (let [endpoint "favorites/list"
         call "call to \"favorites/list\""
         context (str "trying to make a " call)
-        _ (find-next-token token-model endpoint context)
-        favorites-getter #(get-favorites-by-screen-name opts endpoint call token-model)
+        _ (find-next-token token-model token-type-model endpoint context)
+        favorites-getter #(get-favorites-by-screen-name opts endpoint call token-model token-type-model)
         favorites (try-getting-favorites favorites-getter endpoint opts)]
     favorites))
 
 (defn get-statuses-by-screen-name
-  [opts endpoint context tokens-model]
+  [opts endpoint context tokens-model token-type-model]
   (let [base-params {:count            200
                      :include-entities 1
                      :include-rts      1
@@ -573,6 +610,7 @@
          :params params)
       endpoint
       tokens-model
+      token-type-model
       (str "a " context))))
 
 (defn exception-message-ends-with?
@@ -585,24 +623,6 @@
   (exception-message-ends-with?
     e
     error-unauthorized-user-timeline-statuses-access))
-
-(defn page-not-found-exception?
-  [e]
-  (= (.getMessage e) error-page-not-found))
-
-(defn make-unauthorized-statuses-access-response
-  [screen-name]
-  (do
-    (log/info (str "Not authorized to access statuses of " screen-name))
-    {:headers {:unauthorized true}
-     :body    '()}))
-
-(defn make-not-found-statuses-response
-  [screen-name]
-  (do
-    (log/info (str "Could not find statuses of " screen-name))
-    {:headers {:not-found true}
-     :body    '()}))
 
 (defn try-getting-statuses
   [status-getter endpoint opts]
@@ -624,12 +644,12 @@
     statuses))
 
 (defn get-statuses-of-member
-  [opts token-model]
+  [opts token-model token-type-model]
   (let [endpoint "statuses/user_timeline"
         call "call to \"statuses/user_timeline\""
         context (str "trying to make a " call)
-        _ (find-next-token token-model endpoint context)
-        status-getter #(get-statuses-by-screen-name opts endpoint call token-model)
+        _ (find-next-token token-model token-type-model endpoint context)
+        status-getter #(get-statuses-by-screen-name opts endpoint call token-model token-type-model)
         statuses (try-getting-statuses status-getter endpoint opts)]
     statuses))
 

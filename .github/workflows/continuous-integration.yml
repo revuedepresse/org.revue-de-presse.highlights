@@ -1,0 +1,47 @@
+name: highlights.snapshots.fr
+
+on: [push, pull_request]
+
+jobs:
+  release:
+    runs-on: ubuntu-20.04
+
+    services:
+      postgres:
+        image: postgres:14-bullseye
+        env:
+          POSTGRES_DB: highlights_snapshots_test
+          POSTGRES_USER: highlights_snapshots
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5433:5432
+
+    steps:
+      - name: Install packages
+        run: sudo apt-get install bash gzip postgresql-client tar wget
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Copy test environment variables configuration file
+        run: |
+          cat .lein-env.test.dist | sed -E "s/__password__/test/g" > .lein-env
+
+      - name: Create test database schema
+        run: |
+          PGPASSWORD=test psql \
+          --host 127.0.0.1 \
+          --port 5433 \
+          --username highlights_snapshots \
+          --dbname=highlights_snapshots_test \
+          --echo-all \
+          --quiet \
+          --file $GITHUB_WORKSPACE/build/create_schema.sql
+
+      - name: Install dependencies
+        run: lein deps
+
+      - name: Run tests
+        run: lein test

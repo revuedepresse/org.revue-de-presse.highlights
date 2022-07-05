@@ -3,7 +3,7 @@
             [clojure.edn :as edn]
             [environ.core :refer [env]])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.status]
         [repository.timely-status]
         [twitter.status]
@@ -11,7 +11,7 @@
 
 (defn unarchive-statuses
   [week year]
-  (let [press-aggregate-name (:press (edn/read-string (:aggregate env)))
+  (let [press-aggregate-name (:main (edn/read-string (:aggregate env)))
         db-read-params {:models (get-entity-manager (:database-archive env) {:is-archive-connection true})}
         archived-status-model (:archived-status (:models db-read-params))
         read-aggregate-model (:aggregate (:models db-read-params))

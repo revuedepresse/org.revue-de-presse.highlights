@@ -32,17 +32,26 @@
    (let [bindings (take (count ids) (iterate (constantly "?") "?"))
          bindings (string/join "," bindings)
          base-query (str "
-                      SELECT s.ust_id as `status-id`,
-                      m.usr_id as `member-id`,
-                      s.ust_api_document as `api-document`,
-                      s.ust_created_at as `publication-date-time`
+                      SELECT
+                      s.ust_id as \"status-id\",
+                      m.usr_id as \"member-id\",
+                      s.ust_api_document as \"api-document\",
+                      s.ust_created_at as \"publication-date-time\"
                       FROM timely_status ts
                       INNER JOIN weaving_status s
                       ON s.ust_id = ts.status_id
                       LEFT JOIN weaving_user m
                       ON ts.member_name = m.usr_twitter_username
                       WHERE ts.status_id IN (" bindings ")
+                      GROUP BY
+                      ts.status_id,
+                      s.ust_id,
+                      m.usr_id,
+                      s.ust_api_document,
+                      s.ust_created_at
                     ")
+         ; there could be multiple timely statuses
+         ; having similar statuses ids
          results (db/exec-raw [base-query ids] :results)]
      results)))
 
@@ -52,14 +61,14 @@
   (let [query (str
                 "SELECT                                           "
                 "s.ust_id as id,                                  "
-                "s.ust_status_id as `status-id`                   "
+                "s.ust_status_id as \"status-id\"                   "
                 "FROM highlight h                                 "
                 "INNER JOIN timely_status t                       "
                 "ON t.status_id = h.status_id                     "
                 "AND t.aggregate_name = ?                         "
                 "INNER JOIN weaving_status s                      "
                 "ON s.ust_id = h.status_id                        "
-                "AND DATE(h.publication_date_time) = \"" date "\"")
+                "AND h.publication_date_time::date = CAST('" date "' AS DATE)")
         results (db/exec-raw [query [aggregate-name]] :results)]
     results))
 
@@ -70,30 +79,30 @@
                 FROM (
                    SELECT
                        h.id,
-                       h.aggregate_id AS `aggregate-id`,
-                       h.aggregate_name AS `aggregate-name`,
-                       s.ust_full_name AS `screen-name`,
+                       h.aggregate_id AS \"aggregate-id\",
+                       h.aggregate_name AS \"aggregate-name\",
+                       s.ust_full_name AS \"screen-name\",
                        CONCAT(
                                'https://twitter.com/',
                                m.screen_name, '/status/',
                                s.ust_status_id
-                           ) AS `status-url`,
-                       s.ust_text AS `text`,
-                       h.total_retweets AS `retweets`,
-                       s.ust_created_at AS `created-at`
+                           ) AS \"status-url\",
+                       s.ust_text AS \"text\",
+                       h.total_retweets AS \"retweets\",
+                       s.ust_created_at AS \"created-at\"
                    FROM highlight h
                    INNER JOIN weaving_status s
                    ON s.ust_id = h.status_id
                    AND h.aggregate_name not like 'user ::%'
                    AND h.total_retweets > 0
-                   AND DATE(h.publication_date_time) > DATE_SUB(now(), INTERVAL 1 MONTH)
+                   AND h.publication_date_time::date > NOW()::date - '1 MONTH'::INTERVAL)
                    INNER JOIN member_identity m
                    ON m.member_id = h.member_id
                    WHERE h.id IN (
                        SELECT highlights_by_aggregate.id FROM (
                            SELECT id, MAX(total_retweets), aggregate_name
                            FROM highlight
-                           WHERE DATE(publication_date_time) > DATE_SUB(now(), INTERVAL 1 MONTH)
+                           WHERE publication_date_time::date > NOW()::date - '1 MONTH'::INTERVAL)
                            GROUP BY aggregate_name
                       ) highlights_by_aggregate
                    )
@@ -173,9 +182,9 @@
                              (some? year))
         restriction-by-date (if restricted-by-week
                               (str
-                                "AND WEEK(h.publication_date_time) = ? "
-                                "AND YEAR(h.publication_date_time) = ? ")
-                              (str "AND DATE(h.publication_date_time) = \"" date "\""))
+                                "AND EXTRACT(WEEK FROM h.publication_date_time) = ? "
+                                "AND EXTRACT(YEAR FROM h.publication_date_time) = ? ")
+                              (str "AND h.publication_date_time::date = CAST('" date "' AS DATE)"))
         query (str
                 "SELECT                                           "
                 "h.id                                             "
@@ -197,13 +206,19 @@
 
 (defn bulk-insert-new-highlights
   [highlights model member-model status-model]
-  (let [snake-cased-values (map snake-case-keys highlights)
+  (let [snake-cased-values (->>
+                             highlights
+                             (map snake-case-keys)
+                             (group-by #(:status_id %))
+                             vals
+                             (map first))
         ids (map #(:status_id %) snake-cased-values)]
     (if (pos? (count ids))
       (do
         (try
           (db/insert model (db/values snake-cased-values))
           (catch Exception e
-            (error-handler/log-error e)))
+            (cond
+              :else (error-handler/log-error e))))
         (find-highlights-having-ids ids model member-model status-model))
       '())))

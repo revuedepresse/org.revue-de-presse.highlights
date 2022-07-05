@@ -92,10 +92,10 @@
                 (first args)
                 100)
         query (str "
-          SELECT SUM(occurrences) as `occurrences`,
-          aggregate_id as `aggregate-id`,
-          aggregate_name as `aggregate-name`,
-          keyword as `keyword`
+          SELECT SUM(occurrences) as \"occurrences\",
+          aggregate_id as \"aggregate-id\",
+          aggregate_name as \"aggregate-name\",
+          keyword as \"keyword\"
           FROM keyword
           WHERE aggregate_name = ?
           AND LENGTH(keyword) > 3
@@ -115,10 +115,10 @@
                 (first args)
                 100)
         query (str "
-          SELECT SUM(occurrences) as `occurrences`,
-          aggregate_id as `aggregate-id`,
-          aggregate_name as `aggregate-name`,
-          keyword as `keyword`
+          SELECT SUM(occurrences) as \"occurrences\",
+          aggregate_id as \"aggregate-id\",
+          aggregate_name as \"aggregate-name\",
+          keyword as \"keyword\"
           FROM keyword
           WHERE aggregate_name = ?
           AND keyword LIKE \"@%\"
@@ -149,8 +149,7 @@
              status-model :status} & [find-keywords]]
   (let [snake-cased-values (map snake-case-keys keywords)
         identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:aggregate_name %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:aggregate_name %))))
                            snake-cased-values)
         ids (map #(:id %) identified-props)]
     (if (pos? (count ids))

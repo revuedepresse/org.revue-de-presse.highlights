@@ -78,11 +78,10 @@
 
 (defn bulk-insert-sample
   [props model member-model publication-frequency-model]
-  (let [now (f/unparse mysql-date-formatter (l/local-now))
+  (let [now (f/unparse db-date-formatter (l/local-now))
         snake-cased-props (pmap snake-case-keys props)
         identified-props (pmap
-                           #(assoc % :id (uuid/to-string
-                                           (-> (uuid/v1) (uuid/v5 (:label %)))))
+                           #(assoc % :id (-> (uuid/v1) (uuid/v5 (:label %))))
                            snake-cased-props)
         timestamped-props (pmap
                             #(assoc % :created_at now)

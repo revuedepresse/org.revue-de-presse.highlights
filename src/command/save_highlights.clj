@@ -10,7 +10,7 @@
             [clj-time.format :as f]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
-        [repository.aggregate]
+        [repository.publishers-list]
         [repository.highlight]
         [repository.status-popularity]
         [repository.timely-status]
@@ -29,7 +29,7 @@
             retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
                                             (get (get decoded-document "retweeted_status") "created_at")
                                             nil)
-            highlight-props {:id                                (uuid/to-string (uuid/v1))
+            highlight-props {:id                                (uuid/v1)
                              :member-id                         (:member-id document)
                              :status-id                         (:status-id document)
                              :aggregate-id                      (:id aggregate)
@@ -37,11 +37,9 @@
                              :is-retweet                        (some? (get decoded-document "retweeted_status"))
                              :publication-date-time             (:publication-date-time document)
                              :retweeted-status-publication-date (if (some? retweet-publication-date-time)
-                                                                  (f/unparse
-                                                                    mysql-date-formatter
-                                                                    (c/from-long
-                                                                      (c/to-long
-                                                                        (f/parse date-formatter retweet-publication-date-time))))
+                                                                  (c/to-timestamp
+                                                                    (c/to-long
+                                                                      (f/parse date-formatter retweet-publication-date-time)))
                                                                   nil)
                              :total-retweets                    (get decoded-document "retweet_count")
                              :total-favorites                   (get decoded-document "favorite_count")}]
@@ -55,9 +53,10 @@
 
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
-                          tokens            :tokens}]
+                          token             :token
+                          token-type        :token-type}]
   (let [filtered-highlights (remove #(nil? %) highlights)
-        statuses (fetch-statuses filtered-highlights tokens)
+        statuses (fetch-statuses filtered-highlights token token-type)
         statuses (remove #(nil? %) statuses)
         status-popularity-props (doall
                                   (pmap
@@ -76,13 +75,11 @@
 
 (defn record-popularity-of-highlights
   ([date]
-   (record-popularity-of-highlights date (:press (edn/read-string (:aggregate env)))))
+   (record-popularity-of-highlights date (:main (edn/read-string (:aggregate env)))))
   ([date aggregate-name]
    (let [models (get-entity-manager (:database env))
-         checked-at (f/unparse mysql-date-formatter
-                               (c/from-long
-                                 (c/to-long
-                                   (f/unparse date-hour-formatter (l/local-now)))))
+         checked-at (c/to-timestamp
+                      (f/unparse date-hour-formatter (l/local-now)))
          pad (take 300 (iterate (constantly nil) nil))
          highlights (find-highlights-for-aggregate-published-at date aggregate-name)
          highlights-partitions (partition 300 300 (vector pad) highlights)
@@ -94,6 +91,30 @@
            (catch Exception e
              (error-handler/log-error e (str "Could not record popularity of highlights: "))))
          (recur (inc partition-index)))))))
+
+(defn record-popularity-of-highlights-for-all-aggregates
+  ([date]
+   ; opening database connection beforehand
+   (let [_ (get-entity-manager (:database env))
+         excluded-aggregate (:main (edn/read-string (:aggregate env)))]
+     (record-popularity-of-highlights-for-all-aggregates date excluded-aggregate)))
+  ([date excluded-aggregate]
+   (let [aggregates (find-aggregate-having-publication-from-date date excluded-aggregate)]
+     (->> aggregates
+          (map #(record-popularity-of-highlights date (:aggregate-name %)))
+          doall))))
+
+(defn record-popularity-of-highlights-for-main-aggregate
+  ([date]
+   ; opening database connection beforehand
+   (let [_ (get-entity-manager (:database env))
+         aggregate-name (:main (edn/read-string (:aggregate env)))]
+     (record-popularity-of-highlights-for-main-aggregate date aggregate-name :include-aggregate)))
+  ([date aggregate-name & [include-aggregate]]
+   (let [aggregates (find-aggregate-having-publication-from-date date aggregate-name include-aggregate)]
+     (->> aggregates
+          (map #(record-popularity-of-highlights date (:aggregate-name %)))
+          doall))))
 
 (defn try-finding-highlights-by-status-ids
   [models]
@@ -125,17 +146,19 @@
   (let [{aggregate-model :aggregate :as models} (get-entity-manager (:database env))
         aggregate-name (if aggregate
                          aggregate
-                         (:press (edn/read-string (:aggregate env))))
+                         (:main (edn/read-string (:aggregate env))))
         aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
-        statuses-ids (map
-                       :status-id
-                       (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date))
+        statuses-ids (doall
+                       (map
+                         :status-id
+                         (find-timely-statuses-by-aggregate-and-publication-date aggregate-name date)))
         ; @see https://clojuredocs.org/clojure.core/partition#example-542692d4c026201cdc327028
         ; about the effect of passing step and pad arguments
-        statuses-ids-chunk (partition 100 100 [] statuses-ids)]
-    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunks from statuses ids"))
+        pad (take 100 (iterate (constantly nil) nil))
+        statuses-ids-chunk (partition 100 100 pad statuses-ids)]
+    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
     (doall
-      (pmap
+      (map
         (try-insert-highlights-from-statuses aggregate models)
         statuses-ids-chunk))))
 
@@ -163,6 +186,13 @@
 (defn save-highlights-for-all-aggregates
   [date]
   (let [_ (get-entity-manager (:database env))
-        excluded-aggregate (:press (edn/read-string (:aggregate env)))
-        aggregates (find-aggregate-having-publication-from-date date excluded-aggregate)]
+        aggregate-name (:main (edn/read-string (:aggregate env)))
+        aggregates (find-aggregate-having-publication-from-date date aggregate-name)]
+    (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))
+
+(defn save-highlights-for-main-aggregate
+  [date]
+  (let [_ (get-entity-manager (:database env))
+        aggregate-name (:main (edn/read-string (:aggregate env)))
+        aggregates (find-aggregate-having-publication-from-date date aggregate-name :include-aggregate)]
     (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))

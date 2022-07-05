@@ -3,7 +3,7 @@
             [clojure.edn :as edn]
             [clojure.tools.logging :as log]
             [clj-uuid :as uuid]
-            [repository.aggregate :as aggregate]
+            [repository.publishers-list :as publishers-list]
             [repository.analysis.sample :as sample]
             [repository.analysis.publication-frequency :as publication-frequency]
             [repository.archived-status :as archived-status]
@@ -11,12 +11,14 @@
             [repository.member :as member]
             [repository.member-identity :as member-identity]
             [repository.member-subscription :as member-subscription]
+            [repository.publication :as publication]
             [repository.highlight :as highlight]
             [repository.status :as status]
             [repository.status-aggregate :as status-aggregate]
             [repository.status-identity :as status-identity]
             [repository.status-popularity :as status-popularity]
             [repository.timely-status :as timely-status]
+            [repository.token :as token]
             [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
@@ -46,33 +48,17 @@
                   :aggregate_name))
   liked-status)
 
-(defn get-token-model
-  [connection]
-  (db/defentity tokens
-                (db/table :weaving_access_token)
-                (db/database connection)
-                (db/entity-fields
-                  :token
-                  :secret
-                  :consumer_key
-                  :consumer_secret
-                  :frozen_until))
-  tokens)
-
 (defn prepare-connection
   [config & [{is-archive-connection :is-archive-connection
               is-read-connection    :is-read-connection}]]
-  (let [db-params {:classname         "com.mysql.jdbc.Driver"
-                   :subprotocol       "mysql"
+  (let [db-params {:classname         "org.postgresql.Driver"
+                   :subprotocol       "postgresql"
                    :subname           (str "//"
                                            (:host config) ":" (:port config) "/"
-                                           ; @see https://stackoverflow.com/a/39095756/282073
-                                           (:name config) "?zeroDateTimeBehavior=convertToNull&autoReconnect=true")
+                                           (:name config))
                    :useUnicode        "yes"
                    :characterEncoding "UTF-8"
-                   :characterSet      "utf8mb4"
-                   :collation         "utf8mb4_unicode_ci"
-                   :delimiters        "`"
+                   :delimiters        "\""
                    :useSSL            false
                    :user              (:user config)
                    :password          (:password config)
@@ -93,7 +79,7 @@
               is-read-connection    :is-read-connection}]]
   (let [connection (prepare-connection config {:is-archive-connection is-archive-connection
                                                :is-read-connection    is-read-connection})]
-    {:aggregate             (aggregate/get-aggregate-model connection)
+    {:aggregate             (publishers-list/get-aggregate-model connection)
      :archived-status       (archived-status/get-archived-status-model connection)
      :highlight             (highlight/get-highlight-model connection)
      :hashtag               (keyword/get-keyword-model connection)
@@ -104,6 +90,7 @@
      :member-identity       (member-identity/get-member-identity-model connection)
      :member-subscribees    (member-subscription/get-member-subscribees-model connection)
      :member-subscriptions  (member-subscription/get-member-subscriptions-model connection)
+     :publication           (publication/get-publication-model connection)
      :publication-frequency (publication-frequency/get-publication-frequency-model connection)
      :sample                (sample/get-sample-model connection)
      :subscribees           (member-subscription/get-subscribees-model connection)
@@ -113,7 +100,8 @@
      :status-popularity     (status-popularity/get-status-popularity-model connection)
      :subscriptions         (member-subscription/get-subscriptions-model connection)
      :timely-status         (timely-status/get-timely-status-model connection)
-     :tokens                (get-token-model connection)
+     :token                 (token/get-token-model connection)
+     :token-type            (token/get-token-type-model connection)
      :users                 (member/get-user-model connection)
      :connection            connection}))
 
@@ -140,6 +128,7 @@
     (log/info (str "There are " (inc total-subscription-ids) " unique subscriptions ids."))
     subscriptions-ids))
 
+; @deprecated until the query has been migrated for compatibility with postgresql
 (defn find-member-subscriptions
   "Find member subscription"
   [screen-name]
@@ -166,25 +155,7 @@
     {:member-subscriptions  subscriptions-ids
      :raw-subscriptions-ids raw-subscriptions-ids}))
 
-;; Create table containing total subscriptions per member
-;
-; CREATE TABLE tmp_subscriptions
-; SELECT u.usr_id,
-; COUNT(DISTINCT s.subscription_id) total_subscriptions
-; FROM member_subscription s, weaving_user u
-; WHERE u.usr_id = s.member_id GROUP BY member_id;
-
-;; Add Index to temporary table
-;
-; ALTER TABLE `tmp_subscriptions` ADD INDEX `id` (`usr_id`, `total_subscriptions`);
-
-;; Update member table
-;
-; UPDATE weaving_user u, tmp_subscriptions t
-; SET u.total_subscriptions = t.total_subscriptions
-; WHERE t.usr_id = u.usr_id;
-; DROP table tmp_subscriptions;
-
+; @deprecated until the query has been migrated for compatibility with postgresql
 (defn find-members-closest-to-member-having-screen-name
   [total-subscriptions]
   (let [min-subscriptions (* 0.5 total-subscriptions)
@@ -219,8 +190,8 @@
   [start page-length & [fetch-archives]]
   (let [table-name (if fetch-archives "weaving_archived_status" "weaving_status")
         results (db/exec-raw [(str "SELECT "
-                                   "s.ust_full_name AS `screen-name`, "
-                                   "s.ust_api_document AS `api-document`, "
+                                   "s.ust_full_name AS \"screen-name\", "
+                                   "s.ust_api_document AS \"api-document\", "
                                    "usr_id AS id "
                                    "FROM weaving_user m "
                                    "INNER JOIN " table-name " s "
@@ -265,7 +236,7 @@
   (let [identified-liked-statuses (map #(assoc
                                           %
                                           :id
-                                          (uuid/to-string (uuid/v1)))
+                                          (uuid/v1))
                                        liked-statuses)
         liked-status-values (map snake-case-keys identified-liked-statuses)
         ids (map #(:id %) identified-liked-statuses)]
@@ -303,45 +274,6 @@
              (db/set-fields {:max_status_id                max-status-id
                              :last_status_publication_date max-status-publication-date})
              (db/where {:usr_id member-id})))
-
-(defn select-tokens
-  [model]
-  (->
-    (db/select* model)
-    (db/fields [:consumer_key :consumer-key]
-               [:consumer_secret :consumer-secret]
-               [:frozen_until :frozen-until]
-               :token
-               :secret)))
-
-(defn freeze-token
-  [consumer-key]
-  (db/exec-raw [(str "UPDATE weaving_access_token "
-                     "SET frozen_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) "
-                     "WHERE consumer_key = ?") [consumer-key]]))
-
-(defn find-first-available-tokens
-  "Find a token which has not been frozen"
-  [model]
-  (first (-> (select-tokens model)
-             (db/where (and (= :type 1)
-                            (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                            (<= :frozen_until (db/sqlfn now))))
-             (db/select))))
-
-(defn find-first-available-tokens-other-than
-  "Find a token which has not been frozen"
-  [consumer-keys model]
-  (let [excluded-consumer-keys (if consumer-keys consumer-keys '("_"))
-        first-available-token (first (-> (select-tokens model)
-                                         (db/where (and
-                                                     (= :type 1)
-                                                     (not= (db/sqlfn coalesce :consumer_key -1) -1)
-                                                     (not-in :consumer_key excluded-consumer-keys)
-                                                     (<= :frozen_until (db/sqlfn now))))
-                                         (db/order :frozen_until :ASC)
-                                         (db/select)))]
-    first-available-token))
 
 (defn map-get-in
   "Return a map of values matching the provided key coerced to integers"

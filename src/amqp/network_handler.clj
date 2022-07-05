@@ -13,10 +13,11 @@
     member-id :member-id
     member-type :member-type}
    ensure-relationship-exists
-   model member-model token-model]
+   model member-model token-model token-type-model]
   (let [props (ensure-members-exist
                 missing-members-ids
                 token-model
+                token-type-model
                 member-model
                 new-member-props-from-json)
         existing-members (find-members-from-props props member-model)
@@ -33,8 +34,8 @@
     relationships))
 
 (defn process-subscriptions
-  [member-id screen-name member-subscription-model token-model member-model on-reached-api-limit]
-  (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model on-reached-api-limit)
+  [member-id screen-name member-subscription-model token-model token-type-model member-model on-reached-api-limit]
+  (let [subscriptions-ids (get-subscriptions-of-member screen-name token-model token-type-model on-reached-api-limit)
         matching-subscriptions-members (find-members-having-ids subscriptions-ids member-model)
         matching-subscriptions-members-ids (map-get-in :id matching-subscriptions-members)
         missing-subscriptions-members-ids (deduce-ids-of-missing-members matching-subscriptions-members subscriptions-ids)]
@@ -47,7 +48,8 @@
         ensure-subscriptions-exist-for-member-having-id
         member-subscription-model
         member-model
-        token-model)
+        token-model
+        token-type-model)
       (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
 
     (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
@@ -55,8 +57,8 @@
                                                       :matching-members-ids matching-subscriptions-members-ids})))
 
 (defn process-subscribees
-  [member-id screen-name member-subscribee-model token-model member-model]
-  (let [subscribees-ids (get-subscribees-of-member screen-name token-model)
+  [member-id screen-name member-subscribee-model token-model token-type-model member-model]
+  (let [subscribees-ids (get-subscribees-of-member screen-name token-model token-type-model)
         matching-subscribees-members (find-members-having-ids subscribees-ids member-model)
         matching-subscribees-members-ids (map-get-in :id matching-subscribees-members)
         missing-subscribees-members-ids (deduce-ids-of-missing-members matching-subscribees-members subscribees-ids)]
@@ -69,7 +71,8 @@
         ensure-subscribees-exist-for-member-having-id
         member-subscribee-model
         member-model
-        token-model)
+        token-model
+        token-type-model)
       (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
 
     (ensure-subscribees-exist-for-member-having-id {:member-id member-id
@@ -79,15 +82,16 @@
 (defn process-network
   [payload entity-manager]
   (let [{members :members
-         tokens :tokens
+         token :token
+         token-type :token-type
          member-subscriptions :member-subscriptions
          member-subscribees :member-subscribees} entity-manager
         screen-name (first (json/read-str (php->clj (String. payload  "UTF-8"))))
         {member-id :id
-         twitter-id :twitter-id} (get-id-of-member-having-username screen-name members tokens)
-        subscribees-processor (fn [] (process-subscribees member-id screen-name member-subscribees tokens members))]
+         twitter-id :twitter-id} (get-id-of-member-having-username screen-name members token token-type)
+        subscribees-processor (fn [] (process-subscribees member-id screen-name member-subscribees token token-type members))]
     (try
-      (process-subscriptions member-id screen-name member-subscriptions tokens members subscribees-processor)
+      (process-subscriptions member-id screen-name member-subscriptions token token-type members subscribees-processor)
       (subscribees-processor)
       (catch Exception e
         (when (= (.getMessage e) error-unauthorized-friends-ids-access)

@@ -1,40 +1,37 @@
 {
   :database {
-    :charset        "utf8mb4"
+    :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "test"
-    :user           "root"
-    :password       ""
-    :port           "3306"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
+    :password       "__password__"
+    :port           "5433"
   }
   :database-read {
-    :charset        "utf8mb4"
+    :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "test"
-    :user           "root"
-    :password       ""
-    :port           "3306"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
+    :password       "__password__"
+    :port           "5433"
   }
   :database-archive {
-    :charset        "utf8mb4"
+    :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "test"
-    :user           "root"
-    :password       ""
-    :port           "3306"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
+    :password       "__password__"
+    :port           "5433"
   }
   :rabbitmq {
-    :user           "update_me"
-    :password       "update_me"
-    :port           "update_me"
-    :host           "update_me"
-    :vhost          "update_me"
-    :queue-network  "update_me"
-    :queue-likes    "update_me"
-    :queue-lists    "update_me"
-    :queue-status   "update_me"
+    :user               "update_me"
+    :password           "update_me"
+    :port               "update_me"
+    :host               "update_me"
+    :vhost              "update_me"
+    :queue-publications "update_me"
   }
   :aggregate {
-    :press          "update_me"
+    :main           "update_me"
   }
 }

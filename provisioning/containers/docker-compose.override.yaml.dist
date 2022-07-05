@@ -1,0 +1,20 @@
+
+x-workers: &workers
+  env_file:
+    - '../../.env'
+  volumes:
+    - '../../:/var/www/highlights.example.org'
+
+services:
+
+  app:
+    <<: *workers
+
+
+  worker:
+    <<: *workers
+
+networks:
+  default:
+    # [Use a pre-existing network](https://docs.docker.com/compose/networking/#use-a-pre-existing-network)
+    name: # external-network-name
