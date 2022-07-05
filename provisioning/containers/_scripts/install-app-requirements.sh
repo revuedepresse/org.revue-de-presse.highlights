@@ -18,9 +18,12 @@ function install_application() {
 
     mv "$(lein uberjar | sed -n 's/^Created \(.*standalone\.jar\)/\1/p')" highlights-snapshots-standalone.jar
 
-    chown -R worker. \
-        highlights-snapshots-standalone.jar \
-        "${project_dir}/target"
+    if [ -d "${project_dir}/target" ];
+    then
+        chown -R worker. \
+            highlights-snapshots-standalone.jar \
+            "${project_dir}/target"
+    fi
 }
 
 function install_dependencies() {
