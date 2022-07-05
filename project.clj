@@ -1,11 +1,11 @@
-(defproject devobs "0.1.0"
+(defproject snapshots "0.9.0"
 
-  :description "Easing observation of statuses from Twitter lists related to software development"
+  :description "Command-line application for updating tweets properties collected by calling Twitter API."
 
-  :url "https://github.com/thierrymarianne/devobs-worker"
+  :url "https://github.com/thierrymarianne/highlights.snapshots.fr"
 
-  :license {:name "MIT"
-            :url "https://opensource.org/licenses/MIT"}
+  :license {:name "AGPL-3.0"
+            :url "https://opensource.org/licenses/AGPL-3.0"}
 
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [clj-time "0.15.0"]
@@ -28,4 +28,4 @@
 
   :resource-paths ["resources"]
 
-  :main devobs.core)
+  :main snapshots.core)
