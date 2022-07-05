@@ -334,7 +334,10 @@ function start() {
 				--detach \
 				--rm \
 				worker \
-				java -jar ./highlights-snapshots-standalone.jar '${CMD}' '${DATE}' '${LIST}'
+				java \
+				-javaagent:/var/www/dd-java-agent.jar \
+				-jar ./highlights-snapshots-standalone.jar \
+				'${CMD}' '${DATE}' '${LIST}'
 START
 )"
 
