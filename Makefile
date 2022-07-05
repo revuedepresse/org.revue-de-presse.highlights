@@ -20,7 +20,7 @@ clean: ## Remove worker container
 install: build ## Install requirements
 	@/bin/bash -c 'source fun.sh && install'
 
-start: install ## Run worker e.g. COMMAND=''
+start: ## Run worker e.g. COMMAND=''
 	@/bin/bash -c 'source fun.sh && start'
 
 run-clojure-container: ## Run Clojure container
