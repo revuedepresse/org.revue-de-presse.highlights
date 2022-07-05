@@ -245,22 +245,13 @@ function install() {
     docker compose \
         -f ./provisioning/containers/docker-compose.yaml \
         -f ./provisioning/containers/docker-compose.override.yaml \
-        up \
-        --detach \
-        --force-recreate \
-				--no-build \
-        app
-
-    docker compose \
-        -f ./provisioning/containers/docker-compose.yaml \
-        -f ./provisioning/containers/docker-compose.override.yaml \
-        exec \
+        run \
         --env WORKER_WORKSPACE="${WORKER}" \
         --user root \
-        -T app \
+        --rm \
+        --no-TTY \
+        app \
         /bin/bash -c 'source /scripts/install-app-requirements.sh'
-
-    clean ''
 }
 
 function get_project_name() {
