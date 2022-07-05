@@ -1,4 +1,4 @@
-(defproject revuedepresse "0.9.0"
+(defproject revuedepresse "1.0.2"
 
   :description "Command-line application for updating tweets properties collected by calling Twitter API."
 
