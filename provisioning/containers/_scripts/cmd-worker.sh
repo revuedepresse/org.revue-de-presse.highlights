@@ -7,7 +7,7 @@ function start() {
 
     cd "/var/www/${WORKER}" || exit
 
-    if [ -e ./highlights-revuedepresse-standalone.jar ];
+    if [ -e ./highlights-standalone.jar ];
     then
 
         printf '%s.%s' 'About to run application' $'\n' 1>&2

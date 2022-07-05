@@ -336,7 +336,7 @@ function start() {
 				worker \
 				java \
 				-javaagent:/var/www/dd-java-agent.jar \
-				-jar ./highlights-revuedepresse-standalone.jar \
+				-jar ./highlights-standalone.jar \
 				'${CMD}' '${DATE}' '${LIST}'
 START
 )"

@@ -16,9 +16,9 @@ function install_application() {
 
     fi
 
-    mv "$(lein uberjar | sed -n 's/^Created \(.*standalone\.jar\)/\1/p')" highlights-revuedepresse-standalone.jar
+    mv "$(lein uberjar | sed -n 's/^Created \(.*standalone\.jar\)/\1/p')" highlights-standalone.jar
 
-    chown -R worker. highlights-revuedepresse-standalone.jar
+    chown -R worker. highlights-standalone.jar
 }
 
 function install_dependencies() {
