@@ -2,26 +2,26 @@
   :database {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "devobs_worker_test"
-    :user           "devobs_worker"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
     :password       "__password__"
-    :port           "5432"
+    :port           "5433"
   }
   :database-read {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "devobs_worker_test"
-    :user           "devobs_worker"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
     :password       "__password__"
-    :port           "5432"
+    :port           "5433"
   }
   :database-archive {
     :charset        "utf8"
     :host           "127.0.0.1"
-    :name           "devobs_worker_test"
-    :user           "devobs_worker"
+    :name           "highlights_snapshots_test"
+    :user           "highlights_snapshots"
     :password       "__password__"
-    :port           "5432"
+    :port           "5433"
   }
   :rabbitmq {
     :user               "update_me"

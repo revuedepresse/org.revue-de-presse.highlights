@@ -1,0 +1,23 @@
+version: '3.8'
+
+name: 'highlights'
+
+services:
+
+  app:
+    build:
+      context:    '../../'
+      dockerfile: './provisioning/containers/worker/Dockerfile'
+    restart:      'always'
+    volumes:
+      - './_scripts/:/scripts'
+      - '../../../shared/:/var/www/shared'
+
+  worker:
+    build:
+      context:    '../../'
+      dockerfile: './provisioning/containers/worker/Dockerfile'
+    restart:      'always'
+    volumes:
+      - './_scripts/:/scripts'
+      - '../../../shared/:/var/www/shared'

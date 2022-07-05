@@ -3,114 +3,22 @@
 lein_bin=/usr/local/bin/lein
 
 function require_project_directory() {
-    if [ -z "${CLJ_PROJECT_DIR}" ];
+    if [ -z "${WORKER}" ];
     then
-        echo 'Please provide with a path the project directory e.g.'
-        echo 'export CLJ_PROJECT_DIR=`pwd`'
+
+        printf '%s' 'Please provide with a path the project directory e.g.' 1>&2
+        printf '%s' 'export ${WORKER}=$(pwd)' 1>&2
+
         return 1
+
     fi
 
     return 0
 }
 
-function get_image_name() {
-    local image_name
-
-    local work_directory
-    work_directory="$(pwd)"
-
-    image_name="$(echo "${work_directory}" | sha1sum | tail -c12 | awk '{print $1}')"
-    echo "devobs-api-${image_name}"
-}
-
-function build_clojure_container() {
-    local image_name
-    image_name=$(get_image_name)
-
-    docker build -t "${image_name}" .
-}
-
-function get_container_name() {
-    local suffix
-    suffix="${1}"
-
-    echo 'devobs-api-'"${suffix}"
-}
-
-function get_docker_network() {
-    if [ -n "${NETWORK}" ]; then
-        echo "${NETWORK}"
-        return
-    fi
-
-    echo 'devobs-api-network'
-}
-
-function create_network() {
-    local network
-    network=$(get_docker_network)
-    /bin/bash -c 'docker network create '"${network}"
-}
-
-function get_network_option() {
-    local network
-
-    network='--network '$(get_docker_network)' '
-    if [ ! -z "${NO_DOCKER_NETWORK}" ];
-    then
-        network=''
-    fi
-
-    echo "${network}";
-}
-
-function remove_clojure_container {
-    local suffix
-    suffix="${1}"
-
-    local container_name
-    container_name="$(get_container_name "${suffix}")"
-
-    if [ "$(docker ps -a | grep "${container_name}" | grep -c '')" -gt 0 ];
-    then
-        docker rm -f "$(docker ps -a | grep "${container_name}" | awk '{print $1}')"
-    fi
-}
-
 function run_clojure_container() {
-    local arguments
-    arguments="${COMMAND}"
-
-    local prefix
-    prefix="$(pwd)"
-
-    local container_name_suffix=
-    container_name_suffix="$(echo "${prefix}${arguments}" | sha1sum  | awk '{print $1}')"
-
-    local container_name
-    container_name="$(get_container_name "${container_name_suffix}")"
-
-    remove_clojure_container "${container_name_suffix}"
-
-    local interactive_mode_option=''
-    if [ -z "${arguments}" ];
-    then
-        interactive_mode_option=' -ti'
-    fi
-
-    local image_name
-    image_name=`get_image_name`
-
-    local network
-    network=`get_network_option`
-
-    local command
-    command='docker run '"${interactive_mode_option}"' \
-        --hostname devobs.clojure '"${network}"' \
-        --rm --name '"${container_name}"' '"${image_name}"' \
-        java -jar devobs-standalone.jar '"${arguments}"
-    echo "About to run: \"${command}\""
-    /bin/bash -c "${command}"
+    echo "About to run: \"${COMMAND}\""
+    make start
 }
 
 function run_command() {
@@ -125,14 +33,18 @@ function run_command() {
 
     local project_dir_is_unavailable
     project_dir_is_unavailable="$(require_project_directory)"
+
     if [ $? -eq 1 ];
     then
+
         echo "${project_dir_is_unavailable}"
+
         return
+
     fi
 
     local from
-    from="$CLJ_PROJECT_DIR"
+    from="/var/www/${WORKER}"
     echo 'About to run command from "'"${from}"'"'
     cd "${from}" || exit
 
@@ -140,11 +52,11 @@ function run_command() {
 
     echo "${before_message}" && \
     export COMMAND="${command}" && run_clojure_container \
-    2>> ./logs/highlights.error.log \
-    >> ./logs/highlights.out.log && \
+    >> "./var/log/${WORKER}.log" \
+    2>> "./var/log/${WORKER}.error.log" && \
     now="$(date)" && \
-    echo "${success_message}$(date)"'"' >> ./logs/highlights.out.log || \
-    echo 'Something went horribly horribly wrong' >> ./logs/highlights.out.log
+    echo "${success_message}$(date)"'"' >> "./var/log/${WORKER}.log" || \
+    echo 'Something went horribly horribly wrong' >> "./var/log/${WORKER}.log"
 }
 
 function refresh_highlights() {
@@ -185,6 +97,5 @@ function save_highlights_for_all_aggregates() {
 
     run_command "${command}" "${before_message}" "${success_message}"
 }
-
 alias refresh-highlights=refresh_highlights
 alias save-highlights-for-all-aggregates=save_highlights_for_all_aggregates

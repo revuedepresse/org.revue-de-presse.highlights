@@ -1,20 +1,27 @@
 SHELL:=/bin/bash
 
-## See also https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
+.PHONY: doc build clean help install restart start stop test
 
-.PHONY: help
+WORKER ?= 'highlights.example.org'
+TMP_DIR ?= '/tmp/tmp_${WORKER}'
 
-help:
+doc:
+	@cat doc/commands.md && echo ''
+
+help: doc
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-create-network: ## Create Docker network
-	@/bin/bash -c 'source ./bin/console.sh && create_network'
+build: ## Build worker image
+	@/bin/bash -c 'source fun.sh && build'
 
-remove-clojure-image: ## Remove Clojure container
-	@/bin/bash -c 'source ./bin/console.sh && remove_clojure_container'
+clean: ## Remove worker container
+	@/bin/bash -c 'source fun.sh && clean "${TMP_DIR}"'
 
-build-clojure-container: ## Build Clojure container
-	@/bin/bash -c 'source ./bin/console.sh && build_clojure_container'
+install: build ## Install requirements
+	@/bin/bash -c 'source fun.sh && install'
+
+start: install ## Run worker e.g. COMMAND=''
+	@/bin/bash -c 'source fun.sh && start'
 
 run-clojure-container: ## Run Clojure container
 	@/bin/bash -c "source ./bin/console.sh && run_clojure_container"
