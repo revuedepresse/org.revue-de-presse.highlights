@@ -63,6 +63,14 @@ function create_log_files_when_non_existing() {
     fi
 }
 
+function set_permissions() {
+    chown -R  worker.   /var/www/"${WORKER}"/var/log/* \
+                        /var/www \
+                        /start.sh
+
+    chmod     ug+x      /start.sh
+}
+
 function install_system_packages() {
     # Update package source repositories
     apt-get update
@@ -81,12 +89,9 @@ function install_system_packages() {
         wget
 }
 
-function set_permissions() {
-    chown -R  worker.   /var/www/"${WORKER}"/var/log/* \
-                        /var/www \
-                        /start.sh
-
-    chmod     ug+x      /start.sh
+function install_tracing() {
+    wget -O /var/www/dd-java-agent.jar https://dtdg.co/latest-java-tracer
+    chown worker. /var/www/dd-java-agent.jar
 }
 
 set -Eeuo pipefail
