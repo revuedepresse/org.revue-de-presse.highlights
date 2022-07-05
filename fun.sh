@@ -261,7 +261,7 @@ function install() {
         /bin/bash -c 'source /scripts/install-app-requirements.sh'
 
     clean ''
-} >> ./var/log/install.log 2>> ./var/log/install.error.log
+}
 
 function get_project_name() {
     local project_name
