@@ -339,7 +339,7 @@ START
 )"
 
     container_name="$(/bin/bash -c "${cmd}")"
-    docker logs -f "${container_name}" >> "./var/log/${WORKER}.log" 2>> "./var/log/${WORKER}.error.log"
+    docker logs -f "${container_name}" 2>&1 | grep -v environ >> "./var/log/${WORKER}.log"
 }
 
 function stop() {
