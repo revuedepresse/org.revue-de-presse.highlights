@@ -18,12 +18,7 @@ function install_application() {
 
     mv "$(lein uberjar | sed -n 's/^Created \(.*standalone\.jar\)/\1/p')" highlights-snapshots-standalone.jar
 
-    if [ -d "${project_dir}/target" ];
-    then
-        chown -R worker. \
-            highlights-snapshots-standalone.jar \
-            "${project_dir}/target"
-    fi
+    chown -R worker. highlights-snapshots-standalone.jar
 }
 
 function install_dependencies() {
@@ -40,8 +35,6 @@ function install_dependencies() {
     fi
 
     cd "${project_dir}" || exit
-
-    chown -R worker. "${project_dir}/target"
 
     rm -rf "${project_dir}"/target/*
 
@@ -161,6 +154,11 @@ function install_app_requirements() {
     remove_distributed_version_control_system_files_git "${project_dir}"
     set_file_permissions "${project_dir}"
     install_application "${project_dir}"
+
+    if [ -d "${project_dir}/target" ];
+    then
+        chown -R worker. "${project_dir}/target"
+    fi
 }
 install_app_requirements
 
