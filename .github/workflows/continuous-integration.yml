@@ -10,8 +10,8 @@ jobs:
       postgres:
         image: postgres:14-bullseye
         env:
-          POSTGRES_DB: highlights_revuedepresse_test
-          POSTGRES_USER: highlights_revuedepresse
+          POSTGRES_DB: highlights_test
+          POSTGRES_USER: highlights
           POSTGRES_PASSWORD: test
         ports:
           - 5433:5432
@@ -34,8 +34,8 @@ jobs:
           PGPASSWORD=test psql \
           --host 127.0.0.1 \
           --port 5433 \
-          --username highlights_revuedepresse \
-          --dbname=highlights_revuedepresse_test \
+          --username highlights \
+          --dbname=highlights_test \
           --echo-all \
           --quiet \
           --file $GITHUB_WORKSPACE/build/create_schema.sql

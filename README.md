@@ -1,4 +1,4 @@
-# highlights.revue-de-presse.org
+# Highlights
 
 Command-line application for updating tweets properties collected by calling Twitter API.
 

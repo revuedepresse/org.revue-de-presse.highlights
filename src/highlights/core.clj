@@ -1,6 +1,6 @@
 ; About gen-class examples
 ; @see https://clojure.org/reference/compilation#_gen_class_examples
-(ns revuedepresse.core
+(ns highlights.core
   (:require [clojure.tools.logging :as log]
             [command.analysis.frequency :as analysis-frequencies]
             [command.generate-keywords :as keywords]
@@ -20,7 +20,7 @@
         [command.recommend-subscriptions])
   (:gen-class))
 
-(log/log-capture! "revuedepresse")
+(log/log-capture! "highlights")
 
 (defn command-add-frequencies-of-publication-for-member-subscriptions
   [args]
@@ -261,7 +261,7 @@
 
 (defn execute-command
   [name args]
-  (let [s (symbol (str "revuedepresse.core/command-" name))
+  (let [s (symbol (str "highlights.core/command-" name))
         f (resolve s)]
     (if f
       (navigation/try-running-command f args)

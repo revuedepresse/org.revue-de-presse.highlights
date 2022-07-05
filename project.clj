@@ -1,8 +1,8 @@
-(defproject revuedepresse "1.0.2"
+(defproject highlights "1.0.2"
 
   :description "Command-line application for updating tweets properties collected by calling Twitter API."
 
-  :url "https://github.com/thierrymarianne/highlights.snapshots.fr"
+  :url "https://github.com/revuedepresse/highlights.revue-de-presse.org"
 
   :license {:name "AGPL-3.0"
             :url "https://opensource.org/licenses/AGPL-3.0"}
@@ -28,4 +28,4 @@
 
   :resource-paths ["resources"]
 
-  :main revuedepresse.core)
+  :main highlights.core)
