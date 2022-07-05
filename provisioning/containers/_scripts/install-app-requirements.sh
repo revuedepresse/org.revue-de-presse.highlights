@@ -114,6 +114,11 @@ function remove_distributed_version_control_system_files_git() {
     fi
 }
 
+function install_tracing() {
+    wget -O /var/www/dd-java-agent.jar https://dtdg.co/latest-java-tracer
+    chown worker. /var/www/dd-java-agent.jar
+}
+
 function install_app_requirements() {
     local WORKER_UID
     local WORKER_GID
@@ -154,6 +159,7 @@ function install_app_requirements() {
     remove_distributed_version_control_system_files_git "${project_dir}"
     set_file_permissions "${project_dir}"
     install_application "${project_dir}"
+    install_tracing
 
     if [ -d "${project_dir}/target" ];
     then
