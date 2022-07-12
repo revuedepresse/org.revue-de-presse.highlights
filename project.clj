@@ -10,7 +10,7 @@
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [clj-time "0.15.0"]
                  [pandect "0.6.1"]
-                 [environ "1.1.0"]
+                 [environ "1.2.0"]
                  [com.novemberain/langohr "5.0.0" :exclusions [org.slf4j/slf4j-api]]
                  [org.postgresql/postgresql "42.2.18.jre7"]
                  [korma "0.4.0"]
@@ -23,6 +23,8 @@
                  [org.slf4j/slf4j-log4j12 "1.6.2"]
                  [php-clj "0.4.1"]
                  [org.slf4j/slf4j-simple "1.8.0-beta2" :exclusions [org.slf4j/slf4j-api]]]
+
+  :plugins [[lein-environ "1.2.0"]]
 
   :aot :all
 
