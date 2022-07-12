@@ -116,9 +116,9 @@
   [& args]
   (adaptor/list-alphabet-letters))
 
-(defn ^{:requires []} command-list-aggregates
+(defn ^{:requires []} command-list-members-lists
   [& args]
-  (adaptor/list-aggregates))
+  (adaptor/list-members-lists))
 
 (defn ^{:requires [:publishers-list]} command-list-aggregate-statuses
   [args]
@@ -129,10 +129,10 @@
   [& args]
   (adaptor/list-keyword-aggregates))
 
-(defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
+(defn ^{:requires [:screen-name]} command-list-members-lists-containing-members
   [args]
   (let [[screen-name] args]
-    (adaptor/list-aggregates-containing-member screen-name)))
+    (adaptor/list-members-lists-containing-member screen-name)))
 
 (defn ^{:requires []} command-list-highlights-since-a-month-ago
   [& args]
@@ -151,10 +151,10 @@
   [& args]
   (adaptor/list-members-which-subscriptions-have-been-collected))
 
-(defn ^{:requires [:screen-name]} command-list-aggregates-of-subscriber-having-screen-name
+(defn ^{:requires [:screen-name]} command-list-members-lists-of-subscriber-having-screen-name
   [args]
   (let [[screen-name] args]
-    (adaptor/list-aggregates-of-subscriber-having-screen-name screen-name)))
+    (adaptor/list-members-lists-of-subscriber-having-screen-name screen-name)))
 
 (defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
   [args]
