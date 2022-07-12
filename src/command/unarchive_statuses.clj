@@ -1,6 +1,5 @@
 (ns command.unarchive-statuses
-  (:require [clojure.tools.logging :as log]
-            [clojure.edn :as edn]
+  (:require [taoensso.timbre :as timbre]
             [environ.core :refer [env]])
   (:use [repository.entity-manager]
         [repository.publishers-list]
@@ -11,8 +10,8 @@
 
 (defn unarchive-statuses
   [week year]
-  (let [press-aggregate-name (:main (edn/read-string (:aggregate env)))
-        db-read-params {:models (get-entity-manager (:database-archive env) {:is-archive-connection true})}
+  (let [press-aggregate-name (:list-main env)
+        db-read-params {:models (get-entity-manager "database" {:is-archive-connection true})}
         archived-status-model (:archived-status (:models db-read-params))
         read-aggregate-model (:aggregate (:models db-read-params))
         aggregate (first (find-aggregate-by-name press-aggregate-name read-aggregate-model))
@@ -21,7 +20,7 @@
                                                        week
                                                        year
                                                        :are-archived)
-        db-write-params {:models (get-entity-manager (:database env))}
+        db-write-params {:models (get-entity-manager "database")}
         write-status-aggregate-model (:status-aggregate (:models db-write-params))
         write-status-model (:status (:models db-write-params))
         matching-archived-statuses (find-statuses-having-ids statuses-ids archived-status-model)
@@ -36,4 +35,4 @@
       total-new-relationships
       total-new-statuses
       press-aggregate-name)
-    (log/info (str total-timely-statuses " archived statuses have been found."))))
+    (timbre/info (str total-timely-statuses " archived statuses have been found."))))

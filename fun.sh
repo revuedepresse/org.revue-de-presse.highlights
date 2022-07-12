@@ -351,6 +351,17 @@ function stop() {
     remove_running_container_and_image_in_debug_mode 'worker'
 }
 
+function test() {
+  (
+    for param in $(\cat ./.env.test.dist | sed -E "s/='([^']*)'/=\1/g");
+        do export $param;
+    done
+
+    env | grep -E '^DATABASE_' | grep -v 'PASSWORD'
+    lein test
+  )
+}
+
 function validate_docker_compose_configuration() {
     docker compose \
         -f ./provisioning/containers/docker-compose.yaml \

@@ -2,13 +2,12 @@
   (:require [environ.core :refer [env]]
             [clj-uuid :as uuid]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
             [clj-time.predicates :as pr]
             [clj-time.core :as t]
             [clj-time.coerce :as c]
             [clj-time.local :as l]
             [clj-time.format :as f]
-            [clojure.tools.logging :as log])
+            [taoensso.timbre :as timbre])
   (:use [repository.entity-manager]
         [repository.publishers-list]
         [repository.highlight]
@@ -43,7 +42,7 @@
                                                                   nil)
                              :total-retweets                    (get decoded-document "retweet_count")
                              :total-favorites                   (get decoded-document "favorite_count")}]
-        (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
+        (timbre/info (str "Prepared highlight for member #" (:member-id highlight-props)
                        " and status #" (:status-id highlight-props)))
         highlight-props)
       (catch Exception e
@@ -69,15 +68,15 @@
         status-popularities (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)]
     (doall
       (map
-        #(log/info (str "Saved popularity of status #" (:status-id %)))
+        #(timbre/info (str "Saved popularity of status #" (:status-id %)))
         status-popularities))
     status-popularities))
 
 (defn record-popularity-of-highlights
   ([date]
-   (record-popularity-of-highlights date (:main (edn/read-string (:aggregate env)))))
+   (record-popularity-of-highlights date (:list-main env)))
   ([date aggregate-name]
-   (let [models (get-entity-manager (:database env))
+   (let [models (get-entity-manager "database")
          checked-at (c/to-timestamp
                       (f/unparse date-hour-formatter (l/local-now)))
          pad (take 300 (iterate (constantly nil) nil))
@@ -95,8 +94,8 @@
 (defn record-popularity-of-highlights-for-all-aggregates
   ([date]
    ; opening database connection beforehand
-   (let [_ (get-entity-manager (:database env))
-         excluded-aggregate (:main (edn/read-string (:aggregate env)))]
+   (let [_ (get-entity-manager "database")
+         excluded-aggregate (:list-main env)]
      (record-popularity-of-highlights-for-all-aggregates date excluded-aggregate)))
   ([date excluded-aggregate]
    (let [aggregates (find-aggregate-having-publication-from-date date excluded-aggregate)]
@@ -107,8 +106,8 @@
 (defn record-popularity-of-highlights-for-main-aggregate
   ([date]
    ; opening database connection beforehand
-   (let [_ (get-entity-manager (:database env))
-         aggregate-name (:main (edn/read-string (:aggregate env)))]
+   (let [_ (get-entity-manager "database")
+         aggregate-name (:list-main env)]
      (record-popularity-of-highlights-for-main-aggregate date aggregate-name :include-aggregate)))
   ([date aggregate-name & [include-aggregate]]
    (let [aggregates (find-aggregate-having-publication-from-date date aggregate-name include-aggregate)]
@@ -130,7 +129,7 @@
         filtered-statuses (filter-out-known-statuses (try-finding-highlights-by-status-ids models) statuses)
         highlights-props (map (extract-highlight-props aggregate) filtered-statuses)
         new-highlights (bulk-insert-new-highlights highlights-props (:highlight models) (:member models) (:status models))]
-    (log/info (str "There are " (count new-highlights) " new highlights"))
+    (timbre/info (str "There are " (count new-highlights) " new highlights"))
     new-highlights))
 
 (defn try-insert-highlights-from-statuses
@@ -143,10 +142,10 @@
 
 (defn save-highlights-from-date-for-aggregate
   [date aggregate]
-  (let [{aggregate-model :aggregate :as models} (get-entity-manager (:database env))
+  (let [{aggregate-model :aggregate :as models} (get-entity-manager "database")
         aggregate-name (if aggregate
                          aggregate
-                         (:main (edn/read-string (:aggregate env))))
+                         (:list-main env))
         aggregate (find-aggregate-by-name aggregate-name (some? aggregate) aggregate-model)
         statuses-ids (doall
                        (map
@@ -156,7 +155,7 @@
         ; about the effect of passing step and pad arguments
         pad (take 100 (iterate (constantly nil) nil))
         statuses-ids-chunk (partition 100 100 pad statuses-ids)]
-    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
+    (timbre/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
     (doall
       (map
         (try-insert-highlights-from-statuses aggregate models)
@@ -185,14 +184,14 @@
 
 (defn save-highlights-for-all-aggregates
   [date]
-  (let [_ (get-entity-manager (:database env))
-        aggregate-name (:main (edn/read-string (:aggregate env)))
+  (let [_ (get-entity-manager "database")
+        aggregate-name (:list-main env)
         aggregates (find-aggregate-having-publication-from-date date aggregate-name)]
     (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))
 
 (defn save-highlights-for-main-aggregate
   [date]
-  (let [_ (get-entity-manager (:database env))
-        aggregate-name (:main (edn/read-string (:aggregate env)))
+  (let [_ (get-entity-manager "database")
+        aggregate-name (:list-main env)
         aggregates (find-aggregate-having-publication-from-date date aggregate-name :include-aggregate)]
     (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))

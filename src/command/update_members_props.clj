@@ -1,7 +1,6 @@
 (ns command.update-members-props
-  (:require [environ.core :refer [env]]
-            [clojure.data.json :as json]
-            [clojure.tools.logging :as log])
+  (:require [clojure.data.json :as json]
+            [taoensso.timbre :as timbre])
   (:use [repository.entity-manager]
         [repository.member]))
 
@@ -34,10 +33,10 @@
   (fn [member-props]
     (if (:screen-name member-props)
       (do
-        (log/info (str "About to update description and URL of member \""
+        (timbre/info (str "About to update description and URL of member \""
                      (:screen-name member-props)  "\""))
         (update-member-description-and-url member-props model))
-      (log/info (str "Could not update description and URL of member #"
+      (timbre/info (str "Could not update description and URL of member #"
                      (:id member-props) " without original status document")))))
 
 (defn update-members-page
@@ -50,7 +49,7 @@
 
 (defn update-members-descriptions-urls
   []
-  (let [{member-model :members} (get-entity-manager (:database env))
+  (let [{member-model :members} (get-entity-manager "database")
         total-members (count-members)
         page-length 10000
         total-pages (inc (quot total-members page-length))]

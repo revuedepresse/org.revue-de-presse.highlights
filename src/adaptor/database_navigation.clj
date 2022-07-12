@@ -14,7 +14,7 @@
 
 (defn adapt-results
   [{props :props finder :finder formatter :formatter}]
-  (let [results (let [get-models #(get-entity-manager (:database env))]
+  (let [results (let [get-models #(get-entity-manager "database")]
                   (finder get-models))
         props (if (some? props)
                 props
@@ -31,7 +31,7 @@
                   :finder    (fn [_] (get-alphabet))
                   :formatter (get-letter-formatter :letter)}))
 
-(defn list-aggregates
+(defn list-members-lists
   [& [finder]]
   (let [finder (fn [get-models]
                  (get-models)
@@ -41,13 +41,13 @@
     (adapt-results {:finder    finder
                     :formatter (get-aggregate-formatter)})))
 
-(defn list-aggregates-containing-member
+(defn list-members-lists-containing-member
   [screen-name]
-  (list-aggregates #(find-aggregates-enlisting-member screen-name)))
+  (list-members-lists #(find-aggregates-enlisting-member screen-name)))
 
 (defn list-keyword-aggregates
   []
-  (list-aggregates (fn []
+  (list-members-lists (fn []
                      (sort-by #(:aggregate-name %) (find-keyword-aggregates)))))
 
 (defn list-keywords-by-aggregate
@@ -126,7 +126,7 @@
   []
   (list-members #(find-members-which-subscriptions-have-been-collected)))
 
-(defn list-aggregates-of-subscriber-having-screen-name
+(defn list-members-lists-of-subscriber-having-screen-name
   [screen-name]
   (adapt-results {:props     [:list-name :list-twitter-id]
                   :finder    (fn [get-models]

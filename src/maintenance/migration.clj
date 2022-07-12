@@ -1,7 +1,6 @@
 (ns maintenance.migration
   (:require [repository.publication :as publication]
-            [repository.status :as status]
-            [environ.core :refer [env]])
+            [repository.status :as status])
   (:use [repository.entity-manager]
         [pandect.algo.sha1 :refer :all]
         [pandect.algo.sha256 :refer :all]))
@@ -32,7 +31,7 @@
 
 (defn migrate-all-status-to-publications
   []
-  (let [models (get-entity-manager (:database env))
+  (let [models (get-entity-manager "database")
         published-status (migrate-status-to-publications models)]
     (loop [published-status published-status]
       (when (> (count published-status) 0)

@@ -1,5 +1,5 @@
 (ns amqp.status-handler
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [clj-time.format :as f])
   (:use [repository.entity-manager]
         [repository.publishers-list]
@@ -16,8 +16,8 @@
         min-id (:min-status-id member)
         min-id (if (= min-id "-INF") nil min-id)
         _ (if max-id
-            (log/info (str "About to fetch statuses since status #" max-id))
-            (log/info (str "About to fetch statuses until reaching status #" min-id)))
+            (timbre/info (str "About to fetch statuses since status #" max-id))
+            (timbre/info (str "About to fetch statuses until reaching status #" min-id)))
         statuses (if max-id
                    (get-statuses-of-member
                      {:screen-name screen-name

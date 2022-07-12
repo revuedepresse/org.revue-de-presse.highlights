@@ -1,6 +1,10 @@
 SHELL:=/bin/bash
 
-.PHONY: doc build clean help install restart start stop test
+.PHONY: doc help
+
+.PHONY: build clean deps install
+
+.PHONY: restart start stop test
 
 WORKER ?= 'highlights.example.org'
 TMP_DIR ?= '/tmp/tmp_${WORKER}'
@@ -17,11 +21,17 @@ build: ## Build worker image
 clean: ## Remove worker container
 	@/bin/bash -c 'source fun.sh && clean "${TMP_DIR}"'
 
+deps: ## Install dependencies
+	@lein deps
+
 install: build ## Install requirements
 	@/bin/bash -c 'source fun.sh && install'
 
 start: ## Run worker e.g. COMMAND=''
 	@/bin/bash -c 'source fun.sh && start'
+
+test: deps ## Run tests
+	@/bin/bash -c 'source fun.sh && test'
 
 run-clojure-container: ## Run Clojure container
 	@/bin/bash -c "source ./bin/console.sh && run_clojure_container"

@@ -1,5 +1,5 @@
 (ns amqp.favorite-status-handler
-  (:require [clojure.tools.logging :as log])
+  (:require [taoensso.timbre :as timbre])
   (:use [repository.entity-manager]
         [repository.publishers-list]
         [repository.member]
@@ -13,8 +13,8 @@
         max-favorite-id (:max-favorite-status-id member)
         min-favorite-id (:min-favorite-status-id member)
         _ (if max-favorite-id
-            (log/info (str "About to fetch favorites since status #" max-favorite-id))
-            (log/info (str "About to fetch favorites until reaching status #" min-favorite-id)))
+            (timbre/info (str "About to fetch favorites since status #" max-favorite-id))
+            (timbre/info (str "About to fetch favorites until reaching status #" min-favorite-id)))
         favorites (if max-favorite-id
                     (get-favorites-of-member
                       {:screen-name screen-name

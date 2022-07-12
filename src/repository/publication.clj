@@ -1,7 +1,7 @@
 (ns repository.publication
   (:require [korma.core :as db]
             [clj-uuid :as uuid]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler]
             [repository.status :as status])
   (:use [utils.string]))

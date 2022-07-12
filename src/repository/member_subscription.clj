@@ -1,6 +1,6 @@
 (ns repository.member-subscription
   (:require [korma.core :as db]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [clj-uuid :as uuid])
   (:use [korma.db]
         [repository.member]))
@@ -160,10 +160,10 @@
         missing-member-subscriptions (map (create-member-subscription-values member-id) member-subscriptions)]
 
     (when (pos? (count missing-member-subscriptions))
-      (log/info (str "About to ensure " (count missing-member-subscriptions)
+      (timbre/info (str "About to ensure " (count missing-member-subscriptions)
                      " subscriptions for member having id #" member-id " are recorded."))
       (new-member-subscriptions missing-member-subscriptions model)
-      (log/info (str (count missing-member-subscriptions)
+      (timbre/info (str (count missing-member-subscriptions)
                      " subscriptions have been recorded successfully")))))
 
 (defn ensure-subscribees-exist-for-member-having-id
@@ -178,9 +178,9 @@
         missing-member-subscribees (map (create-member-subscribee-values member-id) member-subscribees)]
 
     (when (pos? (count missing-member-subscribees))
-      (log/info (str "About to ensure " (count missing-member-subscribees)
+      (timbre/info (str "About to ensure " (count missing-member-subscribees)
                      " subscribees for member having id #" member-id " are recorded."))
       (new-member-subscribees missing-member-subscribees model)
-      (log/info (str (count missing-member-subscribees)
+      (timbre/info (str (count missing-member-subscribees)
                      " subscribees have been recorded successfully")))))
 

@@ -1,0 +1,18 @@
+# Dependencies
+
+ - [adamwynne/twitter-api](https://github.com/adamwynne/twitter-api)
+ - [clojure.org](https://clojure.org/releases/downloads)
+ - [clojure/data.json](https://github.com/clojure/data.json)
+ - [korma/Korma/tree/v0.4.3](https://github.com/korma/Korma/tree/v0.4.3)
+ - [clojure/math.numeric-tower](https://github.com/clojure/math.numeric-tower)
+ - [michaelklishin/langohr](https://github.com/michaelklishin/langohr)
+ - [mudge/php-clj](https://github.com/mudge/php-clj)
+ - [ptaoussanis/timbre](https://github.com/ptaoussanis/timbre)
+ - [weavejester/environ](https://github.com/weavejester/environ)
+ - [xsc/pandect](https://github.com/xsc/pandect)
+ - [https://danlentz.github.io/clj-uuid/](https://danlentz.github.io/clj-uuid/)
+ - [https://clojure.github.io/tools.logging/](https://clojure.github.io/tools.logging/)
+ - [https://search.maven.org/artifact/org.postgresql/postgresql/42.4.0/jar](https://search.maven.org/artifact/org.postgresql/postgresql/42.4.0/jar)
+ - [https://mvnrepository.com/artifact/org.slf4j/slf4j-api](https://mvnrepository.com/artifact/org.slf4j/slf4j-api)
+ - [https://mvnrepository.com/artifact/org.slf4j/slf4j-reload4j](https://mvnrepository.com/artifact/org.slf4j/slf4j-reload4j)
+ - [https://mvnrepository.com/artifact/org.slf4j/slf4j-simple](https://mvnrepository.com/artifact/org.slf4j/slf4j-simple)
