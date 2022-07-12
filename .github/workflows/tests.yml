@@ -1,4 +1,4 @@
-name: highlights.revue-de-presse.org
+name: tests
 
 on: [push, pull_request]
 
@@ -27,7 +27,7 @@ jobs:
 
       - name: Copy test environment variables configuration file
         run: |
-          cat .lein-env.test.dist | sed -E "s/__password__/test/g" > .lein-env
+          cat .env.test.dist | sed -E "s/__password__/test/g" > .env
 
       - name: Create test database schema
         run: |
@@ -40,8 +40,5 @@ jobs:
           --quiet \
           --file $GITHUB_WORKSPACE/build/create_schema.sql
 
-      - name: Install dependencies
-        run: lein deps
-
       - name: Run tests
-        run: lein test
+        run: make test
