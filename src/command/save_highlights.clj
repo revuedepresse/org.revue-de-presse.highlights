@@ -2,7 +2,6 @@
   (:require [environ.core :refer [env]]
             [clj-uuid :as uuid]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
             [clj-time.predicates :as pr]
             [clj-time.core :as t]
             [clj-time.coerce :as c]
@@ -77,7 +76,7 @@
   ([date]
    (record-popularity-of-highlights date (:list-main env)))
   ([date aggregate-name]
-   (let [models (get-entity-manager (:database env))
+   (let [models (get-entity-manager "database")
          checked-at (c/to-timestamp
                       (f/unparse date-hour-formatter (l/local-now)))
          pad (take 300 (iterate (constantly nil) nil))
@@ -95,7 +94,7 @@
 (defn record-popularity-of-highlights-for-all-aggregates
   ([date]
    ; opening database connection beforehand
-   (let [_ (get-entity-manager (:database env))
+   (let [_ (get-entity-manager "database")
          excluded-aggregate (:list-main env)]
      (record-popularity-of-highlights-for-all-aggregates date excluded-aggregate)))
   ([date excluded-aggregate]
@@ -107,7 +106,7 @@
 (defn record-popularity-of-highlights-for-main-aggregate
   ([date]
    ; opening database connection beforehand
-   (let [_ (get-entity-manager (:database env))
+   (let [_ (get-entity-manager "database")
          aggregate-name (:list-main env)]
      (record-popularity-of-highlights-for-main-aggregate date aggregate-name :include-aggregate)))
   ([date aggregate-name & [include-aggregate]]
@@ -143,7 +142,7 @@
 
 (defn save-highlights-from-date-for-aggregate
   [date aggregate]
-  (let [{aggregate-model :aggregate :as models} (get-entity-manager (:database env))
+  (let [{aggregate-model :aggregate :as models} (get-entity-manager "database")
         aggregate-name (if aggregate
                          aggregate
                          (:list-main env))
@@ -185,14 +184,14 @@
 
 (defn save-highlights-for-all-aggregates
   [date]
-  (let [_ (get-entity-manager (:database env))
+  (let [_ (get-entity-manager "database")
         aggregate-name (:list-main env)
         aggregates (find-aggregate-having-publication-from-date date aggregate-name)]
     (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))
 
 (defn save-highlights-for-main-aggregate
   [date]
-  (let [_ (get-entity-manager (:database env))
+  (let [_ (get-entity-manager "database")
         aggregate-name (:list-main env)
         aggregates (find-aggregate-having-publication-from-date date aggregate-name :include-aggregate)]
     (doall (map #(save-highlights-from-date-for-aggregate date (:aggregate-name %)) aggregates))))

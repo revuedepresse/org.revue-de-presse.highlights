@@ -1,5 +1,4 @@
 (ns command.recommend-subscriptions
-  (:require [environ.core :refer [env]])
   (:use [recommendation.distance]
         [repository.entity-manager]))
 
@@ -7,7 +6,7 @@
   "Port of command written in PHP to recommend subscriptions from the existing subscribing history of a member"
   ; @see https://github.com/thierrymarianne/daily-press-review/pull/91
   [screen-name]
-  (let [_ (get-entity-manager (:database env))]
+  (let [_ (get-entity-manager "database")]
     (let [distinct-subscriptions-ids (find-distinct-ids-of-subscriptions)
           {identity-vector :member-vector
            screen-name :screen-name

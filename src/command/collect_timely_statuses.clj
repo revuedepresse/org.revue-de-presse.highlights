@@ -2,7 +2,6 @@
   (:require
     [clj-time.coerce :as c]
     [clojure.tools.logging :as log]
-    [environ.core :refer [env]]
     [utils.error-handler :as error-handler])
   (:use
     [amqp.handling-errors]
@@ -47,7 +46,7 @@
 
 (defn collect-timely-statuses-for-member-subscriptions
   [screen-name]
-  (let [entity-manager (get-entity-manager (:database env))
+  (let [entity-manager (get-entity-manager "database")
         aggregates (get-member-aggregates-by-screen-name screen-name)
         sorted-aggregates (sort-by-status-publication-date aggregates)
         statuses (doall
@@ -88,7 +87,7 @@
                    (if (some? reverse-order)
                      (reverse alphabetic-characters)
                      alphabetic-characters))
-        entity-manager (get-entity-manager (:database env))
+        entity-manager (get-entity-manager "database")
         _ (doall
             (map
               #(collect-timely-statuses-for-aggregates-matching-pattern % entity-manager)
@@ -96,7 +95,7 @@
 
 (defn collect-timely-statuses-from-aggregate
   [aggregate-name]
-  (let [entity-manager (get-entity-manager (:database env))
+  (let [entity-manager (get-entity-manager "database")
         _ (collect-timely-statuses-for-aggregates-matching-pattern
             aggregate-name
             entity-manager
@@ -104,7 +103,7 @@
 
 (defn collect-timely-statuses-for-member
   [screen-name]
-  (let [entity-manager (get-entity-manager (:database env))
+  (let [entity-manager (get-entity-manager "database")
         aggregate (get-member-aggregate screen-name)
         statuses (handle-list
                    {:screen-name                   screen-name

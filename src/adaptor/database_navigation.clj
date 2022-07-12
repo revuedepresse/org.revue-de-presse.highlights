@@ -14,7 +14,7 @@
 
 (defn adapt-results
   [{props :props finder :finder formatter :formatter}]
-  (let [results (let [get-models #(get-entity-manager (:database env))]
+  (let [results (let [get-models #(get-entity-manager "database")]
                   (finder get-models))
         props (if (some? props)
                 props

@@ -2,7 +2,6 @@
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
             [clojure.tools.logging :as log]
-            [clojure.edn :as edn]
             [utils.error-handler :as error-handler])
   (:use [adaptor.database-navigation]
         [repository.entity-manager]
@@ -86,7 +85,7 @@
   ([date & [{week :week year :year aggregate-name :aggregate}]]
    (let [aggregate-name (when (nil? aggregate-name)
                           (:list-main env))
-         models (get-entity-manager (:database env))
+         models (get-entity-manager "database")
          highlights (find-highlighted-statuses-for-aggregate-published-at {:date           date
                                                                            :week           week
                                                                            :year           year
@@ -111,7 +110,7 @@
   [param & [models timely-status-finder log-message-ending]]
   (let [models (if (some? models)
                  models
-                 (get-entity-manager (:database env)))
+                 (get-entity-manager "database"))
         timely-status-finder (if (some? timely-status-finder)
                                timely-status-finder
                                find-timely-statuses-by-aggregate-name)
@@ -133,7 +132,7 @@
 
 (defn generate-keywords-for-aggregates-sharing-name
   [aggregate-name]
-  (let [models (get-entity-manager (:database env))
+  (let [models (get-entity-manager "database")
         aggregates (get-aggregates-sharing-name aggregate-name)
         _ (doall (pmap
                    #(generate-keywords-from-aggregate % find-timely-statuses-by-aggregate-id models)
@@ -141,7 +140,7 @@
 
 (defn generate-keywords-for-last-week-publishers
   []
-  (let [models (get-entity-manager (:database env))]
+  (let [models (get-entity-manager "database")]
     (loop [timely-statuses (find-last-week-timely-status)]
       (new-keywords-from-props
         timely-statuses

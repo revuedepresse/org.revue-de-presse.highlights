@@ -5,7 +5,6 @@
     [clj-time.format :as f]
     [clj-time.coerce :as c]
     [clojure.data.json :as json]
-    [environ.core :refer [env]]
     [clj-time.core :as time]
     [repository.status-identity :as status-identity]
     [utils.error-handler :as error-handler])
@@ -137,17 +136,17 @@
   [{aggregate-id :aggregate-id
     week         :week
     year         :year}]
-  (let [{write-db :connection} (get-entity-manager (:database env))
+  (let [{write-db :connection} (get-entity-manager "database")
         {read-db :connection :as models} (get-entity-manager
-                                           (:database-read env)
+                                           "database"
                                            {:is-read-connection true})]
     (decode-available-documents aggregate-id week year {:read-db  read-db
                                                         :write-db write-db} models)))
 (defn collect-status-identities-for-aggregates
   [aggregate-name]
-  (let [{write-db :connection} (get-entity-manager (:database env))
+  (let [{write-db :connection} (get-entity-manager "database")
         {read-db :connection :as models} (get-entity-manager
-                                           (:database-read env)
+                                           "database"
                                            {:is-read-connection true})
         aggregates (find-aggregates-sharing-name aggregate-name read-db)
         _ (doall

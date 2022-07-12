@@ -104,7 +104,7 @@
 (defn consume-messages
   [queue total-messages parallel-consumers]
   {:pre [(s/valid? ::total-messages total-messages)]}
-  (let [entity-manager (get-entity-manager (:database env))
+  (let [entity-manager (get-entity-manager "database")
         rabbitmq (edn/read-string (:rabbitmq env))
         {connection :connection
          channel    :channel} (connect-to-amqp-server env)

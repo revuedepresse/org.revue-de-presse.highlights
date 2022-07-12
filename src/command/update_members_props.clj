@@ -1,6 +1,5 @@
 (ns command.update-members-props
-  (:require [environ.core :refer [env]]
-            [clojure.data.json :as json]
+  (:require [clojure.data.json :as json]
             [clojure.tools.logging :as log])
   (:use [repository.entity-manager]
         [repository.member]))
@@ -50,7 +49,7 @@
 
 (defn update-members-descriptions-urls
   []
-  (let [{member-model :members} (get-entity-manager (:database env))
+  (let [{member-model :members} (get-entity-manager "database")
         total-members (count-members)
         page-length 10000
         total-pages (inc (quot total-members page-length))]

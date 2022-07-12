@@ -1,18 +1,18 @@
 (ns repository.entity-manager
-  (:require [korma.core :as db]
-            [clojure.edn :as edn]
+  (:require [clj-uuid :as uuid]
             [clojure.tools.logging :as log]
-            [clj-uuid :as uuid]
-            [repository.publishers-list :as publishers-list]
-            [repository.analysis.sample :as sample]
+            [environ.core :refer [env]]
+            [korma.core :as db]
             [repository.analysis.publication-frequency :as publication-frequency]
+            [repository.analysis.sample :as sample]
             [repository.archived-status :as archived-status]
+            [repository.highlight :as highlight]
             [repository.keyword :as keyword]
             [repository.member :as member]
             [repository.member-identity :as member-identity]
             [repository.member-subscription :as member-subscription]
             [repository.publication :as publication]
-            [repository.highlight :as highlight]
+            [repository.publishers-list :as publishers-list]
             [repository.status :as status]
             [repository.status-aggregate :as status-aggregate]
             [repository.status-identity :as status-identity]
@@ -22,8 +22,8 @@
             [utils.error-handler :as error-handler])
   (:use [korma.db]
         [repository.database-schema]
-        [utils.string]
-        [twitter.status-hash]))
+        [twitter.status-hash]
+        [utils.string]))
 
 (declare archive-database-connection database-connection database-read-connection
          tokens
@@ -49,19 +49,21 @@
   liked-status)
 
 (defn prepare-connection
-  [config & [{is-archive-connection :is-archive-connection
+  [prefix & [{is-archive-connection :is-archive-connection
               is-read-connection    :is-read-connection}]]
-  (let [db-params {:classname         "org.postgresql.Driver"
+  (let [prefix (if is-archive-connection (str prefix "-archive") prefix)
+        prefix (if is-read-connection (str prefix "-read") prefix)
+        db-params {:classname         "org.postgresql.Driver"
                    :subprotocol       "postgresql"
                    :subname           (str "//"
-                                           (:host config) ":" (:port config) "/"
-                                           (:name config))
+                                           ((keyword (str prefix "-host")) env) ":" ((keyword (str prefix "-port")) env)
+                                           "/" ((keyword (str prefix "-name")) env))
                    :useUnicode        "yes"
                    :characterEncoding "UTF-8"
                    :delimiters        "\""
                    :useSSL            false
-                   :user              (:user config)
-                   :password          (:password config)
+                   :user              ((keyword (str prefix "-user")) env)
+                   :password          ((keyword (str prefix "-password")) env)
                    ; @see 'https://github.com/korma/Korma/issues/382#issue-236722546
                    :make-pool         true
                    :maximum-pool-size 5}
@@ -75,9 +77,9 @@
   "Create a connection and provide with a map of entities"
   ; @see https://mathiasbynens.be/notes/mysql-utf8mb4
   ; @see https://clojurians-log.clojureverse.org/sql/2017-04-05
-  [config & [{is-archive-connection :is-archive-connection
+  [prefix & [{is-archive-connection :is-archive-connection
               is-read-connection    :is-read-connection}]]
-  (let [connection (prepare-connection config {:is-archive-connection is-archive-connection
+  (let [connection (prepare-connection prefix {:is-archive-connection is-archive-connection
                                                :is-read-connection    is-read-connection})]
     {:aggregate             (publishers-list/get-aggregate-model connection)
      :archived-status       (archived-status/get-archived-status-model connection)
@@ -106,10 +108,10 @@
      :connection            connection}))
 
 (defn get-entity-manager
-  [config & [{is-archive-connection :is-archive-connection
+  [prefix & [{is-archive-connection :is-archive-connection
               is-read-connection    :is-read-connection}]]
-  (connect-to-db (edn/read-string config) {:is-archive-connection is-archive-connection
-                                           :is-read-connection    is-read-connection}))
+  (connect-to-db prefix {:is-archive-connection is-archive-connection
+                         :is-read-connection    is-read-connection}))
 
 (defn find-distinct-ids-of-subscriptions
   "Find distinct ids of subscription"
