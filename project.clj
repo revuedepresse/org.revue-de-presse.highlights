@@ -8,21 +8,21 @@
             :url "https://opensource.org/licenses/AGPL-3.0"}
 
 
-  :dependencies [[org.clojure/clojure "1.11.1"]
-                 [clj-time "0.15.2"]
-                 [pandect "1.0.2"]
-                 [environ "1.2.0"]
+  :dependencies [[clj-time "0.15.2"]
+                 [com.fzakaria/slf4j-timbre "0.3.21"]
                  [com.novemberain/langohr "5.4.0" :exclusions [org.slf4j/slf4j-api]]
-                 [org.postgresql/postgresql "42.4.0"]
-                 [korma "0.4.3"]
-                 [org.clojure/data.json "2.4.0"]
-                 [twitter-api "1.8.0"]
+                 [com.taoensso/timbre "5.2.1"]
                  [danlentz/clj-uuid "0.1.9"]
-                 [org.clojure/tools.logging "1.1.0"]
+                 [environ "1.2.0"]
+                 [korma "0.4.3"]
+                 [pandect "1.0.2"]
+                 [org.clojure/clojure "1.11.1"]
+                 [org.clojure/data.json "2.4.0"]
                  [org.clojure/math.numeric-tower "0.0.5"]
-                 [org.slf4j/slf4j-api "1.7.36"]
-                 [org.slf4j/slf4j-reload4j "1.7.36"]
-                 [php-clj "0.4.1"]]
+                 [org.clojure/tools.logging "1.1.0"]
+                 [org.postgresql/postgresql "42.4.0"]
+                 [php-clj "0.4.1"]
+                 [twitter-api "1.8.0"]]
 
   :plugins [[lein-environ "1.2.0"]]
 
