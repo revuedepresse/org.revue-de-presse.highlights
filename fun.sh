@@ -6,10 +6,6 @@ function _set_up_configuration_files() {
         cp --verbose ./.env{.dist,}
     fi
 
-    if [ ! -e ./.lein-env ]; then
-        cp --verbose ./.lein-env{.dist,}
-    fi
-
     if [ ! -e ./provisioning/containers/docker-compose.override.yaml ]; then
         cp ./provisioning/containers/docker-compose.override.yaml{.dist,}
     fi
