@@ -25,16 +25,12 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Copy test environment variables configuration file
-        run: |
-          cat .env.test.dist | sed -E "s/__password__/test/g" > .env
-
       - name: Create test database schema
         run: |
           PGPASSWORD=test psql \
-          --host 127.0.0.1 \
-          --port 5433 \
-          --username highlights \
+          --host=127.0.0.1 \
+          --port=5433 \
+          --username=highlights \
           --dbname=highlights_test \
           --echo-all \
           --quiet \
