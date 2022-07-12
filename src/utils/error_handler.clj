@@ -1,6 +1,6 @@
 (ns utils.error-handler
-  (:require [clojure.tools.logging :as log]
-            [environ.core :refer [env]]))
+  (:require [environ.core :refer [env]]
+            [taoensso.timbre :as timbre :refer [error]]))
 
 (defn log-error
   [e & [prefix no-stack-trace]]
@@ -10,7 +10,7 @@
         print-stack-trace (and
                             (nil? no-stack-trace)
                             (true? (:debug env)))]
-    (log/error (str prefix (.getMessage e)))
+    (timbre/error (str prefix (.getMessage e)))
     (when print-stack-trace
       (doall
         (map println (.getStackTrace e))))))
