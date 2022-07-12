@@ -1,7 +1,7 @@
 ; About gen-class examples
 ; @see https://clojure.org/reference/compilation#_gen_class_examples
 (ns highlights.core
-  (:require [taoensso.timbre :as timbre]
+  (:require [clojure.tools.logging :as log]
             [command.analysis.frequency :as analysis-frequencies]
             [command.generate-keywords :as keywords]
             [command.navigation :as navigation]
