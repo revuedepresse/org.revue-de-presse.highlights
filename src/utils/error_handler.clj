@@ -1,6 +1,6 @@
 (ns utils.error-handler
   (:require [environ.core :refer [env]]
-            [taoensso.timbre :as timbre :refer [error]]))
+            [taoensso.timbre :as timbre]))
 
 (defn log-error
   [e & [prefix no-stack-trace]]

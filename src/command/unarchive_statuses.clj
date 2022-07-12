@@ -1,5 +1,5 @@
 (ns command.unarchive-statuses
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [environ.core :refer [env]])
   (:use [repository.entity-manager]
         [repository.publishers-list]
@@ -35,4 +35,4 @@
       total-new-relationships
       total-new-statuses
       press-aggregate-name)
-    (log/info (str total-timely-statuses " archived statuses have been found."))))
+    (timbre/info (str total-timely-statuses " archived statuses have been found."))))

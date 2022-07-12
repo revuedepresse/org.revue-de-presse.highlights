@@ -1,7 +1,7 @@
 (ns command.generate-keywords
   (:require [environ.core :refer [env]]
             [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler])
   (:use [adaptor.database-navigation]
         [repository.entity-manager]
@@ -76,7 +76,7 @@
             counted-keywords
             models
             find-keywords)]
-    (log/info (str (count counted-keywords) " keywords have been generated " log-message-ending))
+    (timbre/info (str (count counted-keywords) " keywords have been generated " log-message-ending))
     counted-keywords))
 
 (defn generate-keywords-for-all-aggregates

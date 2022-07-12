@@ -1,5 +1,5 @@
 (ns command.navigation
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [environ.core :refer [env]]
             [clojure.string :as string]
             [utils.error-handler :as error-handler])

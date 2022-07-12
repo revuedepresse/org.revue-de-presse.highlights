@@ -1,5 +1,5 @@
 (ns twitter.member
-  (:require [clojure.tools.logging :as log])
+  (:require [taoensso.timbre :as timbre])
   (:use [repository.entity-manager]
         [repository.member]
         [twitter.api-client]))
@@ -51,17 +51,17 @@
 (defn get-new-member-logger
   [member-type]
   (fn [member]
-    (log/info (str "New " member-type " \"" (:screen-name member)
+    (timbre/info (str "New " member-type " \"" (:screen-name member)
                    "\" having id #" (:twitter-id member) " has been cached."))))
 
 (defn assoc-properties-of-twitter-users
   [twitter-users]
-  (log/info "Build a sequence of Twitter users properties")
+  (timbre/info "Build a sequence of Twitter users properties")
   (doall (pmap assoc-twitter-user-properties twitter-users)))
 
 (defn get-twitter-user
   [member-id tokens token-type-model members]
-  (log/info (str "About to look up for member having Twitter id #" member-id))
+  (timbre/info (str "About to look up for member having Twitter id #" member-id))
   (let [twitter-user (get-member-by-id member-id tokens token-type-model members)]
     twitter-user))
 
@@ -73,7 +73,7 @@
 
     (if (pos? total-authors)
       (do
-        (log/info (str "About to ensure " total-authors " member(s) exist."))
+        (timbre/info (str "About to ensure " total-authors " member(s) exist."))
         (let [twitter-users (if
                               (and
                                 (not (nil? remaining-calls))
@@ -84,10 +84,10 @@
               deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
               new-members (bulk-insert-new-members deduplicated-users-properties model)]
           (when *twitter-member-enabled-logging*
-            (doall (map #(log/info (str "Member #" (:twitter-id %)
+            (doall (map #(timbre/info (str "Member #" (:twitter-id %)
                                         " having screen name \"" (:screen-name %)
                                         "\" has been saved under id \"" (:id %))) new-members))))
-        (log/info (str "No need to find some missing member."))))))
+        (timbre/info (str "No need to find some missing member."))))))
 
 (defn process-authors-of-statuses
   "Remove authors of statuses whose characteristics have already been cached and ensure the other exist"
@@ -99,7 +99,7 @@
 (defn new-member-props-from-json
   [member-id tokens token-types members]
   (when *twitter-member-enabled-logging*
-    (log/info (str "About to look up for member having Twitter id #" member-id)))
+    (timbre/info (str "About to look up for member having Twitter id #" member-id)))
   (let [twitter-user (get-member-by-id member-id tokens token-types members)
         member (save-member twitter-user members :only-props)]
     member))
@@ -110,8 +110,8 @@
         total-members (count members-ids)]
 
     (if (pos? total-members)
-      (log/info (str "About to ensure " total-members " member(s) exist."))
-      (log/info (str "No need to find some missing member.")))
+      (timbre/info (str "About to ensure " total-members " member(s) exist."))
+      (timbre/info (str "No need to find some missing member.")))
 
     (if (and
           (not (nil? remaining-calls))

@@ -1,7 +1,7 @@
 (ns command.collect-timely-statuses
   (:require
     [clj-time.coerce :as c]
-    [clojure.tools.logging :as log]
+    [taoensso.timbre :as timbre]
     [utils.error-handler :as error-handler])
   (:use
     [amqp.handling-errors]
@@ -25,7 +25,7 @@
     (profile #(-> list-spec build-relationships))
     (catch Exception e
       (cond
-        (= (.getMessage e) error-unavailable-aggregate) (log/info (str "Could not find aggregate #" (:aggregate-id list-spec)))
+        (= (.getMessage e) error-unavailable-aggregate) (timbre/info (str "Could not find aggregate #" (:aggregate-id list-spec)))
         :else (error-handler/log-error
                 e
                 "An error occurred with message ")))))
@@ -148,4 +148,4 @@
                         (str
                           "No timely status is to be generated for aggregate \""
                           aggregate-name "\""))]
-      (log/info log-message))))
+      (timbre/info log-message))))

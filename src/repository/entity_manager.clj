@@ -1,6 +1,6 @@
 (ns repository.entity-manager
   (:require [clj-uuid :as uuid]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [environ.core :refer [env]]
             [korma.core :as db]
             [repository.analysis.publication-frequency :as publication-frequency]
@@ -127,7 +127,7 @@
                             #(when % (Long/parseLong %))
                             (reverse
                               (conj (explode #"," all-subscriptions-ids) nil)))]
-    (log/info (str "There are " (inc total-subscription-ids) " unique subscriptions ids."))
+    (timbre/info (str "There are " (inc total-subscription-ids) " unique subscriptions ids."))
     subscriptions-ids))
 
 ; @deprecated until the query has been migrated for compatibility with postgresql

@@ -7,7 +7,7 @@
             [clj-time.coerce :as c]
             [clj-time.local :as l]
             [clj-time.format :as f]
-            [clojure.tools.logging :as log])
+            [taoensso.timbre :as timbre])
   (:use [repository.entity-manager]
         [repository.publishers-list]
         [repository.highlight]
@@ -42,7 +42,7 @@
                                                                   nil)
                              :total-retweets                    (get decoded-document "retweet_count")
                              :total-favorites                   (get decoded-document "favorite_count")}]
-        (log/info (str "Prepared highlight for member #" (:member-id highlight-props)
+        (timbre/info (str "Prepared highlight for member #" (:member-id highlight-props)
                        " and status #" (:status-id highlight-props)))
         highlight-props)
       (catch Exception e
@@ -68,7 +68,7 @@
         status-popularities (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)]
     (doall
       (map
-        #(log/info (str "Saved popularity of status #" (:status-id %)))
+        #(timbre/info (str "Saved popularity of status #" (:status-id %)))
         status-popularities))
     status-popularities))
 
@@ -129,7 +129,7 @@
         filtered-statuses (filter-out-known-statuses (try-finding-highlights-by-status-ids models) statuses)
         highlights-props (map (extract-highlight-props aggregate) filtered-statuses)
         new-highlights (bulk-insert-new-highlights highlights-props (:highlight models) (:member models) (:status models))]
-    (log/info (str "There are " (count new-highlights) " new highlights"))
+    (timbre/info (str "There are " (count new-highlights) " new highlights"))
     new-highlights))
 
 (defn try-insert-highlights-from-statuses
@@ -155,7 +155,7 @@
         ; about the effect of passing step and pad arguments
         pad (take 100 (iterate (constantly nil) nil))
         statuses-ids-chunk (partition 100 100 pad statuses-ids)]
-    (log/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
+    (timbre/info (str "About to insert at most " (count statuses-ids-chunk) " highlights chunk(s) from statuses ids"))
     (doall
       (map
         (try-insert-highlights-from-statuses aggregate models)
