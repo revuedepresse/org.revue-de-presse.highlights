@@ -13,7 +13,7 @@
                  [environ "1.2.0"]
                  [com.novemberain/langohr "5.0.0" :exclusions [org.slf4j/slf4j-api]]
                  [org.postgresql/postgresql "42.2.18.jre7"]
-                 [korma "0.4.0"]
+                 [korma "0.4.3"]
                  [org.clojure/data.json "0.2.6"]
                  [twitter-api "1.8.0"]
                  [danlentz/clj-uuid "0.1.7"]
