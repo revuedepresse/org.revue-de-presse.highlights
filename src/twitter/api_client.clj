@@ -1,7 +1,6 @@
 (ns twitter.api-client
   (:require [clojure.string :as string]
             [clojure.tools.logging :as log]
-            [environ.core :refer [env]]
             [http.async.client :as ac]
             [clj-time.format :as f]
             [clj-time.core :as t]
