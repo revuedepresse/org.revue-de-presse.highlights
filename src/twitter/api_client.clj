@@ -1,19 +1,20 @@
 (ns twitter.api-client
-  (:require [clojure.string :as string]
-            [taoensso.timbre :as timbre]
-            [http.async.client :as ac]
-            [clj-time.format :as f]
+  (:require [clj-time.coerce :as c]
             [clj-time.core :as t]
+            [clj-time.format :as f]
             [clj-time.local :as l]
-            [clj-time.coerce :as c]
+            [clojure.string :as string]
+            [clojure.core :as subs]
+            [http.async.client :as ac]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler])
   (:use [repository.entity-manager]
         [repository.member]
         [repository.token]
-        [twitter.oauth]
+        [twitter.api.restful]
         [twitter.callbacks]
         [twitter.callbacks.handlers]
-        [twitter.api.restful]))
+        [twitter.oauth]))
 
 (def ^:dynamic *api-client-enabled-logging* false)
 
@@ -31,6 +32,7 @@
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-missing-status-id "https://api.twitter.com/1.1/statuses/show/{:id}.json needs :id param to be supplied")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
+(def error-invalid-token "Twitter responded to request with error 89: Invalid or expired token.")
 (def error-unauthorized-user-timeline-statuses-access "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
 (def error-unauthorized-friends-ids-access "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
 (def error-unauthorized-favorites-list-access "Twitter responded to request '/1.1/favorites/list.json' with error 401: Not authorized.")
@@ -152,6 +154,7 @@
              (timbre/warn (.getMessage e))
              (cond
                (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (= (.getMessage e) error-invalid-token) (throw (Exception. (str error-invalid-token " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-page-not-found) (throw (Exception. (str error-page-not-found)))
                (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
                (= (.getMessage e) error-unauthorized-user-timeline-statuses-access) (throw (Exception. (str error-unauthorized-user-timeline-statuses-access)))
@@ -376,7 +379,10 @@
                            :oauth-creds (twitter-credentials @next-token)
                            :params {:id status-id}))]
           (update-remaining-calls (:headers response) "statuses/show/:id")
-          (timbre/info (str "Fetched status having id #" status-id))
+          (timbre/info
+            (str
+              "Fetched status having id #" status-id " with consumer key "
+              (subs (:token (deref next-token)) 0 20)))
           response)
         (catch Exception e
           (when (not= (.getMessage e) error-no-status)
@@ -385,9 +391,11 @@
             (page-not-found-exception? e) (make-not-found-statuses-response
                                             (:id props)
                                             (:status-id props))
-            (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
-                                                                           (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
-                                                                           (get-twitter-status-by-id props token-model token-type-model))
+            (or
+              (string/includes? (.getMessage e) error-invalid-token)
+              (string/includes? (.getMessage e) error-rate-limit-exceeded)) (do
+                                                                              (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
+                                                                              (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (error-handler e)))))))
