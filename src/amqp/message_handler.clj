@@ -6,7 +6,7 @@
             [langohr.channel :as lch]
             [langohr.basic :as lb]
             [langohr.core :as rmq]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [twitter.favorited-status]
@@ -74,10 +74,10 @@
           (lb/ack channel delivery-tag))
         (catch Exception e
           (cond
-            (= (.getMessage e) error-mismatching-favorites-cols-length) (log/error "Likes of \"" screen-name "\" related to aggregate #"
+            (= (.getMessage e) error-mismatching-favorites-cols-length) (timbre/error "Likes of \"" screen-name "\" related to aggregate #"
                                                                                    aggregate-id " could not be processed")
             (= (.getMessage e) error-unavailable-aggregate) (do
-                                                              (log/error "Likes of \"" screen-name "\" related to aggregate #"
+                                                              (timbre/error "Likes of \"" screen-name "\" related to aggregate #"
                                                                          aggregate-id " could not be bound to an actual aggregate")
                                                               (lb/ack channel delivery-tag))
             :else
@@ -97,20 +97,20 @@
       (= queue :network) (pull-messages-from-network-queue (assoc queue-params :queue (:queue-network rabbitmq)))
       :else (println (str "Unknown queue name, please select one of the following: lists, likes or network")))
     (when message-index
-      (log/info (str "Consumed message #" message-index)))))
+      (timbre/info (str "Consumed message #" message-index)))))
 
 (s/def ::total-messages #(pos-int? %))
 
 (defn consume-messages
   [queue total-messages parallel-consumers]
   {:pre [(s/valid? ::total-messages total-messages)]}
-  (let [entity-manager (get-entity-manager (:database env))
+  (let [entity-manager (get-entity-manager "database")
         rabbitmq (edn/read-string (:rabbitmq env))
         {connection :connection
          channel    :channel} (connect-to-amqp-server env)
         single-message-consumption (= 1 parallel-consumers)
         next-total (if single-message-consumption #(dec %) #(max 0 (- % parallel-consumers)))]
-    (log/info (str "About to consume " total-messages " messages."))
+    (timbre/info (str "About to consume " total-messages " messages."))
     (if total-messages
       (loop [messages-to-consume (if total-messages total-messages 0)]
         (when (> messages-to-consume 0)

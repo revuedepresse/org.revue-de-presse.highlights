@@ -1,11 +1,10 @@
 (ns command.collect-status-identities
   (:require
-    [clojure.tools.logging :as log]
+    [taoensso.timbre :as timbre]
     [clj-time.local :as l]
     [clj-time.format :as f]
     [clj-time.coerce :as c]
     [clojure.data.json :as json]
-    [environ.core :refer [env]]
     [clj-time.core :as time]
     [repository.status-identity :as status-identity]
     [utils.error-handler :as error-handler])
@@ -40,7 +39,7 @@
 
 (defn decode-status-documents-for-week-and-year
   [aggregate-id week year db]
-  (let [_ (log/info (str "About to find member identities for "
+  (let [_ (timbre/info (str "About to find member identities for "
                          "aggregate #" aggregate-id ", year \""
                          year "\" and week #"
                          week))
@@ -80,14 +79,14 @@
 (defn decode-available-documents
   [aggregate-id week year {read-db  :read-db
                            write-db :write-db} models]
-  (let [_ (log/info (str "About to count existing status identities for "
+  (let [_ (timbre/info (str "About to count existing status identities for "
                          "aggregate #" aggregate-id ", year \""
                          year "\" and week #" week))
         total-member-identities (status-identity/count-for-aggregate-id aggregate-id week year read-db)
         props (if (pos? total-member-identities)
                 (decode-status-documents-for-week-and-year aggregate-id week year read-db)
                 (do
-                  (log/info (str "There are no status identities to be collected for "
+                  (timbre/info (str "There are no status identities to be collected for "
                                  "aggregate #" aggregate-id ", year \""
                                  year "\" and week #" week))
                   '()))
@@ -105,7 +104,7 @@
 
 (defn decode-status-documents
   [aggregate-id {read-db :read-db :as databases} models]
-  (let [_ (log/info (str "About to get year since when existing status identities could be collected for "
+  (let [_ (timbre/info (str "About to get year since when existing status identities could be collected for "
                          "aggregate #" aggregate-id))
         min-week-year (status-identity/get-min-week-year-for-aggregate-id aggregate-id read-db)
         since-year (:since-year min-week-year)
@@ -137,17 +136,17 @@
   [{aggregate-id :aggregate-id
     week         :week
     year         :year}]
-  (let [{write-db :connection} (get-entity-manager (:database env))
+  (let [{write-db :connection} (get-entity-manager "database")
         {read-db :connection :as models} (get-entity-manager
-                                           (:database-read env)
+                                           "database"
                                            {:is-read-connection true})]
     (decode-available-documents aggregate-id week year {:read-db  read-db
                                                         :write-db write-db} models)))
 (defn collect-status-identities-for-aggregates
   [aggregate-name]
-  (let [{write-db :connection} (get-entity-manager (:database env))
+  (let [{write-db :connection} (get-entity-manager "database")
         {read-db :connection :as models} (get-entity-manager
-                                           (:database-read env)
+                                           "database"
                                            {:is-read-connection true})
         aggregates (find-aggregates-sharing-name aggregate-name read-db)
         _ (doall

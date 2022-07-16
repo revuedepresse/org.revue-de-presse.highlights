@@ -1,5 +1,5 @@
 (ns twitter.favorited-status
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [clj-uuid :as uuid])
   (:use [repository.entity-manager]
         [repository.status]
@@ -69,15 +69,15 @@
         total-favorited-status-author-properties (count favorited-status-author-cols)
         total-status-ids (count favorited-status-col)
         total-favorited-statuses (count favorited-statuses)]
-    (log/info (str "There are " total-favorite-ids " favorite ids."))
-    (log/info (str "There are " total-favorited-statuses " favorited statuses."))
-    (log/info (str "There are " total-favorite-status-authors " authors of favorited statuses."))
-    (log/info (str "There are " total-publication-dates " publication dates."))
-    (log/info (str "There are " total-archive-properties " archive properties."))
-    (log/info (str "There are " total-favorite-author-properties " favorite authors properties."))
-    (log/info (str "There are " total-favorited-status-author-properties " favorited status authors properties."))
-    (log/info (str "There are " total-status-ids " ids of statuses."))
-    (log/info (str "There are " total-aggregate-properties " aggregate maps."))
+    (timbre/info (str "There are " total-favorite-ids " favorite ids."))
+    (timbre/info (str "There are " total-favorited-statuses " favorited statuses."))
+    (timbre/info (str "There are " total-favorite-status-authors " authors of favorited statuses."))
+    (timbre/info (str "There are " total-publication-dates " publication dates."))
+    (timbre/info (str "There are " total-archive-properties " archive properties."))
+    (timbre/info (str "There are " total-favorite-author-properties " favorite authors properties."))
+    (timbre/info (str "There are " total-favorited-status-author-properties " favorited status authors properties."))
+    (timbre/info (str "There are " total-status-ids " ids of statuses."))
+    (timbre/info (str "There are " total-aggregate-properties " aggregate maps."))
     (if (=
           total-favorite-ids
           total-favorite-status-authors
@@ -146,7 +146,7 @@
                                                 favorited-status-col
                                                 favorited-status-author-cols
                                                 favorite-author-cols))]
-          (log/info (str (count liked-statuses-values) " favorited statuses have been accumulated."))
+          (timbre/info (str (count liked-statuses-values) " favorited statuses have been accumulated."))
           liked-statuses-values))
       '())))
 
@@ -165,4 +165,4 @@
                                     status-model
                                     error-message)
         new-favorites (new-liked-statuses favorited-statuses-values liked-status-model status-model)]
-    (log/info (str "There are " (count new-favorites) " new favorites"))))
+    (timbre/info (str "There are " (count new-favorites) " new favorites"))))

@@ -1,5 +1,5 @@
 (ns formatting.formatter
-  (:use [clojure.string :as string]))
+  (:require [clojure.string :as str]))
 
 (defn right-padding
   [s & args]
@@ -129,4 +129,4 @@
                 apply-effect
                 coll))]
     (when no-wrap
-      (println (str (string/join item-separator res) item-separator)))))
+      (println (str (str/join item-separator res) item-separator)))))

@@ -1,5 +1,5 @@
 (ns profiling.execution-time
-  (:require [clojure.tools.logging :as log])
+  (:require [taoensso.timbre :as timbre])
   (:use [twitter.date]))
 
 (defn profile
@@ -10,7 +10,7 @@
         inMilliseconds (- after before)
         inSeconds (float (/ inMilliseconds 1000))
         inMinutes (float (/ inSeconds 60))]
-    (log/info (str
+    (timbre/info (str
                 "Took #" inMilliseconds "ms i.e. "
                 inSeconds "sec i.e. "
                 inMinutes "min"))

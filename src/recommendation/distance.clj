@@ -1,6 +1,6 @@
 (ns recommendation.distance
   (:require [clojure.set :as set]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [clojure.math.numeric-tower :as math])
   (:use [repository.entity-manager]
         [utils.string]))
@@ -14,9 +14,9 @@
     (let [is-subset-of (set/subset? #{subscription-index} contributions)]
       (when enabled-logging
         (if is-subset-of
-          (log/info (str "Subscribing contribution #" subscription " (index "
+          (timbre/info (str "Subscribing contribution #" subscription " (index "
                       subscription-index ") is a subset of the member subscriptions."))
-          (log/info (str "Subscribing contribution #" subscription " (index "
+          (timbre/info (str "Subscribing contribution #" subscription " (index "
                       subscription-index") do not belong to the member subscriptions."))))
       (when is-subset-of 1))))
 
@@ -34,8 +34,8 @@
                              all-subscriptions all-subscriptions-indices)
           total-subscriptions (count (filter #(when % %) member-vector))]
       (when *distance-enabled-logging*
-        (log/info (str "There are " (count member-vector) " subscriptions."))
-        (log/info (str "Subscriptions of \"" screen-name "\" counts " total-subscriptions " contributions.")))
+        (timbre/info (str "There are " (count member-vector) " subscriptions."))
+        (timbre/info (str "Subscriptions of \"" screen-name "\" counts " total-subscriptions " contributions.")))
       {:total-subscriptions total-subscriptions
        :screen-name screen-name
        :member-vector member-vector})))
@@ -60,7 +60,7 @@
         power-of-differences (map power-of-difference from-vector to-vector)
         distance (math/sqrt (apply + power-of-differences))]
     (when *distance-enabled-logging*
-      (log/info (str "Distance to reference vector for member \""
+      (timbre/info (str "Distance to reference vector for member \""
                      screen-name "\" is " distance)))
     {:distance distance
      :screen-name screen-name})))
@@ -69,7 +69,7 @@
   [screen-name]
   (fn
   [distance]
-  (log/info (str "The distance between \"" (:screen-name distance)
+  (timbre/info (str "The distance between \"" (:screen-name distance)
                 "\" and \"" screen-name "\" is " (:distance distance)))))
 
 (defn get-distance-from-others

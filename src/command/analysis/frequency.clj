@@ -4,7 +4,6 @@
             [clj-time.format :as f]
             [clj-time.core :as time]
             [clojure.data.json :as json]
-            [environ.core :refer [env]]
             [utils.error-handler :as error-handler])
   (:use [twitter.date]
         [repository.entity-manager]
@@ -114,7 +113,7 @@
                    week         :week}]]
   (let [{publication-frequency :publication-frequency
          member                :members
-         sample                :sample :as models} (get-entity-manager (:database env))
+         sample                :sample :as models} (get-entity-manager "database")
         sample (bulk-insert-sample [{:label sample-label}] sample member publication-frequency)
         aggregates (get-member-aggregates-by-screen-name screen-name)
         _ (doall
@@ -158,7 +157,7 @@
   [label]
   (let [{publication-frequency-model :publication-frequency
          member-model                :members
-         sample-model                :sample} (get-entity-manager (:database env))
+         sample-model                :sample} (get-entity-manager "database")
         publication-frequencies (find-publication-frequencies-by-label
                                   label
                                   publication-frequency-model

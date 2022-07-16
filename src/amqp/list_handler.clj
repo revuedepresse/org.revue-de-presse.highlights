@@ -1,6 +1,6 @@
 (ns amqp.list-handler
   (:require [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler]
             [langohr.basic :as lb]
             [php_clj.core :refer [php->clj clj->php]])
@@ -13,7 +13,7 @@
         _ (swap! message (constantly (lb/get channel queue auto-ack)))]
     (loop [wait-for-15-more-seconds (nil? (second @message))]
       (when wait-for-15-more-seconds
-        (log/info (str "About to wait for 15 seconds for new messages"))
+        (timbre/info (str "About to wait for 15 seconds for new messages"))
         (Thread/sleep (* 15 1000))
         (swap! message (constantly (lb/get channel queue auto-ack)))
         (recur (nil? (second @message)))))

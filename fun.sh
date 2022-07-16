@@ -6,10 +6,6 @@ function _set_up_configuration_files() {
         cp --verbose ./.env{.dist,}
     fi
 
-    if [ ! -e ./.lein-env ]; then
-        cp --verbose ./.lein-env{.dist,}
-    fi
-
     if [ ! -e ./provisioning/containers/docker-compose.override.yaml ]; then
         cp ./provisioning/containers/docker-compose.override.yaml{.dist,}
     fi
@@ -349,6 +345,17 @@ function stop() {
     guard_against_missing_variables
 
     remove_running_container_and_image_in_debug_mode 'worker'
+}
+
+function test() {
+  (
+    for param in $(\cat ./.env.test.dist | sed -E "s/='([^']*)'/=\1/g");
+        do export $param;
+    done
+
+    env | grep -E '^DATABASE_' | grep -v 'PASSWORD'
+    lein test
+  )
 }
 
 function validate_docker_compose_configuration() {

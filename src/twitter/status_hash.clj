@@ -1,5 +1,5 @@
 (ns twitter.status-hash
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [pandect.algo.sha1 :refer :all]))
 
 (def ^:dynamic *status-hash-enabled-logging* false)
@@ -10,7 +10,7 @@
         concatenated-string (str (:text status) twitter-id)
         hash (sha1 concatenated-string)]
     (when *status-hash-enabled-logging*
-      (log/info (str "Hash for " twitter-id " is \"" hash "\"")))
+      (timbre/info (str "Hash for " twitter-id " is \"" hash "\"")))
     hash))
 
 (defn assoc-hash

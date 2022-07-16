@@ -99,7 +99,7 @@
       :else (keywords/generate-keywords-for-all-aggregates date))))
 
 (defn ^{:requires []} command-generate-keywords-for-last-week-publishers
-  [args]
+  [& args]
   (keywords/generate-keywords-for-last-week-publishers))
 
 (defn ^{:requires [:publishers-list]} command-generate-keywords-for-aggregate
@@ -113,12 +113,12 @@
     (keywords/generate-keywords-for-aggregates-sharing-name publishers-list)))
 
 (defn ^{:requires []} command-list-alphabet-letters
-  [args]
+  [& args]
   (adaptor/list-alphabet-letters))
 
-(defn ^{:requires []} command-list-aggregates
-  [args]
-  (adaptor/list-aggregates))
+(defn ^{:requires []} command-list-members-lists
+  [& args]
+  (adaptor/list-members-lists))
 
 (defn ^{:requires [:publishers-list]} command-list-aggregate-statuses
   [args]
@@ -126,16 +126,16 @@
     (adaptor/list-aggregate-statuses publishers-list)))
 
 (defn ^{:requires []} command-list-keyword-aggregates
-  [args]
+  [& args]
   (adaptor/list-keyword-aggregates))
 
-(defn ^{:requires [:screen-name]} command-list-aggregates-containing-members
+(defn ^{:requires [:screen-name]} command-list-members-lists-containing-members
   [args]
   (let [[screen-name] args]
-    (adaptor/list-aggregates-containing-member screen-name)))
+    (adaptor/list-members-lists-containing-member screen-name)))
 
 (defn ^{:requires []} command-list-highlights-since-a-month-ago
-  [args]
+  [& args]
   (adaptor/list-highlights-since-a-month-ago))
 
 (defn ^{:requires [:screen-name]} command-list-member-statuses
@@ -144,17 +144,17 @@
     (adaptor/list-member-statuses screen-name)))
 
 (defn ^{:requires []} command-list-members-subscribing-to-lists
-  [args]
+  [& args]
   (adaptor/list-members-subscribing-to-lists))
 
 (defn ^{:requires []} command-list-members-which-subscriptions-have-been-collected
-  [args]
+  [& args]
   (adaptor/list-members-which-subscriptions-have-been-collected))
 
-(defn ^{:requires [:screen-name]} command-list-aggregates-of-subscriber-having-screen-name
+(defn ^{:requires [:screen-name]} command-list-members-lists-of-subscriber-having-screen-name
   [args]
   (let [[screen-name] args]
-    (adaptor/list-aggregates-of-subscriber-having-screen-name screen-name)))
+    (adaptor/list-members-lists-of-subscriber-having-screen-name screen-name)))
 
 (defn ^{:requires [:screen-name]} command-list-subscriptions-of-member-having-screen-name
   [args]
@@ -247,7 +247,7 @@
   (adaptor/render-latest-result-map args))
 
 (defn ^{:requires []} command-update-members-descriptions-urls
-  [args]
+  [& args]
   (members/update-members-descriptions-urls))
 
 (defn ^{:requires [:label]} command-who-publish-the-most-for-each-day-of-week
@@ -256,7 +256,7 @@
     (analysis-frequencies/who-publish-the-most-for-each-day-of-week label)))
 
 (defn ^{:requires []} command-migrate-all-status-to-publications
-  [args]
+  [& args]
   (migration/migrate-all-status-to-publications))
 
 (defn execute-command

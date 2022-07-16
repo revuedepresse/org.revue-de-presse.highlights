@@ -1,5 +1,5 @@
 (ns repository.member
-  (:require [clojure.tools.logging :as log]
+  (:require [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler]
             [korma.core :as db])
   (:use [korma.db]
@@ -152,13 +152,13 @@
 
     (cond
       (= 1 is-protected)
-      (log/info (str "About to cache protected member with twitter id #" twitter-id))
+      (timbre/info (str "About to cache protected member with twitter id #" twitter-id))
       (= 1 is-not-found)
-      (log/info (str "About to cache not found member with twitter id #" twitter-id))
+      (timbre/info (str "About to cache not found member with twitter id #" twitter-id))
       (= 1 is-suspended)
-      (log/info (str "About to cache suspended member with twitter id #" twitter-id))
+      (timbre/info (str "About to cache suspended member with twitter id #" twitter-id))
       :else
-      (log/info (str "About to cache member with twitter id #" twitter-id
+      (timbre/info (str "About to cache member with twitter id #" twitter-id
                      " and twitter screen mame \"" member-screen-name "\"")))
 
     (try

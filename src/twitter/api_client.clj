@@ -1,20 +1,20 @@
 (ns twitter.api-client
-  (:require [clojure.string :as string]
-            [clojure.tools.logging :as log]
-            [environ.core :refer [env]]
-            [http.async.client :as ac]
-            [clj-time.format :as f]
+  (:require [clj-time.coerce :as c]
             [clj-time.core :as t]
+            [clj-time.format :as f]
             [clj-time.local :as l]
-            [clj-time.coerce :as c]
+            [clojure.string :as string]
+            [clojure.core :as subs]
+            [http.async.client :as ac]
+            [taoensso.timbre :as timbre]
             [utils.error-handler :as error-handler])
   (:use [repository.entity-manager]
         [repository.member]
         [repository.token]
-        [twitter.oauth]
+        [twitter.api.restful]
         [twitter.callbacks]
         [twitter.callbacks.handlers]
-        [twitter.api.restful]))
+        [twitter.oauth]))
 
 (def ^:dynamic *api-client-enabled-logging* false)
 
@@ -32,10 +32,12 @@
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-missing-status-id "https://api.twitter.com/1.1/statuses/show/{:id}.json needs :id param to be supplied")
 (def error-user-suspended "Twitter responded to request with error 63: User has been suspended.")
+(def error-invalid-token "Twitter responded to request with error 89: Invalid or expired token.")
 (def error-unauthorized-user-timeline-statuses-access "Twitter responded to request '/1.1/statuses/user_timeline.json' with error 401: Not authorized.")
 (def error-unauthorized-friends-ids-access "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
 (def error-unauthorized-favorites-list-access "Twitter responded to request '/1.1/favorites/list.json' with error 401: Not authorized.")
 (def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
+(def error-bad-authentication-data "Twitter responded to request with error 215: Bad Authentication data.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
 (declare find-next-token)
@@ -62,7 +64,7 @@
     (swap! next-token (constantly token-candidate))         ; @see https://clojuredocs.org/clojure.core/constantly
     (swap! current-access-token (constantly token))
     (when *api-client-enabled-logging*
-      (log/info (str "The next access token issued from " context " is about to be \"" (:token token) "\"")))
+      (timbre/info (str "The next access token issued from " context " is about to be \"" (:token token) "\"")))
     @next-token))
 
 (defn frozen-access-tokens
@@ -75,7 +77,7 @@
 
 (defn wait-for-15-minutes
   [endpoint]
-  (log/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\""))
+  (timbre/info (str "About to wait for 15 min so that the API is available again for \"" endpoint "\""))
   (Thread/sleep (* 60 15 1000)))
 
 (defn find-token
@@ -95,7 +97,7 @@
         token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
         selected-token (find-token endpoint token-candidate context token-model token-type-model)]
     (when *api-client-enabled-logging*
-      (log/info (str "About to replace access token \"" excluded-access-token "\" with \""
+      (timbre/info (str "About to replace access token \"" excluded-access-token "\" with \""
                      (:token selected-token) "\" when " context)))
     selected-token))
 
@@ -117,7 +119,7 @@
     (when (and
             *api-client-enabled-logging*
             (not (nil? unfrozen-at)))
-      (log/info (str "Now being \"" formatted-now "\" \""
+      (timbre/info (str "Now being \"" formatted-now "\" \""
                      (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
@@ -130,7 +132,7 @@
   (let [later (in-15-minutes)]
     (swap! frozen-tokens #(assoc % (keyword @current-access-token) later))
     (when *api-client-enabled-logging*
-      (log/info (str "\"" @current-access-token "\" should be available again at \"" (format-date later))))))
+      (timbre/info (str "\"" @current-access-token "\" should be available again at \"" (format-date later))))))
 
 (defn handle-rate-limit-exceeded-error
   [endpoint token-model token-type-model]
@@ -150,9 +152,10 @@
       (try (with-open [client (ac/create-client)]
              (call client))
            (catch Exception e
-             (log/warn (.getMessage e))
+             (timbre/warn (.getMessage e))
              (cond
                (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (= (.getMessage e) error-invalid-token) (throw (Exception. (str error-invalid-token " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-page-not-found) (throw (Exception. (str error-page-not-found)))
                (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
                (= (.getMessage e) error-unauthorized-user-timeline-statuses-access) (throw (Exception. (str error-unauthorized-user-timeline-statuses-access)))
@@ -230,7 +233,7 @@
       (try
         (swap! remaining-calls #(assoc % endpoint-keyword (Long/parseLong (:x-rate-limit-remaining headers))))
         (catch Exception e
-          (log/warn (.getMessage e))))
+          (timbre/warn (.getMessage e))))
       (when
         (and
           (nil? (get @call-limits endpoint-keyword))
@@ -246,8 +249,8 @@
 
     (when *api-client-enabled-logging*
       (when limit
-        (log/info (str "Rate limit at " limit " for \"" endpoint "\"")))
-      (log/info (str remaining-calls " remaining calls for \"" endpoint
+        (timbre/info (str "Rate limit at " limit " for \"" endpoint "\"")))
+      (timbre/info (str remaining-calls " remaining calls for \"" endpoint
                      "\" called with access token \"" @current-access-token "\"")))
 
     (update-remaining-calls headers endpoint)))
@@ -303,19 +306,19 @@
 (defn make-unauthorized-statuses-access-response
   [screen-name]
   (do
-    (log/info (str "Not authorized to access statuses of " screen-name))
+    (timbre/info (str "Not authorized to access statuses of " screen-name))
     {:headers {:unauthorized true}
      :body    '()}))
 
 (defn make-not-found-statuses-response
   ([screen-name]
    (do
-     (log/info (str "Could not find statuses of " screen-name))
+     (timbre/info (str "Could not find statuses of " screen-name))
      {:headers {:not-found true}
       :body    '()}))
   ([id status-id]
    (do
-     (log/info (str "Could not find status having id #" id " and status-id #" status-id))
+     (timbre/info (str "Could not find status having id #" id " and status-id #" status-id))
      {:headers {:not-found true}
       :body    '()})))
 
@@ -343,7 +346,7 @@
         (get-twitter-user-by-screen-name screen-name)
         (get-twitter-user-by-id id))
       (catch Exception e
-        (log/warn (.getMessage e))
+        (timbre/warn (.getMessage e))
         (cond
           (string/includes? (.getMessage e) error-rate-limit-exceeded)
           (do
@@ -377,18 +380,24 @@
                            :oauth-creds (twitter-credentials @next-token)
                            :params {:id status-id}))]
           (update-remaining-calls (:headers response) "statuses/show/:id")
-          (log/info (str "Fetched status having id #" status-id))
+          (timbre/info
+            (str
+              "Fetched status having id #" status-id " with consumer key "
+              (subs (:token (deref next-token)) 0 20)))
           response)
         (catch Exception e
           (when (not= (.getMessage e) error-no-status)
-            (log/warn (.getMessage e)))
+            (timbre/warn (.getMessage e)))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
                                             (:id props)
                                             (:status-id props))
-            (string/includes? (.getMessage e) error-rate-limit-exceeded) (do
-                                                                           (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
-                                                                           (get-twitter-status-by-id props token-model token-type-model))
+            (or
+              (string/includes? (.getMessage e) error-bad-authentication-data)
+              (string/includes? (.getMessage e) error-invalid-token)
+              (string/includes? (.getMessage e) error-rate-limit-exceeded)) (do
+                                                                              (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
+                                                                              (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (error-handler e)))))))
@@ -462,7 +471,7 @@
       (do
         (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
         (assoc (:body status) :id id))
-      (log/info (str "Could not find status having id #" status-id)))))
+      (timbre/info (str "Could not find status having id #" status-id)))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model token-type-model]
@@ -557,7 +566,7 @@
                                                                            :body    '()})
                           (string/ends-with?
                             (.getMessage e) error-unauthorized-favorites-list-access) (do
-                                                                                        (log/info (str "Not authorized to favorites list of " screen-name))
+                                                                                        (timbre/info (str "Not authorized to favorites list of " screen-name))
                                                                                         {:headers {:unauthorized true}
                                                                                          :body    '()})
                           :else (error-handler/log-error

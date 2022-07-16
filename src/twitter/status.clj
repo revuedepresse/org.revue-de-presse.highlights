@@ -2,7 +2,7 @@
   (:require [clojure.data.json :as json]
             [clj-time.format :as f]
             [clj-time.coerce :as c]
-            [clojure.tools.logging :as log])
+            [taoensso.timbre :as timbre])
   (:use [korma.db]
         [repository.entity-manager]
         [repository.publishers-list]
@@ -63,18 +63,18 @@
         new-statuses (if
                        (pos? total-statuses)
                        (do
-                         (log/info (str
+                         (timbre/info (str
                                      "About to ensure "
                                      total-statuses " statuses exist for \""
                                      (:screen_name (:user (first statuses))) "\""))
                          (bulk-insert-new-statuses (pmap #(get-status-json %) statuses) model))
                        (do
-                         (log/info (str "No need to find some missing status."))
+                         (timbre/info (str "No need to find some missing status."))
                          '()))]
     (when (and
             *twitter-status-enabled-logging*
             (pos? total-statuses))
-      (doall (map #(log/info (str "Status #" (:twitter-id %)
+      (doall (map #(timbre/info (str "Status #" (:twitter-id %)
                                   " authored by \"" (:screen-name %)
                                   "\" has been saved under id \"" (:id %))) new-statuses)))
     new-statuses))
@@ -135,7 +135,7 @@
         indexed-authors (->> (map get-author-key-value distinct-status-authors)
                              (into {}))
         favorited-status-authors (map (get-author-by-id indexed-authors) author-ids)]
-    (log/info (str "Found " (count favorited-status-authors) " ids of status authors"))
+    (timbre/info (str "Found " (count favorited-status-authors) " ids of status authors"))
     favorited-status-authors))
 
 (defn is-subset-of-relationships-set
@@ -176,9 +176,9 @@
                             (str "\" for \"" screen-name "\"")
                             "\"")]
     (if (pos? total-new-relationships)
-      (log/info (str "There are " total-new-relationships " new relationships between aggregate \""
+      (timbre/info (str "There are " total-new-relationships " new relationships between aggregate \""
                      aggregate-name related-to-member " and " total-new-statuses " statuses."))
-      (log/info (str "There are no new relationships for aggregate \"" aggregate-name "\".")))))
+      (timbre/info (str "There are no new relationships for aggregate \"" aggregate-name "\".")))))
 
 (defn cache-statuses-along-with-authors
   "Ensure statuses and their authors are cached"
@@ -213,8 +213,8 @@
         total-statuses (count filtered-statuses)]
 
     (if (pos? total-statuses)
-      (log/info (str "About to fetch " total-statuses " statuse(s)."))
-      (log/info (str "No need to find some status.")))
+      (timbre/info (str "About to fetch " total-statuses " statuse(s)."))
+      (timbre/info (str "No need to find some status.")))
 
     (if
       (and

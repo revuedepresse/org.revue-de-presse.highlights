@@ -1,6 +1,6 @@
 (ns amqp.network-handler
   (:require [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
+            [taoensso.timbre :as timbre]
             [php_clj.core :refer [php->clj clj->php]])
   (:use [repository.entity-manager]
         [repository.member]
@@ -50,7 +50,7 @@
         member-model
         token-model
         token-type-model)
-      (log/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
+      (timbre/info (str "No member missing from subscriptions of member \"" screen-name "\"")))
 
     (ensure-subscriptions-exist-for-member-having-id {:member-id member-id
                                                       :model member-subscription-model
@@ -73,7 +73,7 @@
         member-model
         token-model
         token-type-model)
-      (log/info (str "No member missing from subscribees of member \"" screen-name "\"")))
+      (timbre/info (str "No member missing from subscribees of member \"" screen-name "\"")))
 
     (ensure-subscribees-exist-for-member-having-id {:member-id member-id
                                                     :model member-subscribee-model
