@@ -37,6 +37,7 @@
 (def error-unauthorized-friends-ids-access "Twitter responded to request '/1.1/friends/ids.json' with error 401: Not authorized.")
 (def error-unauthorized-favorites-list-access "Twitter responded to request '/1.1/favorites/list.json' with error 401: Not authorized.")
 (def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
+(def error-bad-authentication-data "Twitter responded to request with error 215: Bad Authentication data.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
 (declare find-next-token)
@@ -392,6 +393,7 @@
                                             (:id props)
                                             (:status-id props))
             (or
+              (string/includes? (.getMessage e) error-bad-authentication-data)
               (string/includes? (.getMessage e) error-invalid-token)
               (string/includes? (.getMessage e) error-rate-limit-exceeded)) (do
                                                                               (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
