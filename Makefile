@@ -6,6 +6,7 @@ SHELL:=/bin/bash
 
 .PHONY: restart start stop test
 
+COMPOSE_PROJECT_NAME = ?= 'org_example_highlights'
 WORKER ?= 'highlights.example.org'
 TMP_DIR ?= '/tmp/tmp_${WORKER}'
 
