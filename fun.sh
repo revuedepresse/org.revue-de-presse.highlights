@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-function _set_up_configuration_files() {
+function load_configuration_parameters() {
     if [ ! -e ./.env ]; then
         cp --verbose ./.env{.dist,}
     fi
@@ -52,7 +52,7 @@ function build() {
     local WORKER_UID
     local WORKER_GID
 
-    _set_up_configuration_files
+    load_configuration_parameters
 
     if [ $? -gt 1 ];
     then
@@ -149,8 +149,9 @@ function remove_running_container_and_image_in_debug_mode() {
     local WORKER_UID
     local WORKER_GID
     local WORKER
+    local COMPOSE_PROJECT_NAME
 
-    _set_up_configuration_files
+    load_configuration_parameters
 
     if [ $? -gt 1 ];
     then
@@ -227,7 +228,7 @@ function install() {
     local WORKER_GID
     local WORKER
 
-    _set_up_configuration_files
+    load_configuration_parameters
 
     if [ $? -gt 1 ];
     then
@@ -289,7 +290,7 @@ function start() {
     local WORKER_UID
     local WORKER_GID
 
-    _set_up_configuration_files
+    load_configuration_parameters
 
     if [ $? -gt 1 ];
     then
