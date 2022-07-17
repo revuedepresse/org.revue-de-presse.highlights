@@ -149,6 +149,7 @@ function remove_running_container_and_image_in_debug_mode() {
     local WORKER_UID
     local WORKER_GID
     local WORKER
+    local COMPOSE_PROJECT_NAME
 
     load_configuration_parameters
 
