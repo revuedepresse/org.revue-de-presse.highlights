@@ -322,6 +322,14 @@ function start() {
 
     fi
 
+    local agent
+    agent=''
+
+    if [ -n "${DD_AGENT_HOST}" ];
+    then
+        agent='-javaagent:/var/www/dd-java-agent.jar '
+    fi
+
     cmd="$(
         cat <<-START
 				docker compose \
@@ -332,11 +340,18 @@ function start() {
 				--rm \
 				worker \
 				java \
-				-javaagent:/var/www/dd-java-agent.jar \
-				-jar ./highlights-standalone.jar \
+				${agent}-jar ./highlights-standalone.jar \
 				'${CMD}' '${DATE}' '${LIST}'
 START
 )"
+    printf '%s.%s' 'About to run the following command' $'\n' 1>&2
+    printf '%s%s' "${cmd}" $'\n'                              1>&2
+
+    printf '%s:%s' 'For list' $'\n'                           1>&2
+    printf '%s%s' "${LIST}" $'\n'                             1>&2
+
+    printf '%s:%s' 'For date' $'\n'                           1>&2
+    printf '%s%s' "${DATE}" $'\n'                             1>&2
 
     container_name="$(/bin/bash -c "${cmd}")"
     docker logs -f "${container_name}" 2>&1 | grep -v environ >> "./var/log/${WORKER}.log"
