@@ -99,7 +99,7 @@
         selected-token (find-token endpoint token-candidate context token-model token-type-model)]
     (when *api-client-enabled-logging*
       (timbre/info (str "About to replace access token \"" excluded-access-token "\" with \""
-                     (:token selected-token) "\" when " context)))
+                        (:token selected-token) "\" when " context)))
     selected-token))
 
 (defn format-date
@@ -121,7 +121,7 @@
             *api-client-enabled-logging*
             (not (nil? unfrozen-at)))
       (timbre/info (str "Now being \"" formatted-now "\" \""
-                     (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
+                        (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
 (defn in-15-minutes
@@ -253,7 +253,7 @@
       (when limit
         (timbre/info (str "Rate limit at " limit " for \"" endpoint "\"")))
       (timbre/info (str remaining-calls " remaining calls for \"" endpoint
-                     "\" called with access token \"" @current-access-token "\"")))
+                        "\" called with access token \"" @current-access-token "\"")))
 
     (update-remaining-calls headers endpoint)))
 
@@ -389,6 +389,7 @@
           response)
         (catch Exception e
           (when (not= (.getMessage e) error-no-status)
+            (timbre/info (str "{\"token\": \"" (:token (deref next-token)) "\"}"))
             (timbre/warn (.getMessage e)))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
