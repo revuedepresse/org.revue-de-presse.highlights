@@ -28,6 +28,7 @@
 (def remaining-calls (atom {}))
 
 (def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
+(def error-protected-users "Twitter responded to request with error 326: To protect our users from spam and other malicious activity")
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-missing-status-id "https://api.twitter.com/1.1/statuses/show/{:id}.json needs :id param to be supplied")
@@ -154,7 +155,8 @@
            (catch Exception e
              (timbre/warn (.getMessage e))
              (cond
-               (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded " {\"token\": \"" (:token (deref next-token)) "\"}")))
+               (string/starts-with? (.getMessage e) error-protected-users) (throw (Exception. (str error-protected-users " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-invalid-token) (throw (Exception. (str error-invalid-token " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-page-not-found) (throw (Exception. (str error-page-not-found)))
                (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
