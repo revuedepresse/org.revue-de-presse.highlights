@@ -388,9 +388,8 @@
               (subs (:token (deref next-token)) 0 20)))
           response)
         (catch Exception e
-          (when (not= (.getMessage e) error-no-status)
-            (timbre/info (str "{\"token\": \"" (:token (deref next-token)) "\"}"))
-            (timbre/warn (.getMessage e)))
+          (timbre/info (str "{\"token\": \"" (:token (deref next-token)) "\"}"))
+          (timbre/warn (.getMessage e))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
                                             (:id props)
