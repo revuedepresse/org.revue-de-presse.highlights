@@ -388,7 +388,7 @@
               (subs (:token (deref next-token)) 0 20)))
           response)
         (catch Exception e
-          (timbre/info (str "{\"token\": \"" (:token (deref next-token)) "\"}"))
+          (timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
           (timbre/warn (.getMessage e))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
