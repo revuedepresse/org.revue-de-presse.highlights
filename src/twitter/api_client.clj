@@ -28,6 +28,7 @@
 (def remaining-calls (atom {}))
 
 (def error-page-not-found "Twitter responded to request with error 34: Sorry, that page does not exist.")
+(def error-protected-users "Twitter responded to request with error 326: To protect our users from spam and other malicious activity")
 (def error-rate-limit-exceeded "Twitter responded to request with error 88: Rate limit exceeded.")
 (def error-user-not-found "Twitter responded to request with error 50: User not found.")
 (def error-missing-status-id "https://api.twitter.com/1.1/statuses/show/{:id}.json needs :id param to be supplied")
@@ -98,7 +99,7 @@
         selected-token (find-token endpoint token-candidate context token-model token-type-model)]
     (when *api-client-enabled-logging*
       (timbre/info (str "About to replace access token \"" excluded-access-token "\" with \""
-                     (:token selected-token) "\" when " context)))
+                        (:token selected-token) "\" when " context)))
     selected-token))
 
 (defn format-date
@@ -120,7 +121,7 @@
             *api-client-enabled-logging*
             (not (nil? unfrozen-at)))
       (timbre/info (str "Now being \"" formatted-now "\" \""
-                     (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
+                        (:token token) "\" will be unfrozen at \"" (format-date unfrozen-at) "\"")))
     (not it-is-not)))
 
 (defn in-15-minutes
@@ -154,7 +155,8 @@
            (catch Exception e
              (timbre/warn (.getMessage e))
              (cond
-               (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded)))
+               (string/starts-with? (.getMessage e) error-rate-limit-exceeded) (throw (Exception. (str error-rate-limit-exceeded " {\"token\": \"" (:token (deref next-token)) "\"}")))
+               (string/starts-with? (.getMessage e) error-protected-users) (throw (Exception. (str error-protected-users " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-invalid-token) (throw (Exception. (str error-invalid-token " {\"token\": \"" (:token (deref next-token)) "\"}")))
                (= (.getMessage e) error-page-not-found) (throw (Exception. (str error-page-not-found)))
                (= (.getMessage e) error-unauthorized-friends-ids-access) (throw (Exception. (str error-unauthorized-friends-ids-access)))
@@ -251,7 +253,7 @@
       (when limit
         (timbre/info (str "Rate limit at " limit " for \"" endpoint "\"")))
       (timbre/info (str remaining-calls " remaining calls for \"" endpoint
-                     "\" called with access token \"" @current-access-token "\"")))
+                        "\" called with access token \"" @current-access-token "\"")))
 
     (update-remaining-calls headers endpoint)))
 
@@ -386,8 +388,8 @@
               (subs (:token (deref next-token)) 0 20)))
           response)
         (catch Exception e
-          (when (not= (.getMessage e) error-no-status)
-            (timbre/warn (.getMessage e)))
+          (timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
+          (timbre/warn (.getMessage e))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
                                             (:id props)
