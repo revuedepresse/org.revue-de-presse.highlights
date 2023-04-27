@@ -10,10 +10,9 @@ function load_configuration_parameters() {
         cp ./provisioning/containers/docker-compose.override.yaml{.dist,}
     fi
 
-    validate_docker_compose_configuration
-
     source ./.env
 
+    validate_docker_compose_configuration
     guard_against_missing_variables
 }
 
@@ -35,7 +34,11 @@ function _set_file_permissions() {
         return 1;
     fi
 
+    local project_name
+    project_name="$(get_project_name)"
+
     docker compose \
+        --project-name="${project_name}" \
         -f ./provisioning/containers/docker-compose.yaml \
         -f ./provisioning/containers/docker-compose.override.yaml \
         run \
@@ -49,8 +52,8 @@ function _set_file_permissions() {
 function build() {
     local DEBUG
     local WORKER
-    local WORKER_UID
-    local WORKER_GID
+    local WORKER_OWNER_UID
+    local WORKER_OWNER_GID
 
     load_configuration_parameters
 
@@ -63,31 +66,36 @@ function build() {
 
     fi
 
+    local project_name
+    project_name="$(get_project_name)"
+
     if [ -n "${DEBUG}" ];
     then
 
         clean ''
 
         docker compose \
+            --project-name="${project_name}" \
             --file=./provisioning/containers/docker-compose.yaml \
             --file=./provisioning/containers/docker-compose.override.yaml \
             build \
             --no-cache \
-            --build-arg "WORKER_UID=${WORKER_UID}" \
-            --build-arg "WORKER_GID=${WORKER_GID}" \
             --build-arg "WORKER=${WORKER}" \
+            --build-arg "OWNER_UID=${WORKER_OWNER_UID}" \
+            --build-arg "OWNER_GID=${WORKER_OWNER_GID}" \
             app \
             worker
 
     else
 
         docker compose \
+            --project-name="${project_name}" \
             --file=./provisioning/containers/docker-compose.yaml \
             --file=./provisioning/containers/docker-compose.override.yaml \
             build \
-            --build-arg "WORKER_UID=${WORKER_UID}" \
-            --build-arg "WORKER_GID=${WORKER_GID}" \
             --build-arg "WORKER=${WORKER}" \
+            --build-arg "OWNER_UID=${WORKER_OWNER_UID}" \
+            --build-arg "OWNER_GID=${WORKER_OWNER_GID}" \
             app \
             worker
 
@@ -104,7 +112,7 @@ function guard_against_missing_variables() {
 
     fi
 
-    if [ "${WORKER}" = 'highlights.example.org' ];
+    if [ "${WORKER}" = 'org.example.highlights' ];
     then
 
         printf 'Have you picked a satisfying worker name ("%s" environment variable - "%s" as default value is not accepted).%s' 'WORKER' 'highlights.example.org' $'\n'
@@ -113,19 +121,19 @@ function guard_against_missing_variables() {
 
     fi
 
-    if [ -z "${WORKER_UID}" ];
+    if [ -z "${WORKER_OWNER_UID}" ];
     then
 
-        printf 'A %s is expected as %s ("%s").%s' 'non-empty numeric' 'system user uid' 'WORKER_UID' $'\n'
+ OWNER_       printf 'A %s is expected as %s ("%s").%s' 'non-empty numeric' 'system user uid' 'WORKER_OWNER_UID' $'\n'
 
-        exit 1
+     OWNER_   exit 1
 
     fi
 
-    if [ -z "${WORKER_GID}" ];
+    if [ -z "${WORKER_OWNER_GID}" ];
     then
 
-        printf 'A %s is expected as %s ("%s").%s' 'non-empty numeric' 'system user gid' 'WORKER_GID' $'\n'
+        printf 'A %s is expected as %s ("%s").%s' 'non-empty numeric' 'system user gid' 'WORKER_OWNER_GID' $'\n'
 
         exit 1
 
@@ -146,8 +154,8 @@ function remove_running_container_and_image_in_debug_mode() {
     fi
 
     local DEBUG
-    local WORKER_UID
-    local WORKER_GID
+    local WORKER_OWNER_UID
+    local WORKER_OWNER_GID
     local WORKER
     local COMPOSE_PROJECT_NAME
 
@@ -163,13 +171,7 @@ function remove_running_container_and_image_in_debug_mode() {
     fi
 
     local project_name
-
-    if [ -n "${COMPOSE_PROJECT_NAME}" ];
-    then
-        project_name="${COMPOSE_PROJECT_NAME}"
-    else
-        project_name="$(get_project_name)"
-    fi
+    project_name="$(get_project_name)"
 
     cat <<- CMD
       docker ps -a |
@@ -224,8 +226,8 @@ function clean() {
 
 function install() {
     local DEBUG
-    local WORKER_UID
-    local WORKER_GID
+    local WORKER_OWNER_UID
+    local WORKER_OWNER_GID
     local WORKER
 
     load_configuration_parameters
@@ -239,11 +241,15 @@ function install() {
 
     fi
 
+    local project_name
+    project_name="$(get_project_name)"
+
     docker compose \
+        --project-name="${project_name}" \
         -f ./provisioning/containers/docker-compose.yaml \
         -f ./provisioning/containers/docker-compose.override.yaml \
         run \
-        --env WORKER_WORKSPACE="${WORKER}" \
+        --env WORKER="${WORKER}" \
         --user root \
         --rm \
         --no-TTY \
@@ -252,17 +258,16 @@ function install() {
 }
 
 function get_project_name() {
-    local project_name
-    project_name="$(
-        docker compose \
-        -f ./provisioning/containers/docker-compose.yaml \
-        -f ./provisioning/containers/docker-compose.override.yaml \
-        config --format json \
-        | jq '.name' \
-        | tr -d '"'
-    )"
+    if [ -z "${COMPOSE_PROJECT_NAME}" ];
+    then
 
-    echo "${project_name}"
+      printf 'A %s is expected as %s ("%s").%s' 'non-empty string' '"COMPOSE_PROJECT_NAME" environment variable' 'docker compose project name' $'\n'
+
+      return 1;
+
+    fi
+
+    echo "${COMPOSE_PROJECT_NAME}"
 }
 
 function get_worker_shell() {
@@ -287,8 +292,8 @@ function get_worker_shell() {
 function start() {
     local DEBUG
     local WORKER
-    local WORKER_UID
-    local WORKER_GID
+    local WORKER_OWNER_UID
+    local WORKER_OWNER_GID
 
     load_configuration_parameters
 
@@ -330,9 +335,13 @@ function start() {
         agent='-javaagent:/var/www/dd-java-agent.jar '
     fi
 
+    local project_name
+    project_name="$(get_project_name)"
+
     cmd="$(
         cat <<-START
 				docker compose \
+        --project-name="${project_name}" \
 				--file=./provisioning/containers/docker-compose.yaml \
 				--file=./provisioning/containers/docker-compose.override.yaml \
 				run \
@@ -375,7 +384,11 @@ function test() {
 }
 
 function validate_docker_compose_configuration() {
+    local project_name
+    project_name="$(get_project_name)"
+
     docker compose \
+        --project-name="${project_name}" \
         -f ./provisioning/containers/docker-compose.yaml \
         -f ./provisioning/containers/docker-compose.override.yaml \
         config -q

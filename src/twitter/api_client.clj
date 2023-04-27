@@ -5,9 +5,12 @@
             [clj-time.local :as l]
             [clojure.string :as string]
             [clojure.core :as subs]
+            [clojure.data.json :as json]
+            [environ.core :refer [env]]
             [http.async.client :as ac]
             [taoensso.timbre :as timbre]
-            [utils.error-handler :as error-handler])
+            [utils.error-handler :as error-handler]
+            [clj-http.client :as http-client])
   (:use [repository.entity-manager]
         [repository.member]
         [repository.token]
@@ -91,12 +94,48 @@
       (find-next-token model token-type-model endpoint context))
     (if (nil? token-candidate) @next-token token-candidate)))
 
+(defn next-fallback-token
+  []
+  (let [bearer-token (str "Bearer " (:bearer-token env))
+       fallback-endpoint (str (:fallback-endpoint env))
+       response (http-client/post fallback-endpoint
+                  {:content-type :json
+                   :accept :json
+                   :cookie-spec (fn [http-context]
+                                  (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
+                                    ;; Version and version header
+                                    (getVersion [] 0)
+                                    (getVersionHeader [] nil)
+                                    ;; parse headers into cookie objects
+                                    (parse [header cookie-origin] (java.util.ArrayList.))
+                                    ;; Validate a cookie, throwing MalformedCookieException if the
+                                    ;; cookies isn't valid
+                                    (validate [cookie cookie-origin]
+                                      (println "validating:" cookie))
+                                    ;; Determine if a cookie matches the target location
+                                    (match [cookie cookie-origin] true)
+                                    ;; Format a list of cookies into a list of headers
+                                    (formatCookies [cookies] (java.util.ArrayList.))))
+                   :headers {
+                             :authorization bearer-token,
+                             :accept-language "fr-FR,en;q=0.5",
+                             :connection "keep-alive",
+                             :x-guest-token "",
+                             :x-twitter-active-user "yes",
+                             :authority "api.twitter.com",
+                             :DNT "1"}})
+       parsed-body (json/read-str (:body response))
+       guest-token (get parsed-body "guest_token")]
+  guest-token))
+
 (defn find-first-available-token-when
   [endpoint context token-model token-type-model]
-  (let [excluded-access-token @current-access-token
-        excluded-access-tokens (frozen-access-tokens)
-        token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
-        selected-token (find-token endpoint token-candidate context token-model token-type-model)]
+  (let [selected-token (next-fallback-token)
+        excluded-access-token @current-access-token
+        ;excluded-access-tokens (frozen-access-tokens)
+        ;token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
+        ;selected-token (find-token endpoint token-candidate context token-model token-type-model)
+        ]
     (when *api-client-enabled-logging*
       (timbre/info (str "About to replace access token \"" excluded-access-token "\" with \""
                         (:token selected-token) "\" when " context)))
@@ -147,6 +186,7 @@
   [call endpoint token-model token-type-model context]
   (let [excluded-until (get @endpoint-exclusion endpoint)
         now (l/local-now)]
+    (timbre/info (str "[ accessing Twitter API endpoint : \"" endpoint "\"]"))
     (when (or
             (nil? excluded-until)
             (t/after? now excluded-until))
@@ -376,19 +416,50 @@
   (let [status-id (:status-id props)]
     (do
       (try
-        (let [response (with-open [client (ac/create-client)]
-                         (statuses-show-id
-                           :client client
-                           :oauth-creds (twitter-credentials @next-token)
-                           :params {:id status-id}))]
-          (update-remaining-calls (:headers response) "statuses/show/:id")
+        (let [fallback-token @next-token
+              bearer-token (str "Bearer " (:bearer-token env))
+              ;response (with-open [client (ac/create-client)]
+              ;           (statuses-show-id
+              ;             :client client
+              ;             :oauth-creds (twitter-credentials @next-token)
+              ;             :params {:id status-id}))
+              endpoint (str "https://api.twitter.com/1.1/statuses/show.json?id=" status-id "&tweet_mode=extended&include_entities=true")
+              response (http-client/get endpoint
+                                         {:content-type :json
+                                          :accept :json
+                                          :cookie-spec (fn [http-context]
+                                              (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
+                                                ;; Version and version header
+                                                (getVersion [] 0)
+                                                (getVersionHeader [] nil)
+                                                ;; parse headers into cookie objects
+                                                (parse [header cookie-origin] (java.util.ArrayList.))
+                                                ;; Validate a cookie, throwing MalformedCookieException if the
+                                                ;; cookies isn't valid
+                                                (validate [cookie cookie-origin]
+                                                  (println "validating:" cookie))
+                                                ;; Determine if a cookie matches the target location
+                                                (match [cookie cookie-origin] true)
+                                                ;; Format a list of cookies into a list of headers
+                                                (formatCookies [cookies] (java.util.ArrayList.))))
+                                          :headers {
+                                                    :authorization bearer-token,
+                                                    :accept-language "fr-FR,en;q=0.5",
+                                                    :connection "keep-alive",
+                                                    :x-guest-token fallback-token,
+                                                    :x-twitter-active-user "yes",
+                                                    :authority "api.twitter.com",
+                                                    :DNT "1"}})
+              _ (update-remaining-calls (:headers response) "statuses/show/:id")
+              response (assoc response :body (json/read-str (:body response)))]
           (timbre/info
             (str
               "Fetched status having id #" status-id " with consumer key "
-              (subs (:token (deref next-token)) 0 20)))
+              ;(subs (:token (deref next-token)) 0 20)
+              ))subs
           response)
         (catch Exception e
-          (timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
+          ;(timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
           (timbre/warn (.getMessage e))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
@@ -434,16 +505,18 @@
 
 (defn status-by-prop
   [props token-model token-type-model context]
-  (if
-    (and
-      (know-all-about-remaining-calls-and-limit)
-      (is-rate-limit-exceeded))
-    (do
-      (freeze-current-token)
-      (find-next-token token-model token-type-model "statuses/show/:id" context)
-      (status-by-prop props token-model token-type-model context))
+  ;(if
+  ;  (and
+  ;    (know-all-about-remaining-calls-and-limit)
+  ;    (is-rate-limit-exceeded))
+  ;  (do
+  ;    (freeze-current-token)
+  ;    (find-next-token token-model token-type-model "statuses/show/:id" context)
+  ;    (status-by-prop props token-model token-type-model context))
     (let [twitter-status (get-twitter-status-by-id props token-model token-type-model)]
-      twitter-status)))
+      twitter-status)
+  ;)
+  )
 
 (defn get-member-by-screen-name
   [screen-name token-model token-type-model member-model]
@@ -471,7 +544,7 @@
         (some? headers)
         (nil? (:error status)))
       (do
-        (guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
+        ;(guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
         (assoc (:body status) :id id))
       (timbre/info (str "Could not find status having id #" status-id)))))
 
@@ -651,7 +724,8 @@
         _ (when (and
                   (nil? (:not-found (:headers response)))
                   (nil? (:unauthorized (:headers response))))
-            (guard-against-api-rate-limit headers endpoint))]
+            ;(guard-against-api-rate-limit headers endpoint)
+            )]
     statuses))
 
 (defn get-statuses-of-member

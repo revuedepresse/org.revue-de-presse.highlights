@@ -67,19 +67,22 @@
 
 (defn ensure-authors-of-status-exist
   [statuses model token-model token-type-model]
-  (let [remaining-calls (how-many-remaining-calls-showing-user token-model token-type-model)
+  (let [
+        ;remaining-calls (how-many-remaining-calls-showing-user token-model token-type-model)
         authors-ids (map #(:id (:user %)) statuses)
         total-authors (count authors-ids)]
 
     (if (pos? total-authors)
       (do
         (timbre/info (str "About to ensure " total-authors " member(s) exist."))
-        (let [twitter-users (if
-                              (and
-                                (not (nil? remaining-calls))
-                                (< total-authors remaining-calls))
-                              (pmap #(get-twitter-user % token-model token-type-model model) authors-ids)
-                              (map #(get-twitter-user % token-model token-type-model model) authors-ids))
+        (let [twitter-users
+                            ;(if
+                            ;  (and
+                            ;    (not (nil? remaining-calls))
+                            ;    (< total-authors remaining-calls))
+                            ;  (pmap #(get-twitter-user % token-model token-type-model model) authors-ids)
+                              (map #(get-twitter-user % token-model token-type-model model) authors-ids)
+                            ;)
               twitter-users-properties (assoc-properties-of-twitter-users twitter-users)
               deduplicated-users-properties (dedupe (sort-by #(:twitter-id %) twitter-users-properties))
               new-members (bulk-insert-new-members deduplicated-users-properties model)]
@@ -106,15 +109,17 @@
 
 (defn ensure-members-exist
   [members-ids tokens token-type members register-member]
-  (let [remaining-calls (how-many-remaining-calls-showing-user tokens token-type)
+  (let [
+        ;remaining-calls (how-many-remaining-calls-showing-user tokens token-type)
         total-members (count members-ids)]
 
     (if (pos? total-members)
       (timbre/info (str "About to ensure " total-members " member(s) exist."))
       (timbre/info (str "No need to find some missing member.")))
 
-    (if (and
-          (not (nil? remaining-calls))
-          (< total-members remaining-calls))
-      (doall (pmap #(register-member % tokens token-type members) members-ids))
-      (doall (map #(register-member % tokens token-type members) members-ids)))))
+    ;(if (and
+    ;      (not (nil? remaining-calls))
+    ;      (< total-members remaining-calls))
+    ;  (doall (pmap #(register-member % tokens token-type members) members-ids))
+      (doall (map #(register-member % tokens token-type members) members-ids)));)
+  )
