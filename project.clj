@@ -8,7 +8,8 @@
             :url "https://opensource.org/licenses/AGPL-3.0"}
 
 
-  :dependencies [[clj-time "0.15.2"]
+  :dependencies [[clj-http "3.12.3"]
+                 [clj-time "0.15.2"]
                  [com.fzakaria/slf4j-timbre "0.3.21"]
                  [com.novemberain/langohr "5.4.0" :exclusions [org.slf4j/slf4j-api]]
                  [com.taoensso/timbre "5.2.1"]

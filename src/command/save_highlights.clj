@@ -49,6 +49,18 @@
         (error-handler/log-error
           e
           "When extracting highlight props: ")))))
+(defn try-assoc
+  [checked-at]
+  (fn [tweet]
+    (try
+      (assoc
+        {:status-id (:id tweet)}
+        :total-retweets (:retweet_count tweet)
+        :checked-at checked-at
+        :total-favorites (:favorite_count tweet))
+      (catch Exception e
+        (error-handler/log-error e)
+        nil))))
 
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
@@ -58,13 +70,8 @@
         statuses (fetch-statuses filtered-highlights token token-type)
         statuses (remove #(nil? %) statuses)
         status-popularity-props (doall
-                                  (pmap
-                                    #(assoc
-                                       {:status-id (:id %)}
-                                       :total-retweets (:retweet_count %)
-                                       :checked-at checked-at
-                                       :total-favorites (:favorite_count %))
-                                    statuses))
+                                  (map (try-assoc checked-at) statuses))
+        status-popularity-props (remove #(nil? %) status-popularity-props)
         status-popularities (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)]
     (doall
       (map
