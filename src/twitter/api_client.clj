@@ -424,34 +424,39 @@
               ;             :oauth-creds (twitter-credentials @next-token)
               ;             :params {:id status-id}))
               endpoint (str "https://api.twitter.com/1.1/statuses/show.json?id=" status-id "&tweet_mode=extended&include_entities=true")
-              response (http-client/get endpoint
-                                         {:content-type :json
-                                          :accept :json
-                                          :cookie-spec (fn [http-context]
-                                              (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
-                                                ;; Version and version header
-                                                (getVersion [] 0)
-                                                (getVersionHeader [] nil)
-                                                ;; parse headers into cookie objects
-                                                (parse [header cookie-origin] (java.util.ArrayList.))
-                                                ;; Validate a cookie, throwing MalformedCookieException if the
-                                                ;; cookies isn't valid
-                                                (validate [cookie cookie-origin]
-                                                  (println "validating:" cookie))
-                                                ;; Determine if a cookie matches the target location
-                                                (match [cookie cookie-origin] true)
-                                                ;; Format a list of cookies into a list of headers
-                                                (formatCookies [cookies] (java.util.ArrayList.))))
-                                          :headers {
-                                                    :authorization bearer-token,
-                                                    :accept-language "fr-FR,en;q=0.5",
-                                                    :connection "keep-alive",
-                                                    :x-guest-token fallback-token,
-                                                    :x-twitter-active-user "yes",
-                                                    :authority "api.twitter.com",
-                                                    :DNT "1"}})
+              response (try
+                         (http-client/get endpoint
+                           {:content-type :json
+                            :accept :json
+                            :cookie-spec (fn [http-context]
+                              (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
+                                ;; Version and version header
+                                (getVersion [] 0)
+                                (getVersionHeader [] nil)
+                                ;; parse headers into cookie objects
+                                (parse [header cookie-origin] (java.util.ArrayList.))
+                                ;; Validate a cookie, throwing MalformedCookieException if the
+                                ;; cookies isn't valid
+                                (validate [cookie cookie-origin]
+                                  (println "validating:" cookie))
+                                ;; Determine if a cookie matches the target location
+                                (match [cookie cookie-origin] true)
+                                ;; Format a list of cookies into a list of headers
+                                (formatCookies [cookies] (java.util.ArrayList.))))
+                          :headers {
+                            :authorization bearer-token,
+                            :accept-language "fr-FR,en;q=0.5",
+                            :connection "keep-alive",
+                            :x-guest-token fallback-token,
+                            :x-twitter-active-user "yes",
+                            :authority "api.twitter.com",
+                            :DNT "1"}})
+                            (catch Exception e (error-handler/log-error e
+                              (str "An error occurred when fetching response from API: "))))
               _ (update-remaining-calls (:headers response) "statuses/show/:id")
-              response (assoc response :body (json/read-str (:body response)))]
+              response (if (nil? response)
+                        (throw (Exception. (str error-page-not-found)))
+                        (assoc response :body (json/read-str (:body response))))]
           (timbre/info
             (str
               "Fetched status having id #" status-id " with consumer key "
