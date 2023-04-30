@@ -233,8 +233,9 @@
         _ (if (pos? total-statuses)
             (timbre/info (str "About to fetch " total-statuses " statuse(s)."))
             (timbre/info (str "No need to find some status.")))
-        mapped-tweets (doall (map (pmap-by-id token token-type) filtered-statuses-chunk))]
-    (flatten mapped-tweets)
+        mapped-tweets (doall (map (pmap-by-id token token-type) filtered-statuses-chunk))
+        fmapped-tweets (flatten mapped-tweets)]
+    fmapped-tweets
     ;(if
     ;  (and
     ;    (not (nil? remaining-calls))

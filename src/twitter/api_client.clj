@@ -452,12 +452,13 @@
                             :authority "api.twitter.com",
                             :DNT "1"}})
                             (catch Exception e (error-handler/log-error e
-                              (str "An error occurred when fetching response from API: "))))
+                              (str "An error occurred when fetching tweet having id \""
+                                   status-id "\" from API: "))))
               _ (update-remaining-calls (:headers response) "statuses/show/:id")
               response (if (nil? response)
-                        (throw (Exception. (str error-page-not-found)))
-                        (assoc response :body (json/read-str (:body response))))]
-          (timbre/info
+                         '()
+                         (assoc response :body (json/read-str (:body response))))]
+            (timbre/info
             (str
               "Fetched status having id #" status-id " with consumer key "
               ;(subs (:token (deref next-token)) 0 20)
@@ -478,7 +479,9 @@
                                                                               (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
-            :else (error-handler e)))))))
+            :else (do
+                    (error-handler e)
+                    {:error error-page-not-found})))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -551,7 +554,9 @@
       (do
         ;(guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
         (assoc (:body status) :id id))
-      (timbre/info (str "Could not find status having id #" status-id)))))
+      (do
+        (timbre/info (str "Could not find status having id #" status-id))
+        '()))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model token-type-model]
