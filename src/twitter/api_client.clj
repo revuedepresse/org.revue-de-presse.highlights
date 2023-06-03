@@ -423,11 +423,41 @@
               ;             :client client
               ;             :oauth-creds (twitter-credentials @next-token)
               ;             :params {:id status-id}))
-              endpoint (str "https://api.twitter.com/1.1/statuses/show.json?id=" status-id "&tweet_mode=extended&include_entities=true")
+              variables (json/write-str {"focalTweetId" status-id
+                         "with_rux_injections" false
+                         "includePromotedContent" true
+                         "withCommunity" true
+                         "withQuickPromoteEligibilityTweetFields" true
+                         "withBirdwatchNotes" false
+                         "withVoice" true
+                         "withV2Timeline" true})
+              features (json/write-str {"rweb_lists_timeline_redesign_enabled" true
+                        "responsive_web_graphql_exclude_directive_enabled" true
+                        "verified_phone_label_enabled" false
+                        "creator_subscriptions_tweet_preview_api_enabled" true
+                        "responsive_web_graphql_timeline_navigation_enabled" true
+                        "responsive_web_graphql_skip_user_profile_image_extensions_enabled" false
+                        "tweetypie_unmention_optimization_enabled" true
+                        "responsive_web_edit_tweet_api_enabled" true
+                        "graphql_is_translatable_rweb_tweet_is_translatable_enabled" true
+                        "view_counts_everywhere_api_enabled" true
+                        "longform_notetweets_consumption_enabled" true
+                        "tweet_awards_web_tipping_enabled" false
+                        "freedom_of_speech_not_reach_fetch_enabled" true
+                        "standardized_nudges_misinfo" true
+                        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled" false
+                        "interactive_text_enabled" true
+                        "responsive_web_text_conversations_enabled" false
+                        "longform_notetweets_rich_text_read_enabled" true
+                        "longform_notetweets_inline_media_enabled" false
+                        "responsive_web_enhance_cards_enabled" false})
+              vars (http-client/generate-query-string {"variables" variables})
+              feats (http-client/generate-query-string {"features" features})
+              endpoint (str "https://twitter.com/i/api/graphql/JlLZj42Ltr2qwjasw-l5lQ/TweetDetail?" vars "&" feats)
               response (try
                          (http-client/get endpoint
-                           {:content-type :json
-                            :accept :json
+                           {:accept :json
+                            :content-type :json
                             :cookie-spec (fn [http-context]
                               (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
                                 ;; Version and version header
@@ -443,26 +473,27 @@
                                 (match [cookie cookie-origin] true)
                                 ;; Format a list of cookies into a list of headers
                                 (formatCookies [cookies] (java.util.ArrayList.))))
-                          :headers {
-                            :authorization bearer-token,
-                            :accept-language "fr-FR,en;q=0.5",
-                            :connection "keep-alive",
-                            :x-guest-token fallback-token,
-                            :x-twitter-active-user "yes",
-                            :authority "api.twitter.com",
-                            :DNT "1"}})
-                            (catch Exception e (error-handler/log-error e
-                              (str "An error occurred when fetching tweet having id \""
-                                   status-id "\" from API: "))))
+                            :headers {
+                              :authorization bearer-token,
+                              :accept-language "fr-FR,en;q=0.5",
+                              :connection "keep-alive",
+                              :x-guest-token fallback-token,
+                              :x-twitter-active-user "yes",
+                              :x-twitter-client-language "fr",
+                              :authority "twitter.com",
+                              :DNT "1"}})
+                              (catch Exception e (error-handler/log-error e
+                                (str "An error occurred when fetching tweet having id \""
+                                     status-id "\" from API: "))))
               _ (update-remaining-calls (:headers response) "statuses/show/:id")
               response (if (nil? response)
                          '()
                          (assoc response :body (json/read-str (:body response))))]
             (timbre/info
-            (str
-              "Fetched status having id #" status-id " with consumer key "
-              ;(subs (:token (deref next-token)) 0 20)
-              ))subs
+              (str
+                "Fetched status having id #" status-id " with consumer key "
+                ;(subs (:token (deref next-token)) 0 20)
+                ))
           response)
         (catch Exception e
           ;(timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
