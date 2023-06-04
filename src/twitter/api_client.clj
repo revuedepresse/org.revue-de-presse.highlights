@@ -486,9 +486,23 @@
                                 (str "An error occurred when fetching tweet having id \""
                                      status-id "\" from API: "))))
               _ (update-remaining-calls (:headers response) "statuses/show/:id")
+              body (-> (json/read-json
+                       (:body response))
+                       :data
+                       :threaded_conversation_with_injections_v2
+                       :instructions
+                       (get 0)
+                       :entries
+                       (get 0)
+                       :content
+                       :itemContent
+                       :tweet_results
+                       :result
+                       :legacy)
               response (if (nil? response)
                          '()
-                         (assoc response :body (json/read-str (:body response))))]
+                         (assoc response :body body))]
+
             (timbre/info
               (str
                 "Fetched status having id #" status-id " with consumer key "
