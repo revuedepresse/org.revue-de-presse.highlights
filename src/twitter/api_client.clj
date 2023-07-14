@@ -99,32 +99,35 @@
   []
   (let [bearer-token (str "Bearer " (:bearer-token env))
        fallback-endpoint (str (:fallback-endpoint env))
-       response (http-client/post fallback-endpoint
-                  {:content-type :json
-                   :accept :json
-                   :cookie-spec (fn [http-context]
-                                  (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
-                                    ;; Version and version header
-                                    (getVersion [] 0)
-                                    (getVersionHeader [] nil)
-                                    ;; parse headers into cookie objects
-                                    (parse [header cookie-origin] (java.util.ArrayList.))
-                                    ;; Validate a cookie, throwing MalformedCookieException if the
-                                    ;; cookies isn't valid
-                                    (validate [cookie cookie-origin]
-                                      (println "validating:" cookie))
-                                    ;; Determine if a cookie matches the target location
-                                    (match [cookie cookie-origin] true)
-                                    ;; Format a list of cookies into a list of headers
-                                    (formatCookies [cookies] (java.util.ArrayList.))))
-                   :headers {
-                             :authorization bearer-token,
-                             :accept-language "fr-FR,en;q=0.5",
-                             :connection "keep-alive",
-                             :x-guest-token "",
-                             :x-twitter-active-user "yes",
-                             :authority "api.twitter.com",
-                             :DNT "1"}})
+       response (try
+                  (http-client/post fallback-endpoint
+                    {:content-type :json
+                     :accept :json
+                     :cookie-spec (fn [http-context]
+                                    (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
+                                      ;; Version and version header
+                                      (getVersion [] 0)
+                                      (getVersionHeader [] nil)
+                                      ;; parse headers into cookie objects
+                                      (parse [header cookie-origin] (java.util.ArrayList.))
+                                      ;; Validate a cookie, throwing MalformedCookieException if the
+                                      ;; cookies isn't valid
+                                      (validate [cookie cookie-origin]
+                                        (println "validating:" cookie))
+                                      ;; Determine if a cookie matches the target location
+                                      (match [cookie cookie-origin] true)
+                                      ;; Format a list of cookies into a list of headers
+                                      (formatCookies [cookies] (java.util.ArrayList.))))
+                     :headers {
+                               :authorization bearer-token,
+                               :accept-language "fr-FR,en;q=0.5",
+                               :connection "keep-alive",
+                               :x-guest-token "",
+                               :x-twitter-active-user "yes",
+                               :authority "api.twitter.com",
+                               :DNT "1"}})
+                  (catch Exception e
+                    (error-handler/log-error e)))
        parsed-body (json/read-str (:body response))
        guest-token (get parsed-body "guest_token")]
   guest-token))
@@ -414,7 +417,10 @@
     (do
       (try
         (let [fallback-token @next-token
-              shall-retry (nil? retry)
+              props-or-status-id (if
+                                  (nil? (:status-id props))
+                                  (:status-id props)
+                                  props)
               bearer-token (str "Bearer " (:bearer-token env))
               variables (json/write-str {"focalTweetId" status-id
                          "with_rux_injections" false
@@ -529,6 +535,7 @@
                                                                               (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
                                                                               (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
+            (string/includes? (.getMessage e) error-empty-body) {:error error-empty-body}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (do
                     (error-handler e)

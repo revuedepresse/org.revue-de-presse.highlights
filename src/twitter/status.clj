@@ -225,7 +225,6 @@
 (defn fetch-statuses
   [statuses token token-type]
   (let [_ (find-next-token token token-type "statuses/show/:id" "trying to call \"statuses/show\" with an id")
-        ;remaining-calls (how-many-remaining-calls-for-statuses token token-type)
         filtered-statuses (remove #(nil? (:status-id %)) statuses)
         total-statuses (count filtered-statuses)
         pad (take 150 (iterate (constantly nil) nil))
@@ -235,12 +234,4 @@
             (timbre/info (str "No need to find some status.")))
         mapped-tweets (doall (map (pmap-by-id token token-type) filtered-statuses-chunk))
         fmapped-tweets (flatten mapped-tweets)]
-    fmapped-tweets
-    ;(if
-    ;  (and
-    ;    (not (nil? remaining-calls))
-    ;    (< total-statuses remaining-calls))
-    ;  (doall (pmap #(get-status-by-id % token token-type) filtered-statuses))
-    ;  (doall (map #(get-status-by-id % token token-type) filtered-statuses))))
-    )
-  )
+    fmapped-tweets))
