@@ -94,7 +94,7 @@
          highlights-partitions (partition 300 300 (vector pad) highlights)
          total-partitions (count highlights-partitions)]
      (loop [partition-index 0]
-       (when (< partition-index 2)
+       (when (< partition-index total-partitions)
          (try
            (record-popularity-of-highlights-batch (nth highlights-partitions partition-index) checked-at models)
            (catch Exception e
