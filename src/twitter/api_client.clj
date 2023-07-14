@@ -42,6 +42,7 @@
 (def error-unauthorized-favorites-list-access "Twitter responded to request '/1.1/favorites/list.json' with error 401: Not authorized.")
 (def error-no-status "Twitter responded to request with error 144: No status found with that ID.")
 (def error-bad-authentication-data "Twitter responded to request with error 215: Bad Authentication data.")
+(def error-empty-body "The response body is empty.")
 
 ; @see https://clojuredocs.org/clojure.core/declare about making forward declaration
 (declare find-next-token)
@@ -129,13 +130,9 @@
   guest-token))
 
 (defn find-first-available-token-when
-  [endpoint context token-model token-type-model]
+  [context]
   (let [selected-token (next-fallback-token)
-        excluded-access-token @current-access-token
-        ;excluded-access-tokens (frozen-access-tokens)
-        ;token-candidate (find-first-available-tokens-other-than excluded-access-tokens token-model token-type-model)
-        ;selected-token (find-token endpoint token-candidate context token-model token-type-model)
-        ]
+        excluded-access-token @current-access-token]
     (when *api-client-enabled-logging*
       (timbre/info (str "About to replace access token \"" excluded-access-token "\" with \""
                         (:token selected-token) "\" when " context)))
@@ -236,7 +233,7 @@
     (if it-is-frozen
       (do
         (set-next-token
-          (find-first-available-token-when endpoint context token-model token-type-model)
+          (find-first-available-token-when context)
           context)
         (swap! remaining-calls #(assoc % (keyword endpoint) ((keyword endpoint)
                                                              @call-limits))))
@@ -412,22 +409,52 @@
                                              :total-subscriptions 0} member-model))))))
 
 (defn get-twitter-status-by-id
-  [props token-model token-type-model]
+  [props token-model token-type-model & [retry]]
   (let [status-id (:status-id props)]
     (do
       (try
         (let [fallback-token @next-token
+              shall-retry (nil? retry)
               bearer-token (str "Bearer " (:bearer-token env))
-              ;response (with-open [client (ac/create-client)]
-              ;           (statuses-show-id
-              ;             :client client
-              ;             :oauth-creds (twitter-credentials @next-token)
-              ;             :params {:id status-id}))
-              endpoint (str "https://api.twitter.com/1.1/statuses/show.json?id=" status-id "&tweet_mode=extended&include_entities=true")
+              variables (json/write-str {"focalTweetId" status-id
+                         "with_rux_injections" false
+                         "includePromotedContent" true
+                         "withCommunity" true
+                         "withQuickPromoteEligibilityTweetFields" true
+                         "withBirdwatchNotes" true
+                         "withVoice" true
+                         "withV2Timeline" true})
+              features (json/write-str {"rweb_lists_timeline_redesign_enabled" true
+                        "responsive_web_graphql_exclude_directive_enabled" true
+                        "verified_phone_label_enabled" false
+                        "creator_subscriptions_tweet_preview_api_enabled" true
+                        "responsive_web_graphql_timeline_navigation_enabled" true
+                        "responsive_web_graphql_skip_user_profile_image_extensions_enabled" false
+                        "tweetypie_unmention_optimization_enabled" true
+                        "responsive_web_edit_tweet_api_enabled" true
+                        "graphql_is_translatable_rweb_tweet_is_translatable_enabled" true
+                        "view_counts_everywhere_api_enabled" true
+                        "longform_notetweets_consumption_enabled" true
+                        "responsive_web_twitter_article_tweet_consumption_enabled" false
+                        "tweet_awards_web_tipping_enabled" false
+                        "freedom_of_speech_not_reach_fetch_enabled" true
+                        "standardized_nudges_misinfo" true
+                        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled" true
+                        "longform_notetweets_rich_text_read_enabled" true
+                        "longform_notetweets_inline_media_enabled" true
+                        "responsive_web_media_download_video_enabled" false,
+                        "responsive_web_enhance_cards_enabled" false})
+              fieldToggles (json/write-str {"withAuxiliaryUserLabels" false
+                                            "withArticleRichContentState" false})
+              vars (http-client/generate-query-string {"variables" variables})
+              feats (http-client/generate-query-string {"features" features})
+              fieldToggles (http-client/generate-query-string {"fieldToggles" fieldToggles})
+              publication-endpoint (str (:publication-endpoint env))
+              endpoint (str publication-endpoint "?" vars "&" feats "&" fieldToggles)
               response (try
                          (http-client/get endpoint
-                           {:content-type :json
-                            :accept :json
+                           {:accept :json
+                            :content-type :json
                             :cookie-spec (fn [http-context]
                               (proxy [org.apache.http.impl.cookie.CookieSpecBase] []
                                 ;; Version and version header
@@ -443,28 +470,53 @@
                                 (match [cookie cookie-origin] true)
                                 ;; Format a list of cookies into a list of headers
                                 (formatCookies [cookies] (java.util.ArrayList.))))
-                          :headers {
-                            :authorization bearer-token,
-                            :accept-language "fr-FR,en;q=0.5",
-                            :connection "keep-alive",
-                            :x-guest-token fallback-token,
-                            :x-twitter-active-user "yes",
-                            :authority "api.twitter.com",
-                            :DNT "1"}})
-                            (catch Exception e (error-handler/log-error e
-                              (str "An error occurred when fetching response from API: "))))
-              _ (update-remaining-calls (:headers response) "statuses/show/:id")
+                            :headers {
+                              :authorization bearer-token,
+                              :accept-language "fr-FR,en;q=0.5",
+                              :connection "keep-alive",
+                              :x-guest-token fallback-token,
+                              :x-twitter-active-user "yes",
+                              :x-twitter-client-language "fr",
+                              :authority "twitter.com",
+                              :DNT "1"}})
+                              (catch Exception e
+                                (if (nil? retry)
+                                  (do
+                                    (find-next-token token-model token-type-model "statuses/show/:id" "trying to call \"statuses/show\" with an id")
+                                    (timbre/info (str "Rotated access tokens before accessing publication having id #" status-id))
+                                    (get-twitter-status-by-id props token-model token-type-model :retry))
+                                  (error-handler/log-error e
+                                    (str "An error occurred when fetching tweet having id \"" status-id "\" from API: ")))))
+              body (if
+                    (nil? (:body response))
+                    (throw (Exception. (str error-empty-body)))
+                    (try
+                      (if
+                        (nil? (:full_text (:body response)))
+                        (-> (json/read-json
+                              (:body response))
+                            :data
+                            :threaded_conversation_with_injections_v2
+                            :instructions
+                            (get 0)
+                            :entries
+                            (get 0)
+                            :content
+                            :itemContent
+                            :tweet_results
+                            :result
+                            :legacy)
+                        (:body response))
+                      (catch Exception e
+                        (error-handler/log-error e))))
               response (if (nil? response)
-                        (throw (Exception. (str error-page-not-found)))
-                        (assoc response :body (json/read-str (:body response))))]
+                         '()
+                         (assoc response :body body))]
           (timbre/info
             (str
-              "Fetched status having id #" status-id " with consumer key "
-              ;(subs (:token (deref next-token)) 0 20)
-              ))subs
+              "Fetched status having id #" status-id " with consumer key"))
           response)
         (catch Exception e
-          ;(timbre/info (str "{\"token\": \"" (subs (:token (deref next-token)) 0 20) "\"}"))
           (timbre/warn (.getMessage e))
           (cond
             (page-not-found-exception? e) (make-not-found-statuses-response
@@ -478,7 +530,9 @@
                                                                               (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
-            :else (error-handler e)))))))
+            :else (do
+                    (error-handler e)
+                    {:error error-page-not-found})))))))
 
 (defn know-all-about-remaining-calls-and-limit
   []
@@ -509,19 +563,9 @@
         twitter-user))))
 
 (defn status-by-prop
-  [props token-model token-type-model context]
-  ;(if
-  ;  (and
-  ;    (know-all-about-remaining-calls-and-limit)
-  ;    (is-rate-limit-exceeded))
-  ;  (do
-  ;    (freeze-current-token)
-  ;    (find-next-token token-model token-type-model "statuses/show/:id" context)
-  ;    (status-by-prop props token-model token-type-model context))
+  [props token-model token-type-model]
     (let [twitter-status (get-twitter-status-by-id props token-model token-type-model)]
-      twitter-status)
-  ;)
-  )
+      twitter-status))
 
 (defn get-member-by-screen-name
   [screen-name token-model token-type-model member-model]
@@ -542,16 +586,17 @@
 (defn get-status-by-id
   [{id        :id
     status-id :status-id} token-model token-type-model]
-  (let [status (status-by-prop {:status-id status-id :id id} token-model token-type-model "a call to \"statuses/show\" with an id")
+  (let [status (status-by-prop {:status-id status-id :id id} token-model token-type-model)
         headers (:headers status)]
     (if
       (and
         (some? headers)
         (nil? (:error status)))
       (do
-        ;(guard-against-api-rate-limit headers "statuses/show/:id" nil token-model token-type-model)
         (assoc (:body status) :id id))
-      (timbre/info (str "Could not find status having id #" status-id)))))
+      (do
+        (timbre/info (str "Could not find status having id #" status-id))
+        '()))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model token-type-model]

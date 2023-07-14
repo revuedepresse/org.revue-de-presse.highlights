@@ -55,12 +55,12 @@
     (try
       (assoc
         {:status-id (:id tweet)}
-        :total-retweets (:retweet_count tweet)
-        :checked-at checked-at
-        :total-favorites (:favorite_count tweet))
+         :total-retweets (get tweet :retweet_count)
+         :checked-at checked-at
+         :total-favorites (get tweet :favorite_count))
       (catch Exception e
-        (error-handler/log-error e)
-        nil))))
+        (let [error-message (.getMessage e)]
+          (error-handler/log-error error-message))))))
 
 (defn record-popularity-of-highlights-batch
   [highlights checked-at {status-popularity :status-popularity
@@ -71,8 +71,11 @@
         statuses (remove #(nil? %) statuses)
         status-popularity-props (doall
                                   (map (try-assoc checked-at) statuses))
-        status-popularity-props (remove #(nil? %) status-popularity-props)
-        status-popularities (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)]
+        status-popularity-props (remove #(nil? (:total-retweets %)) status-popularity-props)
+        status-popularities (try
+                              (bulk-insert-of-status-popularity-props status-popularity-props checked-at status-popularity)
+                              (catch Exception e
+                                (error-handler/log-error e (str "Could not bulk insert status popularity"))))]
     (doall
       (map
         #(timbre/info (str "Saved popularity of status #" (:status-id %)))

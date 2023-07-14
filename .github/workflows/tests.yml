@@ -17,8 +17,11 @@ jobs:
           - 5433:5432
 
     steps:
+      - name: Update sources
+        run: sudo apt update --assume-yes
+
       - name: Install packages
-        run: sudo apt-get install bash gzip postgresql-client tar wget
+        run: sudo apt install bash gzip postgresql-client tar wget --assume-yes
 
       - name: Checkout project
         uses: actions/checkout@v3
