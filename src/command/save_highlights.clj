@@ -25,15 +25,18 @@
     (try
       (let [api-document (:api-document document)
             decoded-document (json/read-str api-document)
-            retweet-publication-date-time (if (some? (get decoded-document "retweeted_status"))
-                                            (get (get decoded-document "retweeted_status") "created_at")
-                                            nil)
+            retweet-publication-date-time (cond
+                                            (some? (get decoded-document "retweeted_status")) (get (get decoded-document "retweeted_status") "created_at")
+                                            (some? (get decoded-document "retweeted_status_result")) (get (get decoded-document "retweeted_status_result") "created_at")
+                                            :else nil)
             highlight-props {:id                                (uuid/v1)
                              :member-id                         (:member-id document)
                              :status-id                         (:status-id document)
                              :aggregate-id                      (:id aggregate)
                              :aggregate-name                    (:name aggregate)
-                             :is-retweet                        (some? (get decoded-document "retweeted_status"))
+                             :is-retweet                        (or
+                                                                  (some? (get decoded-document "retweeted_status"))
+                                                                  (some? (get decoded-document "retweeted_status_result")))
                              :publication-date-time             (:publication-date-time document)
                              :retweeted-status-publication-date (if (some? retweet-publication-date-time)
                                                                   (c/to-timestamp
