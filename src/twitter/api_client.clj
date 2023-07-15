@@ -417,10 +417,6 @@
     (do
       (try
         (let [fallback-token @next-token
-              props-or-status-id (if
-                                  (nil? (:status-id props))
-                                  (:status-id props)
-                                  props)
               bearer-token (str "Bearer " (:bearer-token env))
               variables (json/write-str {"focalTweetId" status-id
                          "with_rux_injections" false
