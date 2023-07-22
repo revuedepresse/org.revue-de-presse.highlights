@@ -602,15 +602,15 @@
     status-id :status-id} token-model token-type-model]
   (let [status (status-by-prop {:status-id status-id :id id} token-model token-type-model)
         headers (:headers status)]
-    (if
+    (cond
+      (nil? status) nil
       (and
         (some? headers)
-        (nil? (:error status)))
-      (do
-        (assoc (:body status) :id id))
-      (do
-        (timbre/info (str "Could not find status having id #" status-id))
-        '()))))
+        (nil? (:error status))) (do
+                                  (assoc (:body status) :id id))
+      :else (do
+              (timbre/info (str "Could not find status having id #" status-id))
+              '()))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model token-type-model]
