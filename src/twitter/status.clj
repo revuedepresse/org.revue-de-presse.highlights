@@ -218,7 +218,7 @@
   [token token-type]
   (fn [chunk]
     (let [_ chunk
-          res (pmap (by-id token token-type) chunk)
+          res (take-while (by-id token token-type) chunk)
           _ (find-next-token token token-type "statuses/show/:id" "trying to call \"statuses/show\" with an id")]
       res)))
 

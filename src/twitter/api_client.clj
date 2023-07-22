@@ -416,8 +416,7 @@
   (let [status-id (:status-id props)]
     (do
       (try
-        (let [fallback-token @next-token
-              bearer-token (str "Bearer " (:bearer-token env))
+        (let [bearer-token (str "Bearer " (:bearer-token env))
               variables (json/write-str {"rest_id" status-id})
               features (json/write-str {"android_graphql_skip_api_media_color_palette" false
                                         "blue_business_profile_image_shape_enabled" false
@@ -543,7 +542,7 @@
                                                                               (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
                                                                               (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
-            (string/includes? (.getMessage e) error-empty-body) {:error error-empty-body}
+            (string/includes? (.getMessage e) error-empty-body) nil
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (do
                     (error-handler e)
