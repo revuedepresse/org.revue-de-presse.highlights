@@ -1,7 +1,6 @@
 # Highlights
 
-Command-line application for updating tweets properties (especially retweets)   
-curated by calling Twitter API.
+Command-line application for updating micro-publications properties (reposts, likes).
 
 ## Documentation
 
