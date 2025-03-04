@@ -416,43 +416,52 @@
   (let [status-id (:status-id props)]
     (do
       (try
-        (let [fallback-token @next-token
-              bearer-token (str "Bearer " (:bearer-token env))
-              variables (json/write-str {"focalTweetId" status-id
-                         "with_rux_injections" false
-                         "includePromotedContent" true
-                         "withCommunity" true
-                         "withQuickPromoteEligibilityTweetFields" true
-                         "withBirdwatchNotes" true
-                         "withVoice" true
-                         "withV2Timeline" true})
-              features (json/write-str {"rweb_lists_timeline_redesign_enabled" true
-                        "responsive_web_graphql_exclude_directive_enabled" true
-                        "verified_phone_label_enabled" false
-                        "creator_subscriptions_tweet_preview_api_enabled" true
-                        "responsive_web_graphql_timeline_navigation_enabled" true
-                        "responsive_web_graphql_skip_user_profile_image_extensions_enabled" false
-                        "tweetypie_unmention_optimization_enabled" true
-                        "responsive_web_edit_tweet_api_enabled" true
-                        "graphql_is_translatable_rweb_tweet_is_translatable_enabled" true
-                        "view_counts_everywhere_api_enabled" true
-                        "longform_notetweets_consumption_enabled" true
-                        "responsive_web_twitter_article_tweet_consumption_enabled" false
-                        "tweet_awards_web_tipping_enabled" false
-                        "freedom_of_speech_not_reach_fetch_enabled" true
-                        "standardized_nudges_misinfo" true
-                        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled" true
-                        "longform_notetweets_rich_text_read_enabled" true
-                        "longform_notetweets_inline_media_enabled" true
-                        "responsive_web_media_download_video_enabled" false,
-                        "responsive_web_enhance_cards_enabled" false})
-              fieldToggles (json/write-str {"withAuxiliaryUserLabels" false
-                                            "withArticleRichContentState" false})
+        (let [bearer-token (str "Bearer " (:bearer-token env))
+              variables (json/write-str {"rest_id" status-id})
+              features (json/write-str {"android_graphql_skip_api_media_color_palette" false
+                                        "blue_business_profile_image_shape_enabled" false
+                                        "creator_subscriptions_subscription_count_enabled" false
+                                        "creator_subscriptions_tweet_preview_api_enabled" true
+                                        "freedom_of_speech_not_reach_fetch_enabled" false
+                                        "graphql_is_translatable_rweb_tweet_is_translatable_enabled" false
+                                        "hidden_profile_likes_enabled" false
+                                        "highlights_tweets_tab_ui_enabled" false
+                                        "interactive_text_enabled" false
+                                        "longform_notetweets_consumption_enabled" true
+                                        "longform_notetweets_inline_media_enabled" false
+                                        "longform_notetweets_richtext_consumption_enabled" true
+                                        "longform_notetweets_rich_text_read_enabled" false
+                                        "responsive_web_edit_tweet_api_enabled" false
+                                        "responsive_web_enhance_cards_enabled" false
+                                        "responsive_web_graphql_exclude_directive_enabled" true
+                                        "responsive_web_graphql_skip_user_profile_image_extensions_enabled" false
+                                        "responsive_web_graphql_timeline_navigation_enabled" false
+                                        "responsive_web_media_download_video_enabled" false
+                                        "responsive_web_text_conversations_enabled" false
+                                        "responsive_web_twitter_article_tweet_consumption_enabled" false
+                                        "responsive_web_twitter_blue_verified_badge_is_enabled" true
+                                        "rweb_lists_timeline_redesign_enabled" true
+                                        "spaces_2022_h2_clipping" true
+                                        "spaces_2022_h2_spaces_communities" true
+                                        "standardized_nudges_misinfo" false
+                                        "subscriptions_verification_info_enabled" true
+                                        "subscriptions_verification_info_reason_enabled" true
+                                        "subscriptions_verification_info_verified_since_enabled" true
+                                        "super_follow_badge_privacy_enabled" false
+                                        "super_follow_exclusive_tweet_notifications_enabled" false
+                                        "super_follow_tweet_api_enabled" false
+                                        "super_follow_user_api_enabled" false
+                                        "tweet_awards_web_tipping_enabled" false
+                                        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled" false
+                                        "tweetypie_unmention_optimization_enabled" false
+                                        "unified_cards_ad_metadata_container_dynamic_card_content_query_enabled" false
+                                        "verified_phone_label_enabled" false
+                                        "vibe_api_enabled" false
+                                        "view_counts_everywhere_api_enabled" false})
               vars (http-client/generate-query-string {"variables" variables})
               feats (http-client/generate-query-string {"features" features})
-              fieldToggles (http-client/generate-query-string {"fieldToggles" fieldToggles})
               publication-endpoint (str (:publication-endpoint env))
-              endpoint (str publication-endpoint "?" vars "&" feats "&" fieldToggles)
+              endpoint (str publication-endpoint "?" vars "&" feats)
               response (try
                          (http-client/get endpoint
                            {:accept :json
@@ -474,12 +483,14 @@
                                 (formatCookies [cookies] (java.util.ArrayList.))))
                             :headers {
                               :authorization bearer-token,
+                              :accept-encoding "gzip"
                               :accept-language "fr-FR,en;q=0.5",
+                              :accept "*/*",
                               :connection "keep-alive",
-                              :x-guest-token fallback-token,
+                              :x-guest-token "",
                               :x-twitter-active-user "yes",
                               :x-twitter-client-language "fr",
-                              :authority "twitter.com",
+                              :authority "api.twitter.com",
                               :DNT "1"}})
                               (catch Exception e
                                 (if (nil? retry)
@@ -531,7 +542,7 @@
                                                                               (handle-rate-limit-exceeded-error "statuses/show/:id" token-model token-type-model)
                                                                               (get-twitter-status-by-id props token-model token-type-model))
             (string/includes? (.getMessage e) error-no-status) {:error error-no-status}
-            (string/includes? (.getMessage e) error-empty-body) {:error error-empty-body}
+            (string/includes? (.getMessage e) error-empty-body) nil
             (string/includes? (.getMessage e) error-missing-status-id) {:error error-missing-status-id}
             :else (do
                     (error-handler e)
@@ -591,15 +602,15 @@
     status-id :status-id} token-model token-type-model]
   (let [status (status-by-prop {:status-id status-id :id id} token-model token-type-model)
         headers (:headers status)]
-    (if
+    (cond
+      (nil? status) nil
       (and
         (some? headers)
-        (nil? (:error status)))
-      (do
-        (assoc (:body status) :id id))
-      (do
-        (timbre/info (str "Could not find status having id #" status-id))
-        '()))))
+        (nil? (:error status))) (do
+                                  (assoc (:body status) :id id))
+      :else (do
+              (timbre/info (str "Could not find status having id #" status-id))
+              '()))))
 
 (defn get-id-of-member-having-username
   [screen-name member-model token-model token-type-model]
